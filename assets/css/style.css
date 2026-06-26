@@ -330,3 +330,15 @@ p{margin:0 0 1em}
   background:#16161A !important;color:#F2EDE4 !important;border-color:#FFFFFF33 !important
 }
 .snipcart-form__label,.snipcart-form__field__title,.snipcart label{color:#C9C2B5 !important}
+
+/* Snipcart error and notification boxes (override pink-on-pink defaults) */
+.snipcart [class*="error"],.snipcart [class*="alert"],.snipcart [class*="notification"],
+.snipcart-typo-error,.snipcart-form__error,.snipcart-checkout-error{
+  background:#1F1F24 !important;color:#F2EDE4 !important;border-left:3px solid #C8102E !important
+}
+.snipcart [class*="error"] *,.snipcart [class*="alert"] *,.snipcart [class*="notification"] *{
+  color:#F2EDE4 !important
+}
+.snipcart-info-box,.snipcart-typo-info{
+  background:#1F1F24 !important;color:#F2EDE4 !important;border-left:3px solid #C9A24B !important
+}
