@@ -313,3 +313,20 @@ p{margin:0 0 1em}
   --bgColor-headerCheckout:#0E0E10;
 }
 
+
+/* Snipcart modal must sit above the sticky site header */
+#snipcart{position:relative;z-index:9999}
+.snipcart-modal,.snipcart-cart,.snipcart__box,.snipcart-modal__container{z-index:9999 !important}
+
+/* Force readable text colors in Snipcart for our dark theme */
+.snipcart h1,.snipcart h2,.snipcart h3,.snipcart h4,
+.snipcart-cart-summary-item__name,.snipcart-cart-summary-item__price,
+.snipcart-cart-summary-item__quantity,.snipcart__box__header,
+.snipcart-cart-summary__title,.snipcart-cart-header__title{
+  color:#F2EDE4 !important;opacity:1 !important
+}
+.snipcart-base-button,.snipcart-checkout-button{color:#F2EDE4 !important;background:#C8102E !important}
+.snipcart-form__field input,.snipcart-form__field select,.snipcart-form__field textarea{
+  background:#16161A !important;color:#F2EDE4 !important;border-color:#FFFFFF33 !important
+}
+.snipcart-form__label,.snipcart-form__field__title,.snipcart label{color:#C9C2B5 !important}
