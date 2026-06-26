@@ -29,7 +29,8 @@
       var snipId=form.getAttribute('data-snipcart-id');
       var snipPrice=parseFloat(form.getAttribute('data-snipcart-price')||'0');
       var snipImage=form.getAttribute('data-snipcart-image')||'';
-      var snipUrl=location.pathname.split('/').pop()||location.href;
+      var hiddenBtn=document.querySelector('.snipcart-add-item[data-item-id="'+snipId+'"]');
+      var snipUrl=hiddenBtn?hiddenBtn.getAttribute('data-item-url'):location.pathname;
 
       if(!snipId||!window.Snipcart){
         alert('Cart is still loading. Please wait a moment and try again.');

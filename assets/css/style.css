@@ -342,3 +342,14 @@ p{margin:0 0 1em}
 .snipcart-info-box,.snipcart-typo-info{
   background:#1F1F24 !important;color:#F2EDE4 !important;border-left:3px solid #C9A24B !important
 }
+
+/* Catch-all for any remaining faint Snipcart text */
+.snipcart-cart-summary-fees__notice,.snipcart-discount-box,
+.snipcart-base-text,.snipcart-typo-message{color:#F2EDE4 !important}
+.snipcart [class*="notice"]:not(button),.snipcart [class*="message"]:not(button),
+.snipcart [class*="info-box"]:not(button){
+  background:#1F1F24 !important;color:#F2EDE4 !important
+}
+.snipcart [class*="notice"] *:not(svg),.snipcart [class*="info-box"] *:not(svg){
+  color:#F2EDE4 !important
+}
