@@ -353,3 +353,13 @@ p{margin:0 0 1em}
 .snipcart [class*="notice"] *:not(svg),.snipcart [class*="info-box"] *:not(svg){
   color:#F2EDE4 !important
 }
+
+
+/* Fix black background on Snipcart checkout dropdowns */
+.snipcart select,
+.snipcart select option,
+.snipcart__input--select {
+    background-color: #ffffff !important;
+    color: #1a1a1a !important;
+    border-color: #d1d5db !important;
+}
