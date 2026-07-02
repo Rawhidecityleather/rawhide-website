@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:g="http://base.google.com/ns/1.0">
+  <channel>
+    <title>Rawhide City Leather</title>
+    <link>https://rawhidecitylthr.com/</link>
+    <description>Handmade firefighter leather gear. Hand-cut, hand-stamped, and finished by hand in Lakeland, Florida.</description>
+
+    <item>
+      <g:id>fully-custom-radio-strap</g:id>
+      <g:title>Fully Custom Adjustable Radio Strap</g:title>
+      <g:description>Built ground-up to your spec. Hand-stamped name, department insignia, custom design work. Full-grain leather, made to order by hand in Lakeland, Florida. 6 week lead time.</g:description>
+      <g:link>https://rawhidecitylthr.com/product-fully-custom-radio-strap.html</g:link>
+      <g:image_link>https://rawhidecitylthr.com/assets/img/products/fully-custom-radio-strap.jpg</g:image_link>
+      <g:price>150.00 USD</g:price>
+      <g:availability>in_stock</g:availability>
+      <g:condition>new</g:condition>
+      <g:brand>Rawhide City Leather</g:brand>
+      <g:identifier_exists>no</g:identifier_exists>
+      <g:product_type>Radio Straps</g:product_type>
+      <g:min_handling_time>25</g:min_handling_time>
+      <g:max_handling_time>30</g:max_handling_time>
+      <g:shipping>
+        <g:country>US</g:country>
+        <g:service>USPS</g:service>
+        <g:price>10.00 USD</g:price>
+      </g:shipping>
+    </item>
+
+    <item>
+      <g:id>basic-radio-strap</g:id>
+      <g:title>Basic Adjustable Radio Strap</g:title>
+      <g:description>Clean, no-frills adjustable leather radio strap. Contrast stitching, solid hardware, matching radio pouch included. Full-grain leather, made to order by hand in Lakeland, Florida. 6 week lead time.</g:description>
+      <g:link>https://rawhidecitylthr.com/product-basic-radio-strap.html</g:link>
+      <g:image_link>https://rawhidecitylthr.com/assets/img/products/basic-radio-strap.jpg</g:image_link>
+      <g:price>85.00 USD</g:price>
+      <g:availability>in_stock</g:availability>
+      <g:condition>new</g:condition>
+      <g:brand>Rawhide City Leather</g:brand>
+      <g:identifier_exists>no</g:identifier_exists>
+      <g:product_type>Radio Straps</g:product_type>
+      <g:min_handling_time>25</g:min_handling_time>
+      <g:max_handling_time>30</g:max_handling_time>
+      <g:shipping>
+        <g:country>US</g:country>
+        <g:service>USPS</g:service>
+        <g:price>10.00 USD</g:price>
+      </g:shipping>
+    </item>
+
+    <item>
+      <g:id>basket-weave-belt</g:id>
+      <g:title>Basket Weave Leather Belt</g:title>
+      <g:description>Classic basket weave leather belt. Hand-stamped, rich finish, built to outlast every belt you've ever owned. Full-grain leather, made to order by hand in Lakeland, Florida. 6 week lead time.</g:description>
+      <g:link>https://rawhidecitylthr.com/product-basket-weave-belt.html</g:link>
+      <g:image_link>https://rawhidecitylthr.com/assets/img/products/basket-weave-belt.jpg</g:image_link>
+      <g:price>75.00 USD</g:price>
+      <g:availability>in_stock</g:availability>
+      <g:condition>new</g:condition>
+      <g:brand>Rawhide City Leather</g:brand>
+      <g:identifier_exists>no</g:identifier_exists>
+      <g:product_type>Belts</g:product_type>
+      <g:google_product_category>169</g:google_product_category>
+      <g:min_handling_time>25</g:min_handling_time>
+      <g:max_handling_time>30</g:max_handling_time>
+      <g:shipping>
+        <g:country>US</g:country>
+        <g:service>USPS</g:service>
+        <g:price>10.00 USD</g:price>
+      </g:shipping>
+    </item>
+
+    <item>
+      <g:id>helmet-band</g:id>
+      <g:title>Leather Helmet Band</g:title>
+      <g:description>Heavy-duty leather helmet band, hand-cut and built to last. Built to hold your front piece, gloves, or whatever you slide under it. Made to order by hand in Lakeland, Florida. 6 week lead time.</g:description>
+      <g:link>https://rawhidecitylthr.com/product-helmet-band.html</g:link>
+      <g:image_link>https://rawhidecitylthr.com/assets/img/products/helmet-band.jpg</g:image_link>
+      <g:price>50.00 USD</g:price>
+      <g:availability>in_stock</g:availability>
+      <g:condition>new</g:condition>
+      <g:brand>Rawhide City Leather</g:brand>
+      <g:identifier_exists>no</g:identifier_exists>
+      <g:product_type>Helmet Gear</g:product_type>
+      <g:min_handling_time>25</g:min_handling_time>
+      <g:max_handling_time>30</g:max_handling_time>
+      <g:shipping>
+        <g:country>US</g:country>
+        <g:service>USPS</g:service>
+        <g:price>10.00 USD</g:price>
+      </g:shipping>
+    </item>
+
+    <item>
+      <g:id>glove-strap</g:id>
+      <g:title>Adjustable Leather Glove Strap</g:title>
+      <g:description>A simple, no-nonsense leather glove strap that keeps your structure gloves on your gear, not on the floor. Made to order by hand in Lakeland, Florida. 6 week lead time.</g:description>
+      <g:link>https://rawhidecitylthr.com/product-glove-strap.html</g:link>
+      <g:image_link>https://rawhidecitylthr.com/assets/img/products/glove-strap.jpg</g:image_link>
+      <g:price>30.00 USD</g:price>
+      <g:availability>in_stock</g:availability>
+      <g:condition>new</g:condition>
+      <g:brand>Rawhide City Leather</g:brand>
+      <g:identifier_exists>no</g:identifier_exists>
+      <g:product_type>Accessories</g:product_type>
+      <g:min_handling_time>25</g:min_handling_time>
+      <g:max_handling_time>30</g:max_handling_time>
+      <g:shipping>
+        <g:country>US</g:country>
+        <g:service>USPS</g:service>
+        <g:price>10.00 USD</g:price>
+      </g:shipping>
+    </item>
+
+  </channel>
+</rss>
