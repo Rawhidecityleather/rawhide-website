@@ -1,7 +1,13 @@
 (function(){
   var toggle=document.querySelector('[data-nav-toggle]');
   var nav=document.querySelector('[data-site-nav]');
-  if(toggle&&nav){toggle.addEventListener('click',function(){nav.classList.toggle('open')});}
+  if(toggle&&nav){
+    toggle.setAttribute('aria-expanded','false');
+    toggle.addEventListener('click',function(){
+      var open=nav.classList.toggle('open');
+      toggle.setAttribute('aria-expanded',open?'true':'false');
+    });
+  }
   var year=document.getElementById('year');
   if(year)year.textContent=new Date().getFullYear();
 
@@ -9,8 +15,8 @@
   document.querySelectorAll('[data-gallery]').forEach(function(gallery){
     var main=gallery.querySelector('[data-main]');
     if(!main)return;
-    gallery.querySelectorAll('.thumb').forEach(function(thumb){
-      thumb.addEventListener('click',function(){
+    gallery.querySelectorAll('.thumb').forEach(function(thumb,i){
+      thumb.setAttribute('aria-label','View photo '+(i+1));thumb.addEventListener('click',function(){
         var full=thumb.getAttribute('data-full');
         if(!full)return;
         main.src=full;
