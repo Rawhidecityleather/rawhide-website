@@ -291,6 +291,7 @@ p{margin:0 0 1em}
 
 /* Required-field asterisk */
 .order-form .req{color:var(--c-text);margin-left:4px;font-weight:700}
+.order-form .optional{color:var(--c-muted);font-weight:400;font-size:.85em;text-transform:none;letter-spacing:0}
 
 /* Snipcart cart link in header */
 .cart-link{position:relative;display:inline-flex;align-items:center;justify-content:center;color:var(--c-text);padding:8px;border:1px solid transparent;transition:color .2s,border-color .2s}

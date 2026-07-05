@@ -39,10 +39,10 @@
       <h1>Helmet Band</h1>
       <p class="product-price">$50.00</p>
       <form class="order-form" data-order-form data-product="Helmet Band" data-snipcart-id="helmet-band" data-snipcart-price="50.00" data-snipcart-image="/assets/img/products/helmet-band.jpg">
-        <div class="form-row"><label for="hb-helmet">Helmet Make &amp; Model</label><input id="hb-helmet" name="helmet" data-label="Helmet make &amp; model" type="text" placeholder="e.g. Cairns N5A, Phenix TL-2" required></div>
+        <div class="form-row"><label for="hb-helmet">Helmet Make &amp; Model<span class="req">*</span></label><input id="hb-helmet" name="helmet" data-label="Helmet make &amp; model" type="text" placeholder="e.g. Cairns N5A, Phenix TL-2" required></div>
         <div class="form-row-2">
-          <div class="form-row"><label for="hb-leather">Leather Color</label><select id="hb-leather" name="leather" data-label="Leather color"><option>Black</option><option>Brown</option><option>Natural</option></select></div>
-          <div class="form-row"><label for="hb-lettercolor">Letter Color</label><select id="hb-lettercolor" name="lettercolor" data-label="Letter color"><option>None / plain</option><option>Gold</option><option>Red</option><option>White</option><option>Black</option></select></div>
+          <div class="form-row"><label for="hb-leather">Leather Color<span class="req">*</span></label><select id="hb-leather" name="leather" data-label="Leather color" required><option value="" disabled selected hidden>Select...</option><option>Black</option><option>Brown</option></select></div>
+          <div class="form-row"><label for="hb-lettercolor">Letter Color <span class="optional">(optional)</span></label><select id="hb-lettercolor" name="lettercolor" data-label="Letter color"><option>None / plain</option><option>Gold</option><option>Red</option><option>White</option><option>Black</option></select></div>
         </div>
         <div class="form-row"><label for="hb-tooling">Tooling Text (optional)</label><input id="hb-tooling" name="tooling" data-label="Tooling text" type="text" placeholder="Last name, station #, rank, etc."></div>
         <div class="form-row"><label for="hb-notes">Additional Notes</label><textarea id="hb-notes" name="notes" data-label="Notes" placeholder="Insignia, memorial, anything else"></textarea></div>
