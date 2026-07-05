@@ -4,3 +4,5 @@ README.md
 .gitattributes
 .gitignore
 brand-explorations/
+.git
+.wrangler/
