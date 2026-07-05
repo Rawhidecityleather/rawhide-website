@@ -193,7 +193,7 @@ p{margin:0 0 1em}
 .product-page{padding:60px 0 110px}
 .product-page-grid{display:grid;grid-template-columns:1.1fr 1fr;gap:64px}
 .product-media{background:transparent}
-.product-media > img:first-child{width:100%;aspect-ratio:1/1;object-fit:cover;display:block;background:var(--c-bg-2);border:1px solid var(--c-line)}
+.product-media > img:first-child{width:100%;aspect-ratio:1/1;object-fit:contain;display:block;background:var(--c-bg-2);border:1px solid var(--c-line)}
 .product-info h1{margin-bottom:.3em}
 .product-price{font-family:var(--font-stamp);font-size:1.7rem;font-weight:700;color:var(--c-text);margin-bottom:1.8em}
 .product-description{padding-top:28px;border-top:1px solid var(--c-line);margin-top:28px;color:var(--c-text-soft)}
