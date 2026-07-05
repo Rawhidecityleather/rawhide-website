@@ -28,6 +28,18 @@
     });
   });
 
+  // Checkout wording: the first Snipcart step collects the address that is used
+  // for shipping by default, so label the steps for what they really do.
+  function setCheckoutLabels(){
+    if(!window.Snipcart||!window.Snipcart.api)return;
+    window.Snipcart.api.session.setLanguage('en',{
+      billing:{title:'Your Address'},
+      shipping:{title:'Shipping Method'}
+    });
+  }
+  document.addEventListener('snipcart.ready',setCheckoutLabels);
+  setCheckoutLabels();
+
   // Order forms: on submit, push the item + all customizations into the Snipcart cart.
   var forms=document.querySelectorAll('[data-order-form]');
   forms.forEach(function(form){
