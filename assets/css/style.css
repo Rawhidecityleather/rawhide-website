@@ -54,6 +54,13 @@ p{margin:0 0 1em}
 .site-nav ul{display:flex;gap:36px;list-style:none;margin:0;padding:0;justify-content:center}
 .site-nav a{font-family:var(--font-display);font-weight:500;font-size:.92rem;letter-spacing:.18em;text-transform:uppercase;padding:8px 0;color:var(--c-text);border-bottom:2px solid transparent;display:inline-block}
 .site-nav a:hover,.site-nav a.active{border-bottom-color:var(--c-text);color:var(--c-cream)}
+.site-nav li{position:relative}
+.site-nav .dropdown{position:absolute;top:calc(100% + 10px);left:50%;transform:translateX(-50%);min-width:200px;background:var(--c-bg);border:1px solid var(--c-line);padding:10px 0;display:none;z-index:60;box-shadow:0 14px 30px rgba(0,0,0,.18)}
+.site-nav .dropdown::before{content:"";position:absolute;top:-12px;left:0;right:0;height:12px}
+.site-nav .has-dropdown:hover .dropdown,.site-nav .has-dropdown:focus-within .dropdown{display:block}
+.site-nav .dropdown li{display:block}
+.site-nav .dropdown a{display:block;padding:9px 20px;border-bottom:0;font-size:.8rem;letter-spacing:.14em;white-space:nowrap}
+.site-nav .dropdown a:hover,.site-nav .dropdown a.active{border-bottom:0;background:var(--c-bg-2)}
 .nav-toggle{display:none;background:none;border:0;padding:8px;cursor:pointer}
 .nav-toggle span{display:block;width:22px;height:2px;background:var(--c-cream);margin:4px 0}
 
@@ -371,4 +378,11 @@ p{margin:0 0 1em}
     background-color: #ffffff !important;
     color: #1a1a1a !important;
     border-color: #d1d5db !important;
+}
+
+/* Shop dropdown: static expanded list inside the mobile menu */
+@media (max-width:900px){
+  .site-nav .dropdown{position:static;transform:none;display:block;min-width:0;background:transparent;border:0;box-shadow:none;padding:10px 0 0 16px}
+  .site-nav .dropdown::before{display:none}
+  .site-nav .dropdown li{padding:2px 0}
 }
