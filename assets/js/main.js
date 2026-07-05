@@ -20,6 +20,8 @@
         var full=thumb.getAttribute('data-full');
         if(!full)return;
         main.src=full;
+        var timg=thumb.querySelector('img');
+        if(timg&&timg.alt)main.alt=timg.alt;
         gallery.querySelectorAll('.thumb').forEach(function(t){t.classList.remove('active')});
         thumb.classList.add('active');
       });

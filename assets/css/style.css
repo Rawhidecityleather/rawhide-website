@@ -177,7 +177,7 @@ p{margin:0 0 1em}
 .footer-logo{max-width:180px;filter:invert(1) brightness(2);margin-bottom:18px}
 .footer-brand .tagline{font-family:var(--font-stamp);font-style:italic;color:var(--c-cream);font-size:1rem}
 .footer-meta{font-size:.85rem;letter-spacing:.15em;text-transform:uppercase;color:var(--c-muted)}
-.site-footer h4{color:var(--c-cream);margin-bottom:18px}
+.site-footer h3{color:var(--c-cream);margin-bottom:18px;font-size:.95rem;letter-spacing:.14em}
 .footer-col ul{list-style:none;padding:0;margin:0}
 .footer-col li{margin-bottom:10px}
 .footer-col a{font-size:.95rem;color:var(--c-text-soft)}
