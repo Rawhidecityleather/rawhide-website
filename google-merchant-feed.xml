@@ -21,7 +21,7 @@
       <g:max_handling_time>30</g:max_handling_time>
       <g:shipping>
         <g:country>US</g:country>
-        <g:service>USPS</g:service>
+        <g:service>Ground</g:service>
         <g:price>10.00 USD</g:price>
       </g:shipping>
     </item>
@@ -42,7 +42,7 @@
       <g:max_handling_time>30</g:max_handling_time>
       <g:shipping>
         <g:country>US</g:country>
-        <g:service>USPS</g:service>
+        <g:service>Ground</g:service>
         <g:price>10.00 USD</g:price>
       </g:shipping>
     </item>
@@ -64,7 +64,7 @@
       <g:max_handling_time>30</g:max_handling_time>
       <g:shipping>
         <g:country>US</g:country>
-        <g:service>USPS</g:service>
+        <g:service>Ground</g:service>
         <g:price>10.00 USD</g:price>
       </g:shipping>
     </item>
@@ -85,7 +85,7 @@
       <g:max_handling_time>30</g:max_handling_time>
       <g:shipping>
         <g:country>US</g:country>
-        <g:service>USPS</g:service>
+        <g:service>Ground</g:service>
         <g:price>10.00 USD</g:price>
       </g:shipping>
     </item>
@@ -106,7 +106,7 @@
       <g:max_handling_time>30</g:max_handling_time>
       <g:shipping>
         <g:country>US</g:country>
-        <g:service>USPS</g:service>
+        <g:service>Ground</g:service>
         <g:price>10.00 USD</g:price>
       </g:shipping>
     </item>
