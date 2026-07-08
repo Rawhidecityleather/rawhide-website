@@ -10,14 +10,14 @@ site.
 ## 1. Customize the tracking email (one-time, ~10 min)
 
 1. Log in at pirateship.com, go to **Settings > Tracking Emails > Edit**.
-2. Before touching anything, look at the blue variable chips above the editor and
-   note their exact wording. The template uses these four:
+2. The template uses these four variables, confirmed against Pirate Ship's editor
+   chips in July 2026:
    - `[Recipient First Name]`
-   - `[Tracking Number]`
+   - `[Tracking #]`
    - `[Ship Date]`
    - `[Shipping Service]`
-   If Pirate Ship's chips are worded differently, do a find and replace in the
-   template so the tokens match theirs character for character.
+   (Pirate Ship also offers `[Recipient Name]`, `[Recipient Address]`, and
+   `[Order #]`, which the template does not use.)
 3. Switch the editor to HTML view and replace the default template with the full
    contents of `pirate-ship-tracking-email.html` (everything including the top
    comment is safe to paste; the comment is invisible to customers).
