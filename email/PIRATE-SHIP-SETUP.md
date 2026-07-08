@@ -1,87 +1,71 @@
 # Pirate Ship setup for Rawhide City Leather
 
-Two pieces: (1) getting Snipcart orders into Pirate Ship, (2) the branded tracking
-email Pirate Ship sends the customer when you buy a label.
+**Status: fully set up and verified on July 8, 2026.** This doc records how it
+works and how to change it later.
 
 The email template lives in `email/pirate-ship-tracking-email.html`. This folder is
 listed in `.assetsignore`, so it stays in the repo but is never deployed to the live
-site.
+site. The template pasted into Pirate Ship matches this file; if you edit the file,
+re-paste it at **Pirate Ship > Settings > Emails > Rawhide Tracking Email > Edit**.
 
-## 1. Customize the tracking email (one-time, ~10 min)
+## How tracking emails work now
 
-1. Log in at pirateship.com, go to **Settings > Tracking Emails > Edit**.
-2. The template uses these four variables, confirmed against Pirate Ship's editor
-   chips in July 2026:
-   - `[Recipient First Name]`
-   - `[Tracking #]`
-   - `[Ship Date]`
-   - `[Shipping Service]`
-   (Pirate Ship also offers `[Recipient Name]`, `[Recipient Address]`, and
-   `[Order #]`, which the template does not use.)
-3. Switch the editor to HTML view and replace the default template with the full
-   contents of `pirate-ship-tracking-email.html` (everything including the top
-   comment is safe to paste; the comment is invisible to customers).
-4. Set the **Subject** to: `Your Rawhide City Leather gear has shipped`
-5. Set the **From name** to: `Rawhide City Leather`
-6. If it asks you to verify a sender email address, use rawhidecityleather@gmail.com
-   and click the verification link it sends.
-7. Put rawhidecityleather@gmail.com in **Send copies to (BCC)** so you get a copy of
-   every tracking email.
-8. Optional: **Default Email Delay** controls when the email goes out after you buy
-   the label. Leave at default, or delay a few hours if you sometimes buy labels the
-   night before drop-off.
+- Buying a label on Pirate Ship automatically emails the customer the branded
+  "Rawhide Tracking Email" template (set as the account default). A BCC copy goes
+  to rawhidecityleather@gmail.com.
+- Emails send from **Rawhide City Leather <orders@rawhidecitylthr.com>**, a
+  verified Postmark sender signature. Customer replies go to orders@, which
+  Cloudflare Email Routing forwards to rawhidecityleather@gmail.com.
+- The **Track Your Shipment** button links to rawhidecitylthr.com/track, which
+  detects the carrier from the number (1Z prefix = UPS, all digits = USPS) and
+  forwards to live tracking. Buy whichever carrier is cheaper; both work.
+- Pirate Ship's "Shipped via your mateys" signature line is turned OFF.
+- Default Email Delay is **Immediate**. If you want a refund-safety window after
+  buying labels, raise it in Settings > Emails.
 
-### Test it
+## Template variables (confirmed against Pirate Ship's editor)
 
-Buy one cheapest-rate label addressed to yourself (a few dollars, refundable within
-30 days if unused). Confirm on your phone:
+`[Recipient First Name]`, `[Tracking #]`, `[Ship Date]`, `[Shipping Service]`.
+Also available but unused: `[Recipient Name]`, `[Recipient Address]`, `[Order #]`.
+No emoji in the body: Pirate Ship's editor breaks on raw emoji.
 
-- Logo loads, layout looks right in Gmail
-- Your first name appears in the greeting (variables merged, no raw brackets)
-- The tracking number shows in the stamp box
-- The **Track Your Shipment** button opens rawhidecitylthr.com/track and forwards
-  to the right carrier's live tracking with the number filled in
+## DNS and infrastructure (all in Cloudflare, zone rawhidecitylthr.com)
 
-If the track page says it could not recognize the number, or you see raw brackets
-in the URL, the variable name did not match: fix the token in the button href to
-match Pirate Ship's chip exactly.
+- **Email Routing**: enabled; rule orders@rawhidecitylthr.com -> forward to
+  rawhidecityleather@gmail.com (destination verified). Managed under
+  Email > Email Routing. Its MX/SPF/DKIM records are locked by Cloudflare.
+- **Postmark DKIM** (added Jul 8 2026): TXT `20260708213347pm._domainkey` with the
+  `k=rsa; p=...` value from Pirate Ship's Verify DKIM dialog.
+- **Postmark return path**: CNAME `pm-bounces` -> `pm.mtasv.net`, DNS only.
+- Pirate Ship's Verify DKIM / Verify Return Path buttons flip to verified
+  automatically once Postmark re-checks the records (can take a few hours; the
+  records are live and were confirmed by DNS query).
 
-### Notes
+## Getting orders into Pirate Ship
 
-- The track button points to rawhidecitylthr.com/track, a page on the site that
-  reads the tracking number and forwards to UPS or USPS automatically (UPS numbers
-  start with 1Z, USPS numbers are all digits). Buy whichever carrier is cheaper per
-  package; the email works for both. If Pirate Ship's editor shows a ready-made
-  tracking link variable chip, you can use that in the button href instead.
-- No emoji in the email body: Pirate Ship's editor breaks on raw emoji.
-- Later upgrade if you want emails sent from @rawhidecitylthr.com instead of via
-  Pirate Ship: they support custom sender domains with DKIM records, which go in
-  Cloudflare DNS. Ask me and I'll walk through it.
-
-## 2. Getting orders into Pirate Ship
-
-Pirate Ship has no Snipcart integration and no API, so the clean path is CSV:
+Pirate Ship has no Snipcart integration and no API, so:
 
 1. Snipcart dashboard > **Orders**, filter status **Processed** (paid, not yet
    shipped), then **Export** to CSV.
 2. Pirate Ship > **Ship > Upload a Spreadsheet**, pick the file.
 3. First time only: map the columns (name, address 1, address 2, city, state, zip,
    and optionally email + order number) and **save the mapping** named `Snipcart`.
-   Every later import is two clicks.
-4. Buy the labels. Pirate Ship emails each customer the branded tracking email
-   automatically.
+   Include the email column so tracking emails send on label purchase.
+4. For a single order it is often faster to copy the address from the Snipcart
+   order page into Pirate Ship's Quick Rate form (include the email there too).
 
-For a single order it is often faster to just copy the address from the Snipcart
-order page into Pirate Ship's Quick Rate form.
+If the Snipcart CSV export turns out not to include full shipping addresses, a
+small export tool can be built against the Snipcart API.
 
-If the Snipcart CSV export turns out not to include full shipping addresses, tell me
-and I will build a small button that pulls orders from the Snipcart API and produces
-a Pirate Ship-ready CSV.
+## After shipping: close the loop in Snipcart
 
-## 3. After shipping: close the loop in Snipcart
+Set the order status to **Shipped** in Snipcart for bookkeeping. When Snipcart pops
+up asking whether to email the tracking number to the customer, **decline it**:
+Pirate Ship already sent the branded email, and accepting would double-email the
+customer.
 
-In Snipcart, open the order and set status to **Shipped** (good bookkeeping, and it
-is where you paste the tracking number for your own records). When Snipcart pops up
-asking whether to email the tracking number to the customer, **decline it**. Pirate
-Ship already sent the branded email; letting Snipcart send its own means the
-customer gets two tracking emails.
+## Nice-to-have not done yet
+
+- DMARC record for rawhidecitylthr.com (Cloudflare's dashboard recommends one:
+  DNS > Records > "Add a DMARC record"). Improves spoofing protection. Start with
+  `v=DMARC1; p=none; rua=mailto:rawhidecityleather@gmail.com` and tighten later.
