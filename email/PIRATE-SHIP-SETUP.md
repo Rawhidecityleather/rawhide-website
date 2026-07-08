@@ -64,8 +64,9 @@ up asking whether to email the tracking number to the customer, **decline it**:
 Pirate Ship already sent the branded email, and accepting would double-email the
 customer.
 
-## Nice-to-have not done yet
+## DMARC
 
-- DMARC record for rawhidecitylthr.com (Cloudflare's dashboard recommends one:
-  DNS > Records > "Add a DMARC record"). Improves spoofing protection. Start with
-  `v=DMARC1; p=none; rua=mailto:rawhidecityleather@gmail.com` and tighten later.
+Added July 8, 2026: TXT `_dmarc` = `v=DMARC1; p=none; rua=mailto:rawhidecityleather@gmail.com`.
+Monitor-only for now (blocks nothing, sends occasional aggregate reports to the
+business gmail). After a few quiet weeks, tighten to `p=quarantine` and later
+`p=reject` by editing that record in Cloudflare DNS.
