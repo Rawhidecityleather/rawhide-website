@@ -57,18 +57,34 @@
         return;
       }
 
+      // Forms with option price modifiers (e.g. Custom[+10.00]) must go through
+      // Snipcart's own buy-button parser: the cart JS API stores the options but
+      // never applies the modifier to the price.
+      if(form.querySelector('[data-options]')&&hiddenBtn){
+        var idx=0;
+        form.querySelectorAll('input,select,textarea').forEach(function(el){
+          if(!el.name||el.type==='submit'||el.type==='hidden')return;
+          var val=(el.value||'').trim();
+          if(!val)return;
+          idx++;
+          var p='data-item-custom'+idx;
+          hiddenBtn.setAttribute(p+'-name',el.getAttribute('data-label')||el.name);
+          var opts=el.getAttribute('data-options');
+          if(opts)hiddenBtn.setAttribute(p+'-options',opts);
+          if(el.tagName==='TEXTAREA')hiddenBtn.setAttribute(p+'-type','textarea');
+          hiddenBtn.setAttribute(p+'-value',val);
+        });
+        hiddenBtn.click();
+        setTimeout(function(){if(window.Snipcart)window.Snipcart.api.theme.cart.open();},1600);
+        return;
+      }
+
       var customFields=[];
       form.querySelectorAll('input,select,textarea').forEach(function(el){
         if(!el.name||el.type==='submit'||el.type==='hidden')return;
         var label=el.getAttribute('data-label')||el.name;
         var val=(el.value||'').trim();
-        if(!val)return;
-        var field={name:label,value:val};
-        // Options with [+X.00] price modifiers must also be declared on the
-        // hidden snipcart-add-item button so Snipcart's crawler can verify them.
-        var opts=el.getAttribute('data-options');
-        if(opts)field.options=opts;
-        customFields.push(field);
+        if(val) customFields.push({name:label,value:val});
       });
 
       window.Snipcart.api.cart.items.add({
