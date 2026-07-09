@@ -111,5 +111,26 @@
       </g:shipping>
     </item>
 
+    <item>
+      <g:id>leather-patch-hat</g:id>
+      <g:title>Leather Patch Hat</g:title>
+      <g:description>Genuine leather patch hat built to order. Your fire department crest, union local, or custom logo on a waterproof performance hat or classic Richardson 112 trucker. Crew discounts on 10 or more hats. Made in Lakeland, Florida. 6 week lead time.</g:description>
+      <g:link>https://rawhidecitylthr.com/product-leather-patch-hat</g:link>
+      <g:image_link>https://rawhidecitylthr.com/assets/img/products/leather-patch-hat.jpg</g:image_link>
+      <g:price>30.00 USD</g:price>
+      <g:availability>in_stock</g:availability>
+      <g:condition>new</g:condition>
+      <g:brand>Rawhide City Leather</g:brand>
+      <g:identifier_exists>no</g:identifier_exists>
+      <g:product_type>Accessories &gt; Hats</g:product_type>
+      <g:min_handling_time>25</g:min_handling_time>
+      <g:max_handling_time>30</g:max_handling_time>
+      <g:shipping>
+        <g:country>US</g:country>
+        <g:service>Ground</g:service>
+        <g:price>10.00 USD</g:price>
+      </g:shipping>
+    </item>
+
   </channel>
 </rss>

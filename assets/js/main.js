@@ -62,7 +62,13 @@
         if(!el.name||el.type==='submit'||el.type==='hidden')return;
         var label=el.getAttribute('data-label')||el.name;
         var val=(el.value||'').trim();
-        if(val) customFields.push({name:label,value:val});
+        if(!val)return;
+        var field={name:label,value:val};
+        // Options with [+X.00] price modifiers must also be declared on the
+        // hidden snipcart-add-item button so Snipcart's crawler can verify them.
+        var opts=el.getAttribute('data-options');
+        if(opts)field.options=opts;
+        customFields.push(field);
       });
 
       window.Snipcart.api.cart.items.add({
