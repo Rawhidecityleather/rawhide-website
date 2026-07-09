@@ -15,17 +15,42 @@
   document.querySelectorAll('[data-gallery]').forEach(function(gallery){
     var main=gallery.querySelector('[data-main]');
     if(!main)return;
-    gallery.querySelectorAll('.thumb').forEach(function(thumb,i){
+    var thumbs=Array.prototype.slice.call(gallery.querySelectorAll('.thumb'));
+    thumbs.forEach(function(thumb,i){
       thumb.setAttribute('aria-label','View photo '+(i+1));thumb.addEventListener('click',function(){
         var full=thumb.getAttribute('data-full');
         if(!full)return;
         main.src=full;
         var timg=thumb.querySelector('img');
         if(timg&&timg.alt)main.alt=timg.alt;
-        gallery.querySelectorAll('.thumb').forEach(function(t){t.classList.remove('active')});
+        thumbs.forEach(function(t){t.classList.remove('active')});
         thumb.classList.add('active');
       });
     });
+
+    // Prev/next arrows over the main image; cycles through visible thumbs.
+    if(thumbs.length>1){
+      var wrap=document.createElement('div');
+      wrap.className='main-image-wrap';
+      main.parentNode.insertBefore(wrap,main);
+      wrap.appendChild(main);
+      var step=function(dir){
+        var visible=thumbs.filter(function(t){return t.offsetParent!==null});
+        if(visible.length<2)return;
+        var cur=0;
+        visible.forEach(function(t,idx){if(t.classList.contains('active'))cur=idx});
+        visible[(cur+dir+visible.length)%visible.length].click();
+      };
+      [['prev',-1,'M15 18l-6-6 6-6'],['next',1,'M9 6l6 6-6 6']].forEach(function(cfg){
+        var b=document.createElement('button');
+        b.type='button';
+        b.className='gallery-nav gallery-nav-'+cfg[0];
+        b.setAttribute('aria-label',cfg[0]==='prev'?'Previous photo':'Next photo');
+        b.innerHTML='<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="'+cfg[2]+'"/></svg>';
+        b.addEventListener('click',function(){step(cfg[1])});
+        wrap.appendChild(b);
+      });
+    }
   });
 
   // Checkout wording: the first Snipcart step collects the address that is used
