@@ -226,8 +226,8 @@ p{margin:0 0 1em}
 @media (max-width:900px){
   .header-grid{min-height:70px}
   .nav-toggle{display:block}
-  .site-nav{position:fixed;top:70px;left:0;right:0;background:var(--c-bg);padding:24px;transform:translateY(-120%);transition:transform .3s;border-bottom:1px solid var(--c-line)}
-  .site-nav.open{transform:translateY(0)}
+  .site-nav{position:fixed;top:70px;left:0;right:0;z-index:49;background:var(--c-bg);padding:24px;transform:translateY(calc(-100% - 70px));visibility:hidden;pointer-events:none;transition:transform .3s,visibility 0s .3s;border-bottom:1px solid var(--c-line);max-height:calc(100vh - 70px);overflow-y:auto}
+  .site-nav.open{transform:translateY(0);visibility:visible;pointer-events:auto;transition:transform .3s,visibility 0s 0s}
   .site-nav ul{flex-direction:column;gap:18px;align-items:flex-start}
   .site-logo{justify-self:center}
   .site-logo img{max-height:44px}
@@ -239,6 +239,7 @@ p{margin:0 0 1em}
   .trust-strip-inner{gap:18px;font-size:.72rem}
 }
 @media (max-width:540px){
+  .announcement{font-size:.68rem;letter-spacing:.12em;padding:8px 12px}
   .product-grid{grid-template-columns:repeat(2,1fr);gap:24px 16px}
   .category-grid{grid-template-columns:1fr;gap:16px}
   .footer-grid{grid-template-columns:1fr}
