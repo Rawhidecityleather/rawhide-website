@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Rawhide City Leather — Brand Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200;300;400;500;600;700;800&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{font-family:'Manrope',sans-serif;background:#ebe8e1;color:#0f0f0f;-webkit-font-smoothing:antialiased}
+  img{display:block;max-width:100%}
+  .mono{font-family:'Geist Mono',ui-monospace,monospace}
+
+  /* ---- shell ---- */
+  .shell{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
+  nav.toc{position:sticky;top:0;height:100vh;padding:48px 28px;border-right:1px solid #0f0f0f14;display:flex;flex-direction:column}
+  nav.toc .brand{font-weight:700;font-size:13px;letter-spacing:.3em;text-transform:uppercase;margin-bottom:6px}
+  nav.toc .sub{font-size:11px;letter-spacing:.18em;text-transform:uppercase;opacity:.5;margin-bottom:48px}
+  nav.toc a{display:block;font-size:13px;font-weight:500;letter-spacing:.04em;color:#0f0f0f;opacity:.55;text-decoration:none;padding:9px 0;border-left:2px solid transparent;padding-left:14px;margin-left:-14px;transition:opacity .2s,border-color .2s}
+  nav.toc a:hover{opacity:1}
+  nav.toc .toc-num{font-family:'Geist Mono',monospace;font-size:10px;opacity:.5;display:inline-block;width:22px}
+  nav.toc .foot{margin-top:auto;font-size:10px;letter-spacing:.12em;text-transform:uppercase;opacity:.4;line-height:1.7}
+
+  main{padding:0}
+  section{padding:110px 64px;border-bottom:1px solid #0f0f0f14;scroll-margin-top:20px}
+  .kicker{font-family:'Geist Mono',monospace;font-size:11px;letter-spacing:.3em;text-transform:uppercase;opacity:.5;margin-bottom:20px;display:flex;align-items:center;gap:14px}
+  .kicker .line{height:1px;flex:1;background:#0f0f0f1f}
+  h2{font-weight:300;font-size:clamp(34px,4.4vw,56px);letter-spacing:-.03em;line-height:1.04;margin-bottom:20px;max-width:760px}
+  h2 b{font-weight:700}
+  .lede{max-width:560px;font-size:15px;line-height:1.7;opacity:.68;margin-bottom:56px}
+
+  /* ---- cover ---- */
+  .cover{min-height:100vh;display:flex;flex-direction:column;justify-content:center;background:#0f0f0f;color:#ebe8e1;position:relative;overflow:hidden}
+  .cover-eyebrow{font-family:'Geist Mono',monospace;font-size:12px;letter-spacing:.4em;text-transform:uppercase;opacity:.55;margin-bottom:36px}
+  .cover h1{font-weight:200;font-size:clamp(54px,9vw,128px);letter-spacing:-.045em;line-height:.92;margin-bottom:36px}
+  .cover h1 b{font-weight:700}
+  .cover-meta{display:flex;gap:48px;font-family:'Geist Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;opacity:.55;padding-top:28px;border-top:1px solid #ebe8e122;max-width:560px}
+  .cover-grid{position:absolute;inset:0;background-image:linear-gradient(#ebe8e108 1px,transparent 1px),linear-gradient(90deg,#ebe8e108 1px,transparent 1px);background-size:64px 64px;pointer-events:none}
+
+  /* ---- 01 palette ---- */
+  .pal-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#0f0f0f14;border:1px solid #0f0f0f14;margin-bottom:48px}
+  .pal-card{background:#ebe8e1;padding:28px 24px}
+  .pal-swatch{height:140px;border-radius:10px;margin-bottom:20px;position:relative;overflow:hidden}
+  .pal-name{font-weight:700;font-size:15px;letter-spacing:-.01em;margin-bottom:4px}
+  .pal-role{font-size:12px;opacity:.55;margin-bottom:14px}
+  .pal-codes{display:flex;flex-direction:column;gap:2px;font-family:'Geist Mono',monospace;font-size:11px;opacity:.6}
+  .pal-usage{margin-top:14px;font-size:12px;line-height:1.6;opacity:.7}
+  .accent-rule{display:flex;gap:16px;align-items:flex-start;background:#fff;border:1px solid #0f0f0f14;border-radius:14px;padding:24px 28px;max-width:680px}
+  .accent-rule .ic{width:28px;height:28px;border-radius:7px;background:#0f0f0f;flex:none;display:flex;align-items:center;justify-content:center;color:#ebe8e1;font-size:13px;font-weight:700}
+  .accent-rule p{font-size:13px;line-height:1.65;opacity:.75}
+  .accent-rule strong{opacity:1}
+
+  /* tints */
+  .tint-row{display:flex;gap:1px;margin-top:28px;border-radius:10px;overflow:hidden;border:1px solid #0f0f0f14}
+  .tint{flex:1;height:64px;display:flex;align-items:flex-end;padding:8px;font-family:'Geist Mono',monospace;font-size:10px}
+
+  /* ---- 02 type ---- */
+  .type-row{display:grid;grid-template-columns:140px 1fr;gap:32px;align-items:baseline;padding:28px 0;border-bottom:1px solid #0f0f0f14}
+  .type-row:last-child{border-bottom:0}
+  .type-label{font-family:'Geist Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;opacity:.5}
+  .type-sample{font-weight:300;letter-spacing:-.02em}
+  .scale-table{display:grid;gap:0;margin-top:56px;border-top:1px solid #0f0f0f14}
+  .scale-row{display:grid;grid-template-columns:120px 1fr 160px;align-items:center;padding:18px 0;border-bottom:1px solid #0f0f0f14;gap:24px}
+  .scale-tag{font-family:'Geist Mono',monospace;font-size:11px;opacity:.5;letter-spacing:.08em}
+  .scale-spec{font-family:'Geist Mono',monospace;font-size:11px;opacity:.45;text-align:right}
+  .pairing-note{display:flex;gap:40px;margin-top:56px;flex-wrap:wrap}
+  .pn-col{flex:1;min-width:240px}
+  .pn-col h4{font-family:'Geist Mono',monospace;font-size:11px;letter-spacing:.2em;text-transform:uppercase;opacity:.5;margin-bottom:14px}
+  .pn-col p{font-size:13px;line-height:1.7;opacity:.7}
+
+  /* ---- 03 logo ---- */
+  .logo-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:48px}
+  .logo-card{background:#fff;border:1px solid #0f0f0f14;border-radius:16px;padding:48px;display:flex;align-items:center;justify-content:center;min-height:220px}
+  .logo-card.dark{background:#0f0f0f}
+  .logo-card img{max-height:96px;width:auto}
+  .logo-card.dark img{filter:brightness(0) invert(1)}
+  .logo-cap{display:flex;justify-content:space-between;align-items:baseline;margin-top:14px;padding:0 4px}
+  .logo-cap span{font-size:12px;opacity:.55}
+  .logo-cap .ok{color:#2f6b3f;font-family:'Geist Mono',monospace;font-size:11px;letter-spacing:.08em}
+  .wordmark-demo{font-family:'Manrope',sans-serif;font-weight:700;font-size:22px;letter-spacing:.3em;text-transform:uppercase}
+  .wordmark-demo span{font-weight:300;letter-spacing:.3em;display:block;font-size:13px;opacity:.5;margin-top:8px}
+  .dont-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:40px}
+  .dont-card{border:1px solid #c0392b40;border-radius:14px;padding:24px;background:#fdf2f0;position:relative}
+  .dont-card::before{content:"✕";position:absolute;top:18px;right:18px;color:#c0392b;font-weight:700;font-size:14px}
+  .dont-card .badge{display:inline-block;font-family:'Geist Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#c0392b;margin-bottom:14px}
+  .dont-card p{font-size:12px;line-height:1.6;opacity:.75}
+  .clearspace{background:#fff;border:1px solid #0f0f0f14;border-radius:16px;padding:48px;display:flex;align-items:center;justify-content:center;position:relative;margin-top:8px}
+  .clearspace .frame{border:1px dashed #0f0f0f40;padding:32px;display:flex;align-items:center;justify-content:center}
+  .clearspace img{max-height:64px}
+  .clearspace .dim{position:absolute;font-family:'Geist Mono',monospace;font-size:10px;opacity:.5}
+
+  /* ---- 04 voice ---- */
+  .voice-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:#0f0f0f14;border:1px solid #0f0f0f14;margin-bottom:48px}
+  .voice-col{background:#ebe8e1;padding:32px}
+  .voice-col.do{background:#f3f7f0}
+  .voice-col.dont{background:#fdf2f0}
+  .voice-col h4{font-family:'Geist Mono',monospace;font-size:11px;letter-spacing:.2em;text-transform:uppercase;margin-bottom:18px;display:flex;align-items:center;gap:8px}
+  .voice-col.do h4{color:#2f6b3f}
+  .voice-col.dont h4{color:#c0392b}
+  .voice-col ul{list-style:none;display:flex;flex-direction:column;gap:14px}
+  .voice-col li{font-size:14px;line-height:1.55;padding-left:18px;position:relative}
+  .voice-col li::before{content:"—";position:absolute;left:0;opacity:.4}
+  .tone-pills{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
+  .tone-pill{font-family:'Geist Mono',monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:8px 16px;border:1px solid #0f0f0f1f;border-radius:999px;background:#fff}
+  .sample-copy{margin-top:48px;display:grid;grid-template-columns:1fr 1fr;gap:24px}
+  .sample-card{background:#fff;border:1px solid #0f0f0f14;border-radius:14px;padding:28px}
+  .sample-card .tag{font-family:'Geist Mono',monospace;font-size:10px;letter-spacing:.16em;text-transform:uppercase;opacity:.5;margin-bottom:14px}
+  .sample-card p{font-size:15px;line-height:1.6}
+  .sample-card.headline p{font-weight:300;font-size:22px;letter-spacing:-.02em}
+
+  @media(max-width:1000px){
+    .shell{grid-template-columns:1fr}
+    nav.toc{position:relative;height:auto;border-right:0;border-bottom:1px solid #0f0f0f14;flex-direction:row;align-items:center;flex-wrap:wrap;gap:24px;padding:24px 28px}
+    nav.toc .sub{display:none}nav.toc .foot{display:none}
+    section{padding:64px 24px}
+    .pal-grid,.logo-grid,.dont-grid,.voice-grid,.sample-copy{grid-template-columns:1fr 1fr}
+    .pal-grid{grid-template-columns:repeat(2,1fr)}
+    .dont-grid{grid-template-columns:1fr}
+    .type-row{grid-template-columns:1fr;gap:6px}
+    .scale-row{grid-template-columns:1fr;gap:6px;text-align:left}
+    .scale-spec{text-align:left}
+  }
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <nav class="toc">
+    <div class="brand">Rawhide City</div>
+    <div class="sub">Brand Guide v1</div>
+    <a href="#palette"><span class="toc-num">01</span>Color Palette</a>
+    <a href="#type"><span class="toc-num">02</span>Typography</a>
+    <a href="#logo"><span class="toc-num">03</span>Logo &amp; Lockups</a>
+    <a href="#voice"><span class="toc-num">04</span>Voice &amp; Tone</a>
+    <div class="foot">Stone &amp; Ink<br>Direction B<br>Drafted 2026</div>
+  </nav>
+
+  <main>
+
+    <!-- COVER -->
+    <section class="cover" style="border-bottom:none">
+      <div class="cover-grid"></div>
+      <div class="cover-eyebrow">Brand Identity Guide</div>
+      <h1>Rawhide City<br><b>Leather.</b></h1>
+      <div class="cover-meta">
+        <span>Stone &amp; Ink Direction</span>
+        <span>Lakeland, FL</span>
+        <span>Firefighter Owned</span>
+      </div>
+    </section>
+
+    <!-- 01 PALETTE -->
+    <section id="palette">
+      <div class="kicker">01 — Color Palette<span class="line"></span></div>
+      <h2>Pale stone, deep ink.<br><b>No accent color.</b></h2>
+      <p class="lede">The product is the color. Leather provides every warm tone the brand needs — saddle tan, cognac, oiled brown. The palette itself stays neutral so nothing competes with the goods.</p>
+
+      <div class="pal-grid">
+        <div class="pal-card">
+          <div class="pal-swatch" style="background:#ebe8e1;border:1px solid #0f0f0f14"></div>
+          <div class="pal-name">Stone</div>
+          <div class="pal-role">Primary background</div>
+          <div class="pal-codes"><span>#EBE8E1</span><span>RGB 235 232 225</span></div>
+          <p class="pal-usage">Page backgrounds, light sections. Never pure white — keeps a paper-like warmth.</p>
+        </div>
+        <div class="pal-card">
+          <div class="pal-swatch" style="background:#0f0f0f"></div>
+          <div class="pal-name">Ink</div>
+          <div class="pal-role">Primary text + dark sections</div>
+          <div class="pal-codes"><span>#0F0F0F</span><span>RGB 15 15 15</span></div>
+          <p class="pal-usage">Body copy, headlines, buttons, footer, image overlays.</p>
+        </div>
+        <div class="pal-card">
+          <div class="pal-swatch" style="background:#7a756b"></div>
+          <div class="pal-name">Smoke</div>
+          <div class="pal-role">Secondary text, borders</div>
+          <div class="pal-codes"><span>#7A756B</span><span>RGB 122 117 107</span></div>
+          <p class="pal-usage">Captions, metadata, muted labels, dividers at low opacity.</p>
+        </div>
+        <div class="pal-card">
+          <div class="pal-swatch" style="background:#5a3a25"></div>
+          <div class="pal-name">Saddle</div>
+          <div class="pal-role">Reserved — leather tones only</div>
+          <div class="pal-codes"><span>#5A3A25</span><span>RGB 90 58 37</span></div>
+          <p class="pal-usage">Not a UI color. Used only when describing/swatching actual leather options.</p>
+        </div>
+      </div>
+
+      <div class="accent-rule">
+        <div class="ic">!</div>
+        <p><strong>Rule:</strong> there is no brand accent color. Where the old site used fire-engine red for buttons, links, and badges, this system uses ink-on-stone contrast and weight instead. If a single warm highlight is ever needed (a sale badge, an in-stock dot), pull it directly from a real leather swatch, not from a UI color picker.</p>
+      </div>
+
+      <div class="tint-row">
+        <div class="tint" style="background:#ebe8e1;color:#0f0f0f">100%</div>
+        <div class="tint" style="background:#d9d5cb;color:#0f0f0f">80%</div>
+        <div class="tint" style="background:#a9a59b;color:#0f0f0f">60%</div>
+        <div class="tint" style="background:#7a756b;color:#fff">40%</div>
+        <div class="tint" style="background:#3a3833;color:#fff">20%</div>
+        <div class="tint" style="background:#0f0f0f;color:#fff">0%</div>
+      </div>
+    </section>
+
+    <!-- 02 TYPE -->
+    <section id="type">
+      <div class="kicker">02 — Typography<span class="line"></span></div>
+      <h2>One family.<br><b>Weight does the work.</b></h2>
+      <p class="lede">Manrope, end to end. Light for scale and elegance, Bold for emphasis and structure, Mono for anything numeric. No serif, no script — restraint is the point.</p>
+
+      <div class="type-row">
+        <div class="type-label">Display</div>
+        <div class="type-sample" style="font-size:clamp(34px,5vw,64px);font-weight:200">Leather goods, made <b style="font-weight:700">slowly.</b></div>
+      </div>
+      <div class="type-row">
+        <div class="type-label">Heading</div>
+        <div class="type-sample" style="font-size:28px;font-weight:600;letter-spacing:-.02em">Built for the long shift</div>
+      </div>
+      <div class="type-row">
+        <div class="type-label">Body</div>
+        <div class="type-sample" style="font-size:16px;font-weight:400;line-height:1.6;letter-spacing:0">Hand-cut, hand-stitched leather radio straps, helmet bands, and belts. Made one at a time for the people who wear them every day.</div>
+      </div>
+      <div class="type-row">
+        <div class="type-label">Label / Mono</div>
+        <div class="type-sample mono" style="font-size:12px;letter-spacing:.18em;text-transform:uppercase;font-weight:500">NO. 001 · 9OZ VEG-TAN · MADE IN LAKELAND, FL</div>
+      </div>
+
+      <div class="scale-table">
+        <div class="scale-row"><div class="scale-tag">Display</div><div style="font-weight:200;font-size:48px;letter-spacing:-.03em">Aa</div><div class="scale-spec">48–92px / 200 / -3%</div></div>
+        <div class="scale-row"><div class="scale-tag">H1</div><div style="font-weight:300;font-size:38px;letter-spacing:-.025em">Aa</div><div class="scale-spec">36–48px / 300 / -2.5%</div></div>
+        <div class="scale-row"><div class="scale-tag">H2</div><div style="font-weight:600;font-size:28px;letter-spacing:-.02em">Aa</div><div class="scale-spec">26–32px / 600 / -2%</div></div>
+        <div class="scale-row"><div class="scale-tag">H3</div><div style="font-weight:700;font-size:18px;letter-spacing:-.01em">Aa</div><div class="scale-spec">16–20px / 700 / -1%</div></div>
+        <div class="scale-row"><div class="scale-tag">Body</div><div style="font-weight:400;font-size:16px">Aa</div><div class="scale-spec">15–17px / 400 / 0</div></div>
+        <div class="scale-row"><div class="scale-tag">Caption</div><div style="font-weight:500;font-size:13px;opacity:.6">Aa</div><div class="scale-spec">12–13px / 500 / 0</div></div>
+        <div class="scale-row"><div class="scale-tag">Label</div><div class="mono" style="font-weight:500;font-size:11px;letter-spacing:.2em;text-transform:uppercase">Aa</div><div class="scale-spec">10–11px / mono / +20%</div></div>
+      </div>
+
+      <div class="pairing-note">
+        <div class="pn-col">
+          <h4>Headlines</h4>
+          <p>Light weight (200–300) at large size, tight letter-spacing (-2% to -4%). Bold weight reserved for one or two emphasis words per headline only.</p>
+        </div>
+        <div class="pn-col">
+          <h4>Body copy</h4>
+          <p>Regular weight, no letter-spacing adjustment, line-height 1.6. Keep paragraphs under 60 characters per line for readability.</p>
+        </div>
+        <div class="pn-col">
+          <h4>Labels &amp; data</h4>
+          <p>Geist Mono for anything that reads as a spec, SKU, lot number, or price — it signals "fact," not marketing copy.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 03 LOGO -->
+    <section id="logo">
+      <div class="kicker">03 — Logo &amp; Lockups<span class="line"></span></div>
+      <h2>The badge is a stamp.<br><b>The wordmark is the brand.</b></h2>
+      <p class="lede">Your existing badge mark (scalloped shield, slab serif, "Est. 2024") carries real handmade warmth — keep it, but treat it as a stamp: packaging, hang tags, social avatar, leather burn-stamp reference. For the website and digital presence, lead with a plain-set wordmark in Manrope so it matches the Stone &amp; Ink system.</p>
+
+      <div class="logo-grid">
+        <div>
+          <div class="logo-card">
+            <img src="../assets/img/logo.png" alt="Existing badge mark on light">
+          </div>
+          <div class="logo-cap"><span>Existing badge — on Stone</span><span class="ok mono">KEEP AS STAMP</span></div>
+        </div>
+        <div>
+          <div class="logo-card dark">
+            <img src="../assets/img/logo.png" alt="Existing badge mark on dark">
+          </div>
+          <div class="logo-cap"><span>Existing badge — on Ink</span><span class="ok mono">KEEP AS STAMP</span></div>
+        </div>
+        <div>
+          <div class="logo-card">
+            <div class="wordmark-demo">Rawhide City<span>Leather</span></div>
+          </div>
+          <div class="logo-cap"><span>New wordmark — on Stone</span><span class="ok mono">PRIMARY / SITE</span></div>
+        </div>
+        <div>
+          <div class="logo-card dark" style="color:#ebe8e1">
+            <div class="wordmark-demo" style="color:#ebe8e1">Rawhide City<span>Leather</span></div>
+          </div>
+          <div class="logo-cap"><span>New wordmark — on Ink</span><span class="ok mono">PRIMARY / SITE</span></div>
+        </div>
+      </div>
+
+      <div class="clearspace">
+        <div class="frame">
+          <div class="wordmark-demo" style="font-size:18px">Rawhide City<span style="font-size:11px">Leather</span></div>
+        </div>
+      </div>
+      <p style="font-size:12px;opacity:.55;margin-top:14px;max-width:480px">Clearspace: maintain padding equal to the cap-height of "RAWHIDE" on all sides. Minimum digital width: 120px. Minimum print width: 1in.</p>
+
+      <h3 style="font-size:14px;font-weight:700;margin:56px 0 4px;letter-spacing:.02em">Don't</h3>
+      <div class="dont-grid">
+        <div class="dont-card"><span class="badge">Mixing marks</span><p>Don't run the badge mark and the wordmark side by side in the same lockup — pick one per surface.</p></div>
+        <div class="dont-card"><span class="badge">Recoloring the badge</span><p>Don't tint the badge mark in cognac, red, or any accent color — it stays pure ink or pure stone, full contrast only.</p></div>
+        <div class="dont-card"><span class="badge">Condensing the wordmark</span><p>Don't compress or stretch the wordmark to fit a space — resize proportionally or shorten the lockup to "Rawhide City."</p></div>
+      </div>
+    </section>
+
+    <!-- 04 VOICE -->
+    <section id="voice" style="border-bottom:none">
+      <div class="kicker">04 — Voice &amp; Tone<span class="line"></span></div>
+      <h2>Plain-spoken.<br><b>Earned, not advertised.</b></h2>
+      <p class="lede">A firefighter built this brand. The copy should sound like someone who's good at their craft talking about it directly — not a marketing department talking about a firefighter.</p>
+
+      <div class="tone-pills">
+        <div class="tone-pill">Direct</div>
+        <div class="tone-pill">Understated</div>
+        <div class="tone-pill">Specific</div>
+        <div class="tone-pill">Earned, not boastful</div>
+        <div class="tone-pill">Zero hype words</div>
+      </div>
+
+      <div class="voice-grid" style="margin-top:40px">
+        <div class="voice-col do">
+          <h4>✓ Do</h4>
+          <ul>
+            <li>Lead with concrete facts: material, weight, who made it, where.</li>
+            <li>Use short sentences. Let the product carry the weight.</li>
+            <li>Reference the trade plainly — "long shift," "the bench," "the rig" — without overexplaining it.</li>
+            <li>Let imperfection read as proof of hand-work, not apologize for it.</li>
+          </ul>
+        </div>
+        <div class="voice-col dont">
+          <h4>✕ Don't</h4>
+          <ul>
+            <li>Use words like "premium," "elevated," "curated," "artisanal."</li>
+            <li>Lean on exclamation points or urgency ("Don't miss out!").</li>
+            <li>Over-explain the firefighter angle — state it once, let it sit.</li>
+            <li>Write headlines that could belong to any leather brand. Be specific to this one.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="sample-copy">
+        <div class="sample-card headline">
+          <div class="tag">Headline — before</div>
+          <p style="opacity:.5">"Premium Handcrafted Leather Goods For Every Occasion"</p>
+        </div>
+        <div class="sample-card headline">
+          <div class="tag">Headline — after</div>
+          <p>"Leather goods, made slowly."</p>
+        </div>
+        <div class="sample-card">
+          <div class="tag">Body — before</div>
+          <p style="opacity:.5">"We pride ourselves on using only the finest premium materials to craft luxury leather accessories you'll love."</p>
+        </div>
+        <div class="sample-card">
+          <div class="tag">Body — after</div>
+          <p>9oz veg-tan, hand-saddle stitched, built one at a time on a single bench in Lakeland, Florida.</p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+</body>
+</html>
