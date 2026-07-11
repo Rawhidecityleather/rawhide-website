@@ -63,6 +63,9 @@
     });
   }
   document.addEventListener('snipcart.ready',setCheckoutLabels);
+  document.addEventListener('snipcart.ready',function(){
+    Snipcart.execute('config','shipping_same_as_billing',true);
+  });
   setCheckoutLabels();
 
   // Order forms: on submit, push the item + all customizations into the Snipcart cart.
