@@ -132,5 +132,48 @@
       </g:shipping>
     </item>
 
+    <item>
+      <g:id>heavy-duty-belt</g:id>
+      <g:title>Heavy Duty Leather Belt</g:title>
+      <g:description>Heavy duty belt cut from one solid strap of full-grain leather. No stitching to fail, no layers to peel apart. Black or brown leather with a solid buckle in brass, black, or nickel, sized to you. Made to order by hand in Lakeland, Florida. 6 week lead time.</g:description>
+      <g:link>https://rawhidecitylthr.com/product-heavy-duty-belt</g:link>
+      <g:image_link>https://rawhidecitylthr.com/assets/img/products/heavy-duty-belt.jpg</g:image_link>
+      <g:price>50.00 USD</g:price>
+      <g:availability>in_stock</g:availability>
+      <g:condition>new</g:condition>
+      <g:brand>Rawhide City Leather</g:brand>
+      <g:identifier_exists>no</g:identifier_exists>
+      <g:product_type>Belts</g:product_type>
+      <g:google_product_category>169</g:google_product_category>
+      <g:min_handling_time>25</g:min_handling_time>
+      <g:max_handling_time>30</g:max_handling_time>
+      <g:shipping>
+        <g:country>US</g:country>
+        <g:service>Ground</g:service>
+        <g:price>10.00 USD</g:price>
+      </g:shipping>
+    </item>
+
+    <item>
+      <g:id>leather-butter</g:id>
+      <g:title>Leather Butter &#8212; Leather Conditioner</g:title>
+      <g:description>Leather butter in the Rawhide City Leather tin. Feeds dry leather, deepens the color, and keeps gear from cracking. Rub in a thin coat, let it sit, buff it off. For belts, radio straps, boots, and bags. In stock and ready to ship.</g:description>
+      <g:link>https://rawhidecitylthr.com/product-leather-butter</g:link>
+      <g:image_link>https://rawhidecitylthr.com/assets/img/products/leather-butter.jpg</g:image_link>
+      <g:price>8.00 USD</g:price>
+      <g:availability>in_stock</g:availability>
+      <g:condition>new</g:condition>
+      <g:brand>Rawhide City Leather</g:brand>
+      <g:identifier_exists>no</g:identifier_exists>
+      <g:product_type>Leather Care</g:product_type>
+      <g:min_handling_time>1</g:min_handling_time>
+      <g:max_handling_time>3</g:max_handling_time>
+      <g:shipping>
+        <g:country>US</g:country>
+        <g:service>Ground</g:service>
+        <g:price>10.00 USD</g:price>
+      </g:shipping>
+    </item>
+
   </channel>
 </rss>
