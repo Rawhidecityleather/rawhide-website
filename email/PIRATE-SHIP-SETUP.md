@@ -13,10 +13,10 @@ re-paste it at **Pirate Ship > Settings > Emails > Rawhide Tracking Email > Edit
 - Buying a label on Pirate Ship automatically emails the customer the branded
   "Rawhide Tracking Email" template (set as the account default). A BCC copy goes
   to rawhidecityleather@gmail.com.
-- Emails send from **Rawhide City Leather <orders@rawhidecitylthr.com>**, a
+- Emails send from **Rawhide City Leather <orders@rawhidecityleather.com>**, a
   verified Postmark sender signature. Customer replies go to orders@, which
   Cloudflare Email Routing forwards to rawhidecityleather@gmail.com.
-- The **Track Your Shipment** button links to rawhidecitylthr.com/track, which
+- The **Track Your Shipment** button links to rawhidecityleather.com/track, which
   detects the carrier from the number (1Z prefix = UPS, all digits = USPS) and
   forwards to live tracking. Buy whichever carrier is cheaper; both work.
 - Pirate Ship's "Shipped via your mateys" signature line is turned OFF.
@@ -29,9 +29,9 @@ re-paste it at **Pirate Ship > Settings > Emails > Rawhide Tracking Email > Edit
 Also available but unused: `[Recipient Name]`, `[Recipient Address]`, `[Order #]`.
 No emoji in the body: Pirate Ship's editor breaks on raw emoji.
 
-## DNS and infrastructure (all in Cloudflare, zone rawhidecitylthr.com)
+## DNS and infrastructure (all in Cloudflare, zone rawhidecityleather.com)
 
-- **Email Routing**: enabled; rule orders@rawhidecitylthr.com -> forward to
+- **Email Routing**: enabled; rule orders@rawhidecityleather.com -> forward to
   rawhidecityleather@gmail.com (destination verified). Managed under
   Email > Email Routing. Its MX/SPF/DKIM records are locked by Cloudflare.
 - **Postmark DKIM** (added Jul 8 2026): TXT `20260708213347pm._domainkey` with the
