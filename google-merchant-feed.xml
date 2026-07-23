@@ -155,6 +155,27 @@
     </item>
 
     <item>
+      <g:id>chin-strap</g:id>
+      <g:title>Leather Helmet Chin Strap</g:title>
+      <g:description>Hand-cut leather chin strap for fire helmets. Full-grain leather with a quick-release buckle, adjustable fit, and stitch and hardware options. Made to order by hand. 6 week lead time.</g:description>
+      <g:link>https://rawhidecityleather.com/product-chin-strap</g:link>
+      <g:image_link>https://rawhidecityleather.com/assets/img/products/chin-strap.jpg</g:image_link>
+      <g:price>30.00 USD</g:price>
+      <g:availability>in_stock</g:availability>
+      <g:condition>new</g:condition>
+      <g:brand>Rawhide City Leather</g:brand>
+      <g:identifier_exists>no</g:identifier_exists>
+      <g:product_type>Accessories</g:product_type>
+      <g:min_handling_time>25</g:min_handling_time>
+      <g:max_handling_time>30</g:max_handling_time>
+      <g:shipping>
+        <g:country>US</g:country>
+        <g:service>Ground</g:service>
+        <g:price>10.00 USD</g:price>
+      </g:shipping>
+    </item>
+
+    <item>
       <g:id>leather-butter</g:id>
       <g:title>Leather Butter &#8212; Leather Conditioner</g:title>
       <g:description>Leather butter in the Rawhide City Leather tin. Feeds dry leather, deepens the color, and keeps gear from cracking. Rub in a thin coat, let it sit, buff it off. For belts, radio straps, boots, and bags. In stock and ready to ship.</g:description>
