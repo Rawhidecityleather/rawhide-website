@@ -50,7 +50,7 @@
     <item>
       <g:id>basket-weave-belt</g:id>
       <g:title>Basket Weave Leather Belt</g:title>
-      <g:description>Classic basket weave leather belt. Hand-stamped, rich finish, built to outlast every belt you've ever owned. 10-12 oz English bridle leather, made to order by hand. 6 week lead time.</g:description>
+      <g:description>Classic basket weave leather belt. Hand-stamped, rich finish, built to outlast every belt you've ever owned. 10-12 oz English bridle leather, made to order by hand. 1-3 week lead time.</g:description>
       <g:link>https://rawhidecityleather.com/product-basket-weave-belt</g:link>
       <g:image_link>https://rawhidecityleather.com/assets/img/products/basket-weave-belt.jpg</g:image_link>
       <g:price>85.00 USD</g:price>
@@ -60,8 +60,8 @@
       <g:identifier_exists>no</g:identifier_exists>
       <g:product_type>Belts</g:product_type>
       <g:google_product_category>169</g:google_product_category>
-      <g:min_handling_time>25</g:min_handling_time>
-      <g:max_handling_time>30</g:max_handling_time>
+      <g:min_handling_time>7</g:min_handling_time>
+      <g:max_handling_time>21</g:max_handling_time>
       <g:shipping>
         <g:country>US</g:country>
         <g:service>Ground</g:service>
@@ -72,7 +72,7 @@
     <item>
       <g:id>helmet-band</g:id>
       <g:title>Leather Helmet Band</g:title>
-      <g:description>Heavy-duty 10-12 oz English bridle leather helmet band, hand-cut and built to last. Built to hold your front piece, gloves, or whatever you slide under it. Made to order by hand. 6 week lead time.</g:description>
+      <g:description>Heavy-duty 10-12 oz English bridle leather helmet band, hand-cut and built to last. Built to hold your front piece, gloves, or whatever you slide under it. Made to order by hand. 1-3 week lead time.</g:description>
       <g:link>https://rawhidecityleather.com/product-helmet-band</g:link>
       <g:image_link>https://rawhidecityleather.com/assets/img/products/helmet-band.jpg</g:image_link>
       <g:price>50.00 USD</g:price>
@@ -81,8 +81,8 @@
       <g:brand>Rawhide City Leather</g:brand>
       <g:identifier_exists>no</g:identifier_exists>
       <g:product_type>Accessories</g:product_type>
-      <g:min_handling_time>25</g:min_handling_time>
-      <g:max_handling_time>30</g:max_handling_time>
+      <g:min_handling_time>7</g:min_handling_time>
+      <g:max_handling_time>21</g:max_handling_time>
       <g:shipping>
         <g:country>US</g:country>
         <g:service>Ground</g:service>
@@ -93,7 +93,7 @@
     <item>
       <g:id>glove-strap</g:id>
       <g:title>Adjustable Leather Glove Strap</g:title>
-      <g:description>A simple, no-nonsense leather glove strap that keeps your structure gloves on your gear, not on the floor. Made to order by hand. 6 week lead time.</g:description>
+      <g:description>A simple, no-nonsense leather glove strap that keeps your structure gloves on your gear, not on the floor. Made to order by hand. 1-3 week lead time.</g:description>
       <g:link>https://rawhidecityleather.com/product-glove-strap</g:link>
       <g:image_link>https://rawhidecityleather.com/assets/img/products/glove-strap.jpg</g:image_link>
       <g:price>30.00 USD</g:price>
@@ -102,8 +102,8 @@
       <g:brand>Rawhide City Leather</g:brand>
       <g:identifier_exists>no</g:identifier_exists>
       <g:product_type>Accessories</g:product_type>
-      <g:min_handling_time>25</g:min_handling_time>
-      <g:max_handling_time>30</g:max_handling_time>
+      <g:min_handling_time>7</g:min_handling_time>
+      <g:max_handling_time>21</g:max_handling_time>
       <g:shipping>
         <g:country>US</g:country>
         <g:service>Ground</g:service>
@@ -114,7 +114,7 @@
     <item>
       <g:id>leather-patch-hat</g:id>
       <g:title>Leather Patch Hat</g:title>
-      <g:description>Genuine leather patch hat built to order. Your fire department crest, union local, or custom logo on a waterproof performance hat or classic Richardson 112 trucker. Crew discounts on 10 or more hats. 6 week lead time.</g:description>
+      <g:description>Genuine leather patch hat built to order. Your fire department crest, union local, or custom logo on a waterproof performance hat or classic Richardson 112 trucker. Crew discounts on 10 or more hats. 1-3 week lead time.</g:description>
       <g:link>https://rawhidecityleather.com/product-leather-patch-hat</g:link>
       <g:image_link>https://rawhidecityleather.com/assets/img/products/leather-patch-hat.jpg</g:image_link>
       <g:price>30.00 USD</g:price>
@@ -123,8 +123,8 @@
       <g:brand>Rawhide City Leather</g:brand>
       <g:identifier_exists>no</g:identifier_exists>
       <g:product_type>Accessories &gt; Hats</g:product_type>
-      <g:min_handling_time>25</g:min_handling_time>
-      <g:max_handling_time>30</g:max_handling_time>
+      <g:min_handling_time>7</g:min_handling_time>
+      <g:max_handling_time>21</g:max_handling_time>
       <g:shipping>
         <g:country>US</g:country>
         <g:service>Ground</g:service>
@@ -135,7 +135,7 @@
     <item>
       <g:id>heavy-duty-belt</g:id>
       <g:title>Heavy Duty Leather Belt</g:title>
-      <g:description>Heavy duty belt cut from one solid strap of full-grain leather. No stitching to fail, no layers to peel apart. Black or brown leather with a solid buckle in brass, black, or nickel, sized to you. Made to order by hand. 6 week lead time.</g:description>
+      <g:description>Heavy duty belt cut from one solid strap of full-grain leather. No stitching to fail, no layers to peel apart. Black or brown leather with a solid buckle in brass, black, or nickel, sized to you. Made to order by hand. 1-3 week lead time.</g:description>
       <g:link>https://rawhidecityleather.com/product-heavy-duty-belt</g:link>
       <g:image_link>https://rawhidecityleather.com/assets/img/products/heavy-duty-belt.jpg</g:image_link>
       <g:price>50.00 USD</g:price>
@@ -145,8 +145,8 @@
       <g:identifier_exists>no</g:identifier_exists>
       <g:product_type>Belts</g:product_type>
       <g:google_product_category>169</g:google_product_category>
-      <g:min_handling_time>25</g:min_handling_time>
-      <g:max_handling_time>30</g:max_handling_time>
+      <g:min_handling_time>7</g:min_handling_time>
+      <g:max_handling_time>21</g:max_handling_time>
       <g:shipping>
         <g:country>US</g:country>
         <g:service>Ground</g:service>
@@ -157,7 +157,7 @@
     <item>
       <g:id>chin-strap</g:id>
       <g:title>Leather Helmet Chin Strap</g:title>
-      <g:description>Hand-cut leather chin strap for fire helmets. Full-grain leather with a quick-release buckle, adjustable fit, and stitch and hardware options. Made to order by hand. 6 week lead time.</g:description>
+      <g:description>Hand-cut leather chin strap for fire helmets. Full-grain leather with a quick-release buckle, adjustable fit, and stitch and hardware options. Made to order by hand. 1-3 week lead time.</g:description>
       <g:link>https://rawhidecityleather.com/product-chin-strap</g:link>
       <g:image_link>https://rawhidecityleather.com/assets/img/products/chin-strap.jpg</g:image_link>
       <g:price>35.00 USD</g:price>
@@ -166,8 +166,8 @@
       <g:brand>Rawhide City Leather</g:brand>
       <g:identifier_exists>no</g:identifier_exists>
       <g:product_type>Accessories</g:product_type>
-      <g:min_handling_time>25</g:min_handling_time>
-      <g:max_handling_time>30</g:max_handling_time>
+      <g:min_handling_time>7</g:min_handling_time>
+      <g:max_handling_time>21</g:max_handling_time>
       <g:shipping>
         <g:country>US</g:country>
         <g:service>Ground</g:service>
