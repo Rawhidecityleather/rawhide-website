@@ -130,4 +130,37 @@
       });
     });
   });
+
+  // Meta Pixel: forward cart activity so ads can optimize on sales, not just visits.
+  document.addEventListener('snipcart.ready',function(){
+    if(typeof fbq!=='function'||!window.Snipcart||!Snipcart.events)return;
+    Snipcart.events.on('item.added',function(item){
+      fbq('track','AddToCart',{
+        content_type:'product',
+        content_ids:[item.id],
+        content_name:item.name,
+        value:Math.round((item.totalPrice||item.price||0)*100)/100,
+        currency:'USD'
+      });
+    });
+    Snipcart.events.on('theme.routechanged',function(routes){
+      // Fire once when the buyer enters checkout, not on steps within it.
+      if(routes&&routes.to&&routes.to.indexOf('/checkout')===0&&(!routes.from||routes.from.indexOf('/checkout')!==0)){
+        fbq('track','InitiateCheckout');
+      }
+    });
+    Snipcart.events.on('cart.confirmed',function(cart){
+      // cart.items is {count,items:[...]} in current SDK builds, a plain array in older ones.
+      var items=(cart&&cart.items&&cart.items.items)||(cart&&cart.items)||[];
+      var ids=[],count=0;
+      if(items.forEach)items.forEach(function(it){ids.push(it.id);count+=(it.quantity||1)});
+      fbq('track','Purchase',{
+        content_type:'product',
+        content_ids:ids,
+        value:Math.round(((cart&&cart.total)||0)*100)/100,
+        currency:(cart&&cart.currency)?String(cart.currency).toUpperCase():'USD',
+        num_items:count
+      });
+    });
+  });
 })();
