@@ -131,6 +131,31 @@
     });
   });
 
+  // Newsletter: Kit's script posts the signup, but renders no confirmation in our
+  // own markup — so say something ourselves. No preventDefault: if Kit's script is
+  // blocked, the form still posts natively and Kit shows its own success page.
+  var news = document.querySelector('.newsletter-form');
+  if(news){
+    news.addEventListener('submit',function(){
+      var email=news.querySelector('input[name="email_address"]');
+      var btn=news.querySelector('button');
+      if(!email||!email.value||!email.checkValidity())return;
+      if(btn){btn.disabled=true;btn.textContent='Signing up...'}
+      setTimeout(function(){
+        var wrap=news.parentNode;
+        if(!wrap||wrap.querySelector('[data-news-done]'))return;
+        var done=document.createElement('p');
+        done.setAttribute('data-news-done','');
+        done.style.cssText='margin:0;font-family:var(--font-display);font-weight:600;letter-spacing:.14em;text-transform:uppercase;font-size:.95rem';
+        done.textContent="You're on the list. Check your email to confirm.";
+        news.style.display='none';
+        var fine=wrap.querySelector('.form-help');
+        if(fine)fine.style.display='none';
+        news.insertAdjacentElement('afterend',done);
+      },1200);
+    });
+  }
+
   // Meta Pixel: forward cart activity so ads can optimize on sales, not just visits.
   document.addEventListener('snipcart.ready',function(){
     if(typeof fbq!=='function'||!window.Snipcart||!Snipcart.events)return;
