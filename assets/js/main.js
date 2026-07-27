@@ -193,7 +193,8 @@
     var about={
       crew:'Crew or bulk order',
       custom:'Custom build',
-      order:'Question about an existing order'
+      order:'Question about an existing order',
+      review:'Leave a review'
     }[(location.search.match(/[?&]about=([^&]*)/)||[])[1]];
     if(about){
       var aboutSel=inquiry.querySelector('#ct-about');
