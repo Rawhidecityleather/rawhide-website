@@ -127,6 +127,11 @@ p{margin:0 0 1em}
 .product-card-body{padding:18px 4px 4px}
 .product-card-body h3{font-size:1rem;letter-spacing:.1em;margin:0 0 6px;color:var(--c-cream)}
 .price{font-family:var(--font-stamp);font-size:1.05rem;font-weight:700;color:var(--c-text);margin:0}
+/* Sale pricing: the 20% comes off automatically in the cart, so show it on the
+   page too — a buyer who only sees the discount at checkout has usually left.
+   The palette is monochrome by design, so the emphasis is weight, not color:
+   a muted 400 strikethrough against the inherited solid 700. */
+.price .was,.product-price .was{color:var(--c-muted);text-decoration:line-through;font-weight:400;margin-right:.45em}
 .product-card-cta{display:inline-block;margin-top:8px;font-family:var(--font-display);font-size:.75rem;letter-spacing:.2em;text-transform:uppercase;color:var(--c-cream);transition:color .2s}
 .product-card-cta::after{content:" →"}
 

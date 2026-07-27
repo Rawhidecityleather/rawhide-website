@@ -56,6 +56,124 @@ Each page is plain HTML. Open in Notepad or VS Code, find the text, change it, s
 - **Product descriptions**: in each `product-*.html`, look for `<div class="product-description">`
 - **Hero title/tagline**: in `index.html`, look for `<h1 class="hero-title">`
 
+## Google tag setup
+
+Analytics and Ads conversion tracking are wired up in `assets/js/main.js`, but
+they stay switched off until you paste your IDs. Open that file — the three
+values are the first thing in it:
+
+```js
+var GA4_ID='';
+var ADS_ID='';
+var ADS_LABEL='';
+```
+
+Anything left empty stays off, so a half-filled config never sends junk data.
+
+### Getting GA4_ID (Google Analytics)
+
+1. Go to **analytics.google.com** → sign in with your business Google account
+2. **Admin** (bottom left) → **Create** → **Property**
+3. Name it `Rawhide City Leather`, set timezone to Eastern, currency USD
+4. Pick **Web** as the platform, enter `rawhidecityleather.com`
+5. It shows you a **Measurement ID** that looks like `G-ABC1234XYZ`
+6. Paste it between the quotes on the `GA4_ID` line
+
+### Getting ADS_ID and ADS_LABEL (Google Ads)
+
+Only needed when you actually start running Google Ads.
+
+1. Go to **ads.google.com** → create an account if you don't have one
+2. **Goals** → **Conversions** → **New conversion action** → **Website**
+3. Enter `rawhidecityleather.com`, then **Add a conversion action manually**
+4. Category **Purchase**, value **Use different values for each conversion**,
+   count **Every**
+5. After saving, click **Tag setup** → **Install the tag yourself**
+6. You'll see two values in the snippet:
+   - `AW-123456789` → this is your `ADS_ID`
+   - In the line `'send_to': 'AW-123456789/AbC-D_efGhIjKlM'`, the part *after*
+     the slash is your `ADS_LABEL`
+7. Paste both in. Ignore the rest of the snippet Google shows — the site
+   already has the wiring, it just needs the IDs.
+
+### What gets tracked
+
+Once the IDs are in, both Google and Meta receive the full funnel:
+
+| Buyer action | Google Analytics | Google Ads | Meta |
+|---|---|---|---|
+| Views a product | `view_item` | — | `ViewContent` |
+| Adds to cart | `add_to_cart` | — | `AddToCart` |
+| Starts checkout | `begin_checkout` | — | `InitiateCheckout` |
+| Completes order | `purchase` | `conversion` | `Purchase` |
+
+Purchase value is Snipcart's actual charged total, so the 20% discount is
+already taken out — the numbers in your ad dashboards match real revenue.
+
+### Testing it
+
+1. Paste the IDs, deploy
+2. In Google Analytics: **Admin** → **DebugView**, then browse your own site —
+   events should appear within a few seconds
+3. Place a real $6.40 leather butter order to confirm `purchase` fires with the
+   right value, then refund yourself
+
+## Custom build inquiry form (Kit)
+
+The contact page has a real inquiry form that files submissions into Kit. **It
+needs a Kit form created before it works.** Until then it safely falls back to
+opening an email with everything the visitor typed already filled in — nothing
+gets lost, but you should finish the setup.
+
+### 1. Create the Kit form
+
+1. Log into **kit.com** → **Grow** → **Landing Pages & Forms** → **Create new**
+2. Choose **Form** → **Inline**, name it `Website Inquiries`
+3. Save it, then click **Publish** → **HTML** and find these two values in the
+   snippet Kit gives you:
+   - The number in `app.kit.com/forms/1234567/subscriptions` → the **form ID**
+   - `data-uid="abc123def4"` → the **UID**
+
+### 2. Create the custom fields
+
+In Kit: **Subscribers** → **Custom Fields** → add these four, spelled exactly:
+
+| Field name |
+|---|
+| `inquiry_type` |
+| `department` |
+| `needed_by` |
+| `details` |
+
+Kit silently drops data sent to fields that don't exist, so this step is not
+optional. (`first_name` already exists by default.)
+
+### 3. Point the form at it
+
+In `contact.html`, find the three `KIT_FORM_ID` / `KIT_FORM_UID` placeholders
+and replace them:
+
+```html
+action="https://app.kit.com/forms/1234567/subscriptions" data-sv-form="1234567" data-uid="abc123def4"
+```
+
+### 4. Keep inquiries out of your newsletter list
+
+Inquiries and newsletter signups both land in Kit as subscribers. To stop
+sending build questions to people who only wanted the newsletter:
+
+1. **Automate** → **Rules** → **New Rule**
+2. Trigger: **Subscribes to a form** → `Website Inquiries`
+3. Action: **Add tag** → `inquiry`
+4. When you send a newsletter broadcast, filter to subscribers *without* the
+   `inquiry` tag
+
+### Known limit
+
+Kit can't accept file uploads, so the form asks people to email sketches and
+photos separately. If custom builds pick up and chasing photos by email gets
+old, a form backend that takes attachments is the upgrade.
+
 ## Switching from "Email to Order" to PayPal Pay Links
 
 Each product's Buy button is currently a `mailto:` link. When you have PayPal Pay Links:
