@@ -188,6 +188,21 @@
   // with the inquiry details attached to the subscriber record.
   var inquiry=document.querySelector('[data-inquiry-form]');
   if(inquiry){
+    // Deep links like /contact?about=crew arrive with the reason already picked,
+    // so someone sent here from the crew page isn't restating why they came.
+    var about={
+      crew:'Crew or bulk order',
+      custom:'Custom build',
+      order:'Question about an existing order'
+    }[(location.search.match(/[?&]about=([^&]*)/)||[])[1]];
+    if(about){
+      var aboutSel=inquiry.querySelector('#ct-about');
+      // The options carry no value attribute, so their text is their value.
+      if(aboutSel&&Array.prototype.some.call(aboutSel.options,function(o){return o.text===about})){
+        aboutSel.value=about;
+      }
+    }
+
     // Everything typed in, as plain text — used for the email fallback below.
     var inquiryAsText=function(){
       var lines=[];
