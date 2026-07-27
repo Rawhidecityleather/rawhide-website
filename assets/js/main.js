@@ -45,7 +45,22 @@
     if(!main)return;
     var thumbs=Array.prototype.slice.call(gallery.querySelectorAll('.thumb'));
     thumbs.forEach(function(thumb,i){
-      thumb.setAttribute('aria-label','View photo '+(i+1));thumb.addEventListener('click',function(){
+      thumb.setAttribute('aria-label','View photo '+(i+1));
+
+      // Thumbs load a small file now, so the full-size version is not sitting in
+      // cache when one is clicked. Warm it on hover or first touch and the swap
+      // still feels instant, without spending the bytes on visitors who never click.
+      var warmed=false;
+      var warm=function(){
+        if(warmed)return;
+        warmed=true;
+        var full=thumb.getAttribute('data-full');
+        if(full)(new Image()).src=full;
+      };
+      thumb.addEventListener('pointerenter',warm);
+      thumb.addEventListener('touchstart',warm,{passive:true});
+
+      thumb.addEventListener('click',function(){
         var full=thumb.getAttribute('data-full');
         if(!full)return;
         main.src=full;
