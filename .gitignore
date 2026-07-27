@@ -2,3 +2,10 @@
 node_modules/
 Thumbs.db
 desktop.ini
+
+# Secrets. Anything wrangler reads locally stays out of the repo — this is where
+# a Snipcart secret key, Kit API key, or Cloudflare token would otherwise land.
+.dev.vars*
+!.dev.vars.example
+.env*
+!.env.example
