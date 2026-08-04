@@ -1,6 +1,7 @@
 wrangler.jsonc
 .assetsignore
 worker/
+.claude/
 README.md
 .gitattributes
 .gitignore
