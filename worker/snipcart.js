@@ -127,16 +127,51 @@ export function isShipped(order) {
   return SHIPPED.has(order?.status);
 }
 
-/** Paid for, not cancelled, not yet gone out. This is the work queue. */
+/**
+ * How much of the order got handed back: 'none', 'partial' or 'full'.
+ *
+ * Two ways an order ends up fully refunded, and both have to be caught.
+ * Snipcart sets paymentStatus to `Refunded` when the whole thing is reversed at
+ * once, but refunding the full amount in pieces leaves paymentStatus on `Paid`
+ * with `refundsAmount` grown to match the total — so the amount is checked too,
+ * not just the status.
+ */
+export function refundState(order) {
+  const refunded = Number(order?.refundsAmount) || 0;
+  if (order?.paymentStatus === 'Refunded') return 'full';
+  if (refunded <= 0) return 'none';
+  return refunded >= grandTotal(order) ? 'full' : 'partial';
+}
+
+export function isFullyRefunded(order) {
+  return refundState(order) === 'full';
+}
+
+/**
+ * A sale that still stands. Excludes unpaid, cancelled and fully refunded
+ * orders, so it's the one predicate every count in the dashboard runs through.
+ * Partial refunds still count as sales — money changed hands and a package is
+ * probably still owed; the amount kept is netRevenue's problem, not this one.
+ */
+export function countsAsSale(order) {
+  return isPaid(order) && !isCancelled(order) && !isFullyRefunded(order);
+}
+
+/**
+ * Paid for, not cancelled, not fully refunded, not yet gone out. The work queue.
+ * A partial refund stays here on purpose — refunding shipping or knocking money
+ * off a custom build doesn't mean the piece no longer has to be made and sent.
+ */
 export function needsShipping(order) {
-  return isPaid(order) && !isCancelled(order) && !isShipped(order);
+  return countsAsSale(order) && !isShipped(order);
 }
 
 /** What the shop actually kept: order total less anything refunded. */
 export function netRevenue(order) {
   if (!isPaid(order) || isCancelled(order)) return 0;
-  const gross = order.grandTotal ?? order.total ?? order.finalGrandTotal ?? 0;
-  return gross - (order.refundsAmount || 0);
+  // Refunding more than the order total would otherwise read as negative
+  // revenue and quietly eat into the month's real earnings.
+  return Math.max(0, grandTotal(order) - (Number(order.refundsAmount) || 0));
 }
 
 export function grandTotal(order) {

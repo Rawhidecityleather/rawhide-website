@@ -11,7 +11,8 @@ import {
   esc, money, moneyShort, tinyDate, shortDate, daysSince, monthKey, monthLabel,
 } from './lib.js';
 import {
-  isPaid, isCancelled, isShipped, needsShipping, netRevenue, grandTotal,
+  isCancelled, isShipped, needsShipping, netRevenue, grandTotal,
+  countsAsSale, refundState,
 } from './snipcart.js';
 import { orderWeightOunces, PIRATE_SHIP_URL } from './pirateship.js';
 
@@ -86,7 +87,7 @@ export function analyze(orders, requestedRange) {
     : [];
 
   const revenue = sum(inRange, netRevenue);
-  const paidCount = inRange.filter((o) => isPaid(o) && !isCancelled(o)).length;
+  const paidCount = inRange.filter(countsAsSale).length;
 
   const queue = sorted.filter(needsShipping);
   const oldestQueued = queue.length
@@ -103,12 +104,13 @@ export function analyze(orders, requestedRange) {
     paidCount,
     avgOrder: paidCount ? revenue / paidCount : 0,
     lifetime: sum(sorted, netRevenue),
-    lifetimeCount: sorted.filter((o) => isPaid(o) && !isCancelled(o)).length,
+    lifetimeCount: sorted.filter(countsAsSale).length,
     prevRevenue: comparable ? sum(previous, netRevenue) : null,
-    prevCount: comparable ? previous.filter((o) => isPaid(o) && !isCancelled(o)).length : null,
+    prevCount: comparable ? previous.filter(countsAsSale).length : null,
     months: monthSeries(sorted, 12),
     products: topProducts(inRange),
-    refunded: sum(sorted, (o) => o.refundsAmount || 0),
+    refunded: sum(inRange, (o) => Number(o.refundsAmount) || 0),
+    refundedCount: inRange.filter((o) => refundState(o) !== 'none').length,
   };
 }
 
@@ -132,9 +134,8 @@ function monthSeries(orders, count) {
   for (const order of orders) {
     const bucket = buckets.get(monthKey(order.creationDate));
     if (!bucket) continue;
-    const net = netRevenue(order);
-    bucket.revenue += net;
-    if (isPaid(order) && !isCancelled(order)) bucket.orders += 1;
+    bucket.revenue += netRevenue(order);
+    if (countsAsSale(order)) bucket.orders += 1;
   }
 
   return [...buckets.entries()].map(([key, value]) => ({ key, ...value }));
@@ -144,7 +145,7 @@ function topProducts(orders) {
   const totals = new Map();
 
   for (const order of orders) {
-    if (!isPaid(order) || isCancelled(order)) continue;
+    if (!countsAsSale(order)) continue;
     for (const item of order.items || []) {
       const name = item.name || item.id || 'Custom build';
       const row = totals.get(name) || { name, units: 0, revenue: 0 };
@@ -238,7 +239,11 @@ function renderKpis(stats, rangeLabel) {
   const tiles = [
     {
       label: 'Net revenue',
-      note: revenueDelta ? compare : rangeLabel,
+      // Refunds are already out of this number; say so rather than leaving him
+      // to wonder why it trails what Stripe deposited.
+      note: stats.refunded
+        ? `after ${money(stats.refunded, 'usd')} refunded`
+        : (revenueDelta ? compare : rangeLabel),
       value: moneyShort(stats.revenue),
       exact: money(stats.revenue, 'usd'),
       delta: revenueDelta,
@@ -508,7 +513,12 @@ function renderOrders(allOrders, rangeLabel) {
 
   const rows = orders.map((order) => {
     const a = order.shippingAddress || order.billingAddress || {};
+    const refund = refundState(order);
+
+    // One primary state per row. Refund is tracked separately because a
+    // partially refunded order is still open, shipped or unpaid underneath.
     const bucket = isCancelled(order) ? 'cancelled'
+      : refund === 'full' ? 'refunded'
       : isShipped(order) ? 'shipped'
       : needsShipping(order) ? 'open' : 'unpaid';
 
@@ -516,21 +526,36 @@ function renderOrders(allOrders, rangeLabel) {
       ? `<a class="mono" href="${esc(order.trackingUrl || '#')}" target="_blank" rel="noopener noreferrer">${esc(order.trackingNumber)}</a>`
       : '<span class="soft">&mdash;</span>';
 
-    return `<tr data-bucket="${bucket}">
+    const refundTag = refund === 'none' ? '' :
+      `<span class="pill refund" title="${esc(money(Number(order.refundsAmount) || 0, order.currency))} refunded">${
+        refund === 'full' ? 'Refunded' : 'Part refund'
+      }</span>`;
+
+    // Refunded and cancelled orders start hidden — see ACTIVE_BUCKETS below.
+    const startsHidden = bucket === 'refunded' || bucket === 'cancelled';
+
+    return `<tr data-bucket="${bucket}" data-refund="${refund}"${startsHidden ? ' hidden' : ''}>
       <td><a class="mono" href="/packing-slip?token=${esc(order.token)}">${esc(order.invoiceNumber || order.token)}</a></td>
       <td class="nowrap">${esc(shortDate(order.creationDate))}</td>
       <td>${esc(a.fullName || a.name || order.email || '')}</td>
       <td class="num">${esc(String((order.items || []).reduce((n, i) => n + (Number(i.quantity) || 1), 0)))}</td>
       <td class="num strong">${esc(money(grandTotal(order), order.currency))}</td>
-      <td>${statusPill(order)}</td>
+      <td>${statusPill(order)}${refundTag}</td>
       <td class="soft">${esc((order.paymentStatus || '').replace(/([a-z])([A-Z])/g, '$1 $2'))}</td>
       <td>${tracking}</td>
     </tr>`;
   }).join('');
 
+  // Counts come off the same predicates the rows use, so a chip never promises
+  // rows the filter won't show.
+  const tally = (test) => orders.filter(test).length;
   const filters = [
-    ['all', 'All'], ['open', 'Needs shipping'], ['shipped', 'Shipped'],
-    ['cancelled', 'Cancelled'], ['unpaid', 'Unpaid'],
+    ['active', 'Active', tally((o) => !isCancelled(o) && refundState(o) !== 'full')],
+    ['open', 'Needs shipping', tally(needsShipping)],
+    ['shipped', 'Shipped', tally((o) => isShipped(o) && !isCancelled(o) && refundState(o) !== 'full')],
+    ['refunded', 'Refunded', tally((o) => refundState(o) !== 'none')],
+    ['cancelled', 'Cancelled', tally(isCancelled)],
+    ['all', 'All', orders.length],
   ];
 
   return `<section id="orders" class="card">
@@ -541,8 +566,10 @@ function renderOrders(allOrders, rangeLabel) {
       }</span>
     </div>
     <div class="filters" id="filters">
-      ${filters.map(([key, label], i) =>
-        `<button type="button" class="chip${i === 0 ? ' on' : ''}" data-filter="${key}">${esc(label)}</button>`
+      ${filters.map(([key, label, count], i) =>
+        `<button type="button" class="chip${i === 0 ? ' on' : ''}" data-filter="${key}"${
+          count ? '' : ' disabled'
+        }>${esc(label)}<span class="chipnum">${count}</span></button>`
       ).join('')}
     </div>
     <div class="scroll">
@@ -724,14 +751,25 @@ export const DASHBOARD_SCRIPT = `
 
   /* ---- status filter on the all-orders table ---- */
 
+  // 'active' and 'refunded' span more than one bucket, so each filter is a
+  // predicate rather than a bucket string match.
+  var MATCH = {
+    all:       function(){ return true; },
+    active:    function(b){ return b !== 'cancelled' && b !== 'refunded'; },
+    refunded:  function(b, r){ return r !== 'none'; },
+    open:      function(b){ return b === 'open'; },
+    shipped:   function(b){ return b === 'shipped'; },
+    cancelled: function(b){ return b === 'cancelled'; }
+  };
+
   var filters = document.getElementById('filters');
   if (filters) filters.addEventListener('click', function(event){
     var chip = event.target.closest('[data-filter]');
-    if (!chip) return;
-    var want = chip.getAttribute('data-filter');
+    if (!chip || chip.disabled) return;
+    var test = MATCH[chip.getAttribute('data-filter')] || MATCH.all;
     [].forEach.call(filters.children, function(c){ c.classList.toggle('on', c === chip); });
     [].forEach.call(document.querySelectorAll('#orders tbody tr'), function(row){
-      row.hidden = want !== 'all' && row.getAttribute('data-bucket') !== want;
+      row.hidden = !test(row.getAttribute('data-bucket'), row.getAttribute('data-refund'));
     });
   });
 })();
@@ -791,10 +829,14 @@ a{color:inherit}
 .topbar h1{font-size:22px;letter-spacing:.1em}
 .sub{margin:3px 0 0;font-size:12px;color:var(--soft)}
 .topright{display:flex;align-items:center;gap:12px}
-.chips{display:flex;gap:0;border:1px solid var(--line-2);border-radius:2px;overflow:hidden;background:var(--paper)}
+/* overflow-x:auto, not hidden — hidden still clips the rounded corners the same
+   way, but on a phone it also swallowed the last chips with no way to reach
+   them. Scrolling keeps every filter available at any width. */
+.chips{display:flex;gap:0;border:1px solid var(--line-2);border-radius:2px;
+  overflow-x:auto;overscroll-behavior-x:contain;background:var(--paper)}
 .chip{font-family:var(--display);text-transform:uppercase;letter-spacing:.11em;font-size:10.5px;
   padding:8px 13px;color:var(--soft);text-decoration:none;background:none;border:0;cursor:pointer;
-  border-right:1px solid var(--line)}
+  border-right:1px solid var(--line);flex:0 0 auto;white-space:nowrap}
 .chip:last-child{border-right:0}
 .chip:hover{background:var(--bg);color:var(--ink)}
 .chip.on{background:var(--ink);color:#EBE8E1}
@@ -886,9 +928,19 @@ table.mini tr:last-child td{border-bottom:0}
 .pill.done{background:var(--stone);color:var(--ink-3)}
 .pill.warn{background:var(--warn-bg);color:var(--warn)}
 .pill.bad{background:var(--bad-bg);color:var(--bad)}
+/* Outlined, not filled — it sits beside a status pill and must not outshout it. */
+.pill.refund{margin-left:5px;background:none;color:var(--bad);
+  box-shadow:inset 0 0 0 1px currentColor}
 
 .filters{display:flex;gap:0;margin-bottom:12px;border:1px solid var(--line-2);
-  border-radius:2px;overflow:hidden;width:max-content;background:var(--paper)}
+  border-radius:2px;overflow-x:auto;overscroll-behavior-x:contain;
+  width:max-content;max-width:100%;background:var(--paper)}
+.filters .chip{display:inline-flex;align-items:center;gap:6px}
+.filters .chip:disabled{opacity:.4;cursor:default}
+.filters .chip:disabled:hover{background:none;color:var(--soft)}
+.chipnum{font-variant-numeric:tabular-nums;font-size:9.5px;padding:1px 5px;border-radius:8px;
+  background:rgba(15,15,15,.09);color:var(--soft);letter-spacing:.02em}
+.chip.on .chipnum{background:rgba(235,232,225,.22);color:#EBE8E1}
 
 /* -------------------------------------------------------------- shipping */
 .bulkbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:12px;
