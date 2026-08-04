@@ -202,10 +202,25 @@ function renderSlip(order) {
   </div>`;
 }
 
+/**
+ * Fields that get cut, stamped or painted into the leather — get these wrong
+ * and the piece is scrap, so they print in a callout instead of the spec grid.
+ * Deliberately narrow: must catch "Text on belt" and "Stamped text" without
+ * catching "Text color", "Text outline color" or "Text paint color".
+ */
+const CRITICAL_FIELD = /stamp|^message$|^notes$|^patch details$|^text on /i;
+
 function renderItem(item) {
   const fields = (item.customFields || []).filter((f) => f && String(f.value || '').trim());
+  const critical = fields.filter((f) => CRITICAL_FIELD.test(f.name || ''));
+  const specs = fields.filter((f) => !CRITICAL_FIELD.test(f.name || ''));
 
-  const opts = fields.map((f) => {
+  const callout = critical.map((f) => `<div class="callout-row">
+      <span class="callout-label">${esc(f.name || '')}</span>
+      <span class="callout-value">${esc(String(f.value).trim()).replace(/\n/g, '<br>')}</span>
+    </div>`).join('');
+
+  const opts = specs.map((f) => {
     // Only genuinely long values get a full-width row. Matching on the field
     // name instead would hand a whole line to "Text paint color: White".
     const value = String(f.value).trim();
@@ -222,7 +237,9 @@ function renderItem(item) {
       <span class="item-name">${esc(item.name || '')}</span>
       <span class="item-price">${esc(money(item.totalPrice ?? item.price, null))}</span>
     </div>
-    ${opts ? `<dl class="opts">${opts}</dl>` : '<p class="soft no-opts">No options selected.</p>'}
+    ${opts ? `<dl class="opts">${opts}</dl>` : ''}
+    ${callout ? `<div class="callout">${callout}</div>` : ''}
+    ${!opts && !callout ? '<p class="soft no-opts">No options selected.</p>' : ''}
   </article>`;
 }
 
@@ -398,6 +415,15 @@ h2{font-size:11px;letter-spacing:.22em;color:var(--soft);margin:0 0 6px;padding-
 .opt dt{flex:0 0 auto;color:var(--soft);font-size:11px;text-transform:uppercase;letter-spacing:.05em}
 .opt dd{margin:0;font-weight:600;min-width:0;overflow-wrap:anywhere}
 .no-opts{margin:0;font-style:italic}
+
+/* Border + weight carry the emphasis, not colour — these print on B&W lasers. */
+.callout{margin-top:8px;border:1.5px solid var(--ink);border-radius:2px;
+  padding:7px 10px;background:rgba(15,15,15,.045)}
+.callout-row{display:flex;gap:12px;align-items:baseline}
+.callout-row + .callout-row{margin-top:5px;padding-top:5px;border-top:1px solid var(--line)}
+.callout-label{font-family:var(--display);font-size:9.5px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--soft);flex:0 0 1.1in;line-height:1.6}
+.callout-value{font-size:14px;font-weight:700;line-height:1.3;overflow-wrap:anywhere}
 
 .totals{display:flex;justify-content:flex-end;margin-top:12px}
 .totals table{border-collapse:collapse;min-width:2.3in}
