@@ -245,22 +245,27 @@ function renderAddress(a) {
 
 function renderTotals(order) {
   const cur = order.currency;
-  const discount = order.totalDiscountAmount ??
-    (order.discounts || []).reduce((sum, d) => sum + (d.amount || 0), 0);
+
+  // Field names verified against a live order (itemsTotal 200, savedAmount 40,
+  // grandTotal 160). Two traps: Snipcart's `subtotal` is already discounted, so
+  // using it hides the sale entirely; and discount rows carry `amountSaved`,
+  // not `amount`.
+  const items = order.itemsTotal ?? order.baseTotal ?? order.subtotal;
+  const discount = order.savedAmount ?? order.totalDiscountAmount ??
+    (order.discounts || []).reduce((sum, d) => sum + (d.amountSaved || 0), 0);
   const shipping = order.shippingFees ?? order.shippingInformation?.fees;
   const tax = order.taxesTotal ??
     (order.taxes || []).reduce((sum, t) => sum + (t.amount || 0), 0);
 
-  const rows = [
-    ['Subtotal', order.subtotal],
-    ['Discount', discount ? -Math.abs(discount) : 0],
-    ['Shipping', shipping],
-    ['Tax', tax],
-  ].filter(([, v]) => typeof v === 'number' && v !== 0);
+  const rows = [];
+  if (typeof items === 'number') rows.push(['Subtotal', money(items, cur)]);
+  if (discount) rows.push(['Discount', '-' + money(Math.abs(discount), cur)]);
+  if (typeof shipping === 'number') rows.push(['Shipping', shipping ? money(shipping, cur) : 'Free']);
+  if (tax) rows.push(['Tax', money(tax, cur)]);
 
   return `<section class="totals">
     <table>
-      ${rows.map(([label, v]) => `<tr><th>${label}</th><td>${esc(money(v, cur))}</td></tr>`).join('')}
+      ${rows.map(([label, v]) => `<tr><th>${label}</th><td>${esc(v)}</td></tr>`).join('')}
       <tr class="grand"><th>Total</th><td>${esc(money(grandTotal(order), cur))}</td></tr>
     </table>
   </section>`;
