@@ -2,7 +2,13 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "rawhide-site",
+      "name": "rawhide-worker",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["wrangler", "dev", "--port", "8787"],
+      "port": 8787
+    },
+    {
+      "name": "rawhide-site-static",
       "runtimeExecutable": "python",
       "runtimeArgs": ["-m", "http.server", "8788"],
       "port": 8788
