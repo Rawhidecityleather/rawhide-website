@@ -174,6 +174,108 @@ Kit can't accept file uploads, so the form asks people to email sketches and
 photos separately. If custom builds pick up and chasing photos by email gets
 old, a form backend that takes attachments is the upgrade.
 
+## Order dashboard
+
+Live at **rawhidecityleather.com/dashboard**. Same login as the packing slip.
+It reads every order out of Snipcart and gives you three things: what you've
+made, what still has to ship, and a way to get tracking numbers back in without
+touching Snipcart's dashboard.
+
+Bookmark it. It's `noindex` and behind a password, so nobody finds it on their
+own.
+
+### The numbers
+
+| Tile | What it counts |
+|---|---|
+| Net revenue | Paid orders in the window, minus anything refunded |
+| Orders | Paid orders in the window |
+| Average order | Net revenue ÷ paid orders |
+| Awaiting shipment | Paid, not cancelled, not shipped yet — all time, not just the window |
+| Lifetime revenue | Every paid order since day one, minus refunds |
+
+Cancelled and unpaid orders never count toward revenue. The four buttons up top
+switch the window; the trend arrows compare against the same stretch of the
+previous period, so "this month" on the 4th is measured against the first 4 days
+of last month, not against the tail end of it.
+
+### Shipping through Pirate Ship
+
+Pirate Ship has no API and no Snipcart integration, so labels can't be bought
+from the dashboard. What it does take is an address spreadsheet:
+
+1. In **Ship queue**, check the orders you're shipping
+2. **Download Pirate Ship CSV**
+3. **Open Pirate Ship** → upload that file on their spreadsheet screen
+4. First upload only: tell Pirate Ship which column is which (field mapping)
+5. Buy the labels
+
+The CSV carries name, address, phone, email, order number, contents, a box size
+and a weight.
+
+**The weights are estimates, not scale readings.** They're at the top of
+`worker/pirateship.js`:
+
+```js
+const ITEM_OUNCES = {
+  'fully-custom-radio-strap': 14,
+  'basic-radio-strap': 11,
+  ...
+};
+const PACKAGING_OUNCES = 3;   // mailer, tissue, card — added once per order
+```
+
+Weigh a few real packages and fix these numbers. They lean heavy on purpose —
+overpaying a few cents beats a postage-due package coming back at you.
+
+### Getting tracking numbers back in
+
+Two ways, and both do the same three things: save the tracking number, flip the
+order to **Shipped**, and let Snipcart email the customer their tracking link.
+
+- **One order** — type the tracking number in its row in the ship queue, hit
+  **Ship**.
+- **A whole batch** — paste Pirate Ship's shipment list into **Add tracking in
+  bulk**. Order number and tracking number per line is all it needs; header rows
+  and extra columns are ignored. Anything it can't match to an order gets
+  reported back instead of guessed at.
+
+USPS and UPS numbers are told apart automatically, so the tracking link in the
+customer's email goes to the right carrier.
+
+### Register the webhook (one time)
+
+This is what makes "tracking number added → Shipped" happen even when the
+tracking gets added somewhere else, like Snipcart's own dashboard.
+
+1. Log into **app.snipcart.com** → **Store Configurations** → **Webhooks**
+2. Add this URL:
+   ```
+   https://rawhidecityleather.com/dashboard/hooks/snipcart
+   ```
+3. Subscribe it to **order.trackingNumber.changed**
+
+Without this the dashboard still works — the Ship button and the bulk paste set
+the status themselves. The webhook only covers tracking numbers that arrive by
+some other route.
+
+### Secrets
+
+All three are already set if the packing slip works. To rotate one:
+
+```bash
+npx wrangler secret put SNIPCART_SECRET
+```
+
+| Secret | What it's for |
+|---|---|
+| `SNIPCART_SECRET` | Snipcart **secret** API key. Reads orders, writes tracking and status. Never sent to the browser. |
+| `SLIP_USER` | Dashboard username |
+| `SLIP_PASS` | Dashboard password |
+
+If `SLIP_USER` or `SLIP_PASS` is missing, the dashboard locks everyone out
+rather than opening up.
+
 ## Switching from "Email to Order" to PayPal Pay Links
 
 Each product's Buy button is currently a `mailto:` link. When you have PayPal Pay Links:

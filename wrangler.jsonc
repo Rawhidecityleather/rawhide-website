@@ -11,8 +11,8 @@
     "html_handling": "auto-trailing-slash",
     "not_found_handling": "404-page",
     // The asset router answers before the Worker, so without this the 404 page
-    // wins and /packing-slip never reaches the auth check.
-    "run_worker_first": ["/packing-slip*"]
+    // wins and these never reach the auth check.
+    "run_worker_first": ["/packing-slip*", "/dashboard*"]
   },
   "compatibility_flags": [
     "nodejs_compat"
