@@ -210,13 +210,25 @@ function renderSlip(order) {
  */
 const CRITICAL_FIELD = /stamp|^message$|^notes$|^patch details$|^text on /i;
 
+/**
+ * Shorter labels for the callout only. The field names customers pick at
+ * checkout are untouched — this is purely what prints, so a long label
+ * doesn't wrap to two lines beside its value.
+ */
+const CALLOUT_LABELS = { 'text / symbols to be stamped': 'Stamp text' };
+
+function calloutLabel(name) {
+  const key = String(name || '').trim().toLowerCase();
+  return CALLOUT_LABELS[key] || name || '';
+}
+
 function renderItem(item) {
   const fields = (item.customFields || []).filter((f) => f && String(f.value || '').trim());
   const critical = fields.filter((f) => CRITICAL_FIELD.test(f.name || ''));
   const specs = fields.filter((f) => !CRITICAL_FIELD.test(f.name || ''));
 
   const callout = critical.map((f) => `<div class="callout-row">
-      <span class="callout-label">${esc(f.name || '')}</span>
+      <span class="callout-label">${esc(calloutLabel(f.name))}</span>
       <span class="callout-value">${esc(String(f.value).trim()).replace(/\n/g, '<br>')}</span>
     </div>`).join('');
 
