@@ -11,9 +11,18 @@
     "html_handling": "auto-trailing-slash",
     "not_found_handling": "404-page",
     // The asset router answers before the Worker, so without this the 404 page
-    // wins and these never reach the auth check.
-    "run_worker_first": ["/packing-slip*", "/dashboard*"]
+    // wins and these never reach the auth check. /quote* is here for the same
+    // reason — there's no file behind it, the Worker builds the page.
+    //
+    // No slash before the star. "/quote/*" does not match and the quote pages
+    // silently fall through to the 404 page — verified against production.
+    "run_worker_first": ["/packing-slip*", "/dashboard*", "/quote*"]
   },
+  // Custom-build quotes. Created 2026-08-06 with
+  //   wrangler kv namespace create QUOTES
+  "kv_namespaces": [
+    { "binding": "QUOTES", "id": "272cd3400d3e4eae945bfbe2b16ab43f" }
+  ],
   "compatibility_flags": [
     "nodejs_compat"
   ]

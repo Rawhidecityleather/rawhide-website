@@ -15,6 +15,7 @@ import {
   countsAsSale, refundState,
 } from './snipcart.js';
 import { orderWeightOunces, PIRATE_SHIP_URL } from './pirateship.js';
+import { quoteStatus, quoteWarnings, findQuoteOrder, CHECKOUT_DISCOUNT } from './quote.js';
 
 const RANGES = [
   { key: '30d', label: 'Last 30 days', compare: 'vs prior 30 days' },
@@ -160,11 +161,11 @@ function topProducts(orders) {
 
 /* --------------------------------------------------------------- rendering */
 
-export function renderDashboard(stats, { truncated } = {}) {
+export function renderDashboard(stats, { truncated, quotes = [] } = {}) {
   const rangeLabel = rangeInfo(stats.rangeKey).label;
 
   return `<div class="shell">
-  ${renderRail(stats)}
+  ${renderRail(stats, quotes)}
   <main class="main">
     ${renderTopbar(stats, rangeLabel)}
     <div class="pad">
@@ -176,6 +177,7 @@ export function renderDashboard(stats, { truncated } = {}) {
       </div>
       ${renderQueue(stats.queue)}
       ${renderTrackingPanel()}
+      ${renderQuotes(quotes, stats.orders)}
       ${renderOrders(stats.inRange, rangeLabel)}
     </div>
   </main>
@@ -183,11 +185,13 @@ export function renderDashboard(stats, { truncated } = {}) {
 <div class="toast" id="toast" role="status" aria-live="polite"></div>`;
 }
 
-function renderRail(stats) {
+function renderRail(stats, quotes = []) {
   const link = (href, label, badge) =>
     `<a href="${href}">${esc(label)}${
       badge ? `<span class="railbadge">${esc(String(badge))}</span>` : ''
     }</a>`;
+
+  const openQuotes = quotes.filter((q) => quoteStatus(q, stats.orders) === 'open').length;
 
   return `<aside class="rail">
     <div class="railtop">
@@ -198,6 +202,7 @@ function renderRail(stats) {
       ${link('#overview', 'Overview')}
       ${link('#queue', 'Ship queue', stats.queue.length || null)}
       ${link('#tracking', 'Add tracking')}
+      ${link('#quotes', 'Quotes', openQuotes || null)}
       ${link('#orders', 'All orders')}
     </nav>
     <div class="railfoot">
@@ -479,6 +484,168 @@ function renderTrackingPanel() {
   </section>`;
 }
 
+/* ------------------------------------------------------------------ quotes */
+
+const QUOTE_TONE = { open: 'warn', paid: 'good', expired: 'bad', void: 'bad' };
+
+/**
+ * Bill a crew for a job that isn't in the catalog. The form builds the quote;
+ * the table below is what's outstanding, so nothing sits forgotten.
+ */
+function renderQuotes(quotes, orders) {
+  const rows = quotes.map((quote) => {
+    const status = quoteStatus(quote, orders);
+    const order = findQuoteOrder(quote.itemId, orders);
+    const warnings = quoteWarnings(quote);
+
+    const who = `${esc(quote.customer)}${
+      quote.department ? `<span class="soft block">${esc(quote.department)}</span>` : ''
+    }`;
+
+    // A paid quote points at its order — that's where the work is now.
+    const link = order
+      ? `<a class="mono" href="/packing-slip?token=${esc(order.token)}">${esc(order.invoiceNumber || order.token)}</a>`
+      : `<a class="mono" href="/quote/${esc(quote.id)}" target="_blank" rel="noopener noreferrer">${esc(quote.id)}</a>`;
+
+    // Nothing here sends mail on its own — "Email it" opens your own mail
+    // client with the link already in the body, so the message comes from you
+    // and lands in your sent folder like every other note to a crew.
+    const actions = status === 'open'
+      ? `${quote.email ? `<button type="button" class="btn tiny qmail"
+             data-id="${esc(quote.id)}" data-email="${esc(quote.email)}"
+             data-who="${esc(quote.customer)}" data-what="${esc(quote.title)}"
+           >Email it</button>` : ''}
+         <button type="button" class="btn tiny ghost qcopy" data-id="${esc(quote.id)}">Copy link</button>
+         <button type="button" class="btn tiny ghost qvoid" data-id="${esc(quote.id)}">Void</button>`
+      : '<span class="soft">&mdash;</span>';
+
+    return `<tr data-quote="${esc(quote.id)}">
+      <td>${link}</td>
+      <td>${esc(quote.title)}
+        ${quote.taxExempt ? '<span class="pill exempt">Tax exempt</span>' : ''}
+        ${warnings.map((w) => `<span class="pill bad" title="${esc(w)}">Cert</span>`).join('')}</td>
+      <td>${who}</td>
+      <td class="nowrap">${esc(tinyDate(quote.createdAt))}</td>
+      <td class="nowrap">${esc(tinyDate(quote.expiresAt))}</td>
+      <td class="num strong">${esc(money(quote.total, 'usd'))}</td>
+      <td><span class="pill ${QUOTE_TONE[status]}">${status === 'void' ? 'Voided' : esc(status[0].toUpperCase() + status.slice(1))}</span></td>
+      <td class="qactions">${actions}</td>
+    </tr>`;
+  }).join('');
+
+  const flagged = quotes.filter((q) => quoteWarnings(q).length);
+
+  return `<section id="quotes" class="card">
+    <div class="cardhead">
+      <h2>Quotes</h2>
+      <span class="cardnote">custom jobs billed outside the catalog</span>
+    </div>
+
+    <p class="hint">
+      Build the quote, send the crew the link. They pay through the normal
+      checkout, so it lands as an ordinary order &mdash; ship queue, packing slip
+      and tracking all work from there. Links die after the expiry you set.
+    </p>
+
+    ${CHECKOUT_DISCOUNT ? `<p class="banner">
+      The ${Math.round(CHECKOUT_DISCOUNT * 100)}% sale is on, so the button carries a
+      grossed-up price and Snipcart's discount lands the total on your number.
+      When the sale ends, set <code>CHECKOUT_DISCOUNT</code> to 0 in
+      <code>worker/quote.js</code> or every quote overcharges.
+    </p>` : ''}
+
+    ${flagged.length ? banner(
+      `${flagged.length} quote${flagged.length === 1 ? '' : 's'} with a certificate problem — check the Cert flag below.`
+    ) : ''}
+
+    <form id="quoteform" class="qform">
+      <div class="qgrid">
+        <label class="qfield qwide">
+          <span>What is it</span>
+          <input type="text" name="title" required maxlength="120"
+            placeholder="12 Memorial Radio Straps — Station 4">
+        </label>
+        <label class="qfield">
+          <span>Contact name</span>
+          <input type="text" name="customer" required maxlength="120" placeholder="Lt. Dana Reyes">
+        </label>
+        <label class="qfield">
+          <span>Department <em>(optional)</em></span>
+          <input type="text" name="department" maxlength="160" placeholder="Lakeland Fire Department">
+        </label>
+        <label class="qfield">
+          <span>Their email <em>(optional)</em></span>
+          <input type="email" name="email" maxlength="160" placeholder="dreyes@example.gov">
+        </label>
+        <label class="qfield qnarrow">
+          <span>Good for</span>
+          <select name="expiryDays">
+            <option value="14">14 days</option>
+            <option value="30" selected>30 days</option>
+            <option value="60">60 days</option>
+            <option value="90">90 days</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="qlines" id="qlines">
+        <div class="qlinehead">
+          <span>Line item</span><span class="num">Qty</span><span class="num">Unit price</span><span></span>
+        </div>
+      </div>
+      <button type="button" class="btn tiny ghost" id="qaddline">Add line</button>
+
+      <label class="qfield qwide qnotes">
+        <span>Build notes <em>(shown to the customer)</em></span>
+        <textarea name="notes" rows="3" maxlength="2000"
+          placeholder="Black bridle, white stitch, each strap stamped with the man's last name and badge number. List attached."></textarea>
+      </label>
+
+      <div class="qexempt">
+        <label class="qcheck">
+          <input type="checkbox" name="taxExempt" id="qexempt">
+          <span>Tax exempt &mdash; certificate on file</span>
+        </label>
+        <p class="hint qexempthint">
+          Only tick this once you have their exemption certificate in hand. The
+          checkout charges no sales tax and the quote shows the certificate on
+          its face, so the number below is what you'd stand behind in an audit.
+        </p>
+        <div class="qgrid qexemptfields" id="qexemptfields" hidden>
+          <label class="qfield">
+            <span>Entity on the certificate</span>
+            <input type="text" name="exemptEntity" maxlength="200" placeholder="City of Lakeland Fire Department">
+          </label>
+          <label class="qfield">
+            <span>Certificate number</span>
+            <input type="text" name="exemptCertNumber" maxlength="60" placeholder="85-8012345678C-9">
+          </label>
+          <label class="qfield qnarrow">
+            <span>Valid through</span>
+            <input type="text" name="exemptExpires" maxlength="40" placeholder="2027-12-31">
+          </label>
+        </div>
+      </div>
+
+      <div class="panelfoot">
+        <button type="submit" class="btn" id="qcreate">Create quote</button>
+        <span class="soft" id="qtotal">No lines yet</span>
+      </div>
+      <div id="qresult"></div>
+    </form>
+
+    ${quotes.length ? `<div class="scroll qtable">
+      <table class="grid">
+        <thead><tr>
+          <th>Quote</th><th>What</th><th>Customer</th><th>Sent</th>
+          <th>Expires</th><th class="num">Total</th><th>Status</th><th></th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>` : '<p class="empty">No quotes yet.</p>'}
+  </section>`;
+}
+
 const STATUS_TONE = {
   Shipped: 'good',
   Delivered: 'done',
@@ -749,6 +916,165 @@ export const DASHBOARD_SCRIPT = `
       });
   });
 
+  /* ---- quote builder ---- */
+
+  var qLines = document.getElementById('qlines');
+  var qForm = document.getElementById('quoteform');
+
+  function money(n){
+    return '$' + (Math.round(n * 100) / 100).toFixed(2).replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',');
+  }
+
+  function addLine(){
+    var row = document.createElement('div');
+    row.className = 'qline';
+    row.innerHTML =
+      '<input type="text" class="qdesc" maxlength="200" placeholder="Fully custom radio strap, black bridle, name + badge no.">' +
+      '<input type="number" class="qqty num" min="1" max="999" step="1" value="1">' +
+      '<input type="number" class="qprice num" min="0.01" max="100000" step="0.01" placeholder="0.00">' +
+      '<button type="button" class="qdrop" title="Remove line" aria-label="Remove line">&times;</button>';
+    qLines.appendChild(row);
+    return row;
+  }
+
+  function lineData(){
+    return [].slice.call(qLines.querySelectorAll('.qline')).map(function(row){
+      return {
+        description: row.querySelector('.qdesc').value.trim(),
+        quantity: Number(row.querySelector('.qqty').value),
+        unitPrice: Number(row.querySelector('.qprice').value)
+      };
+    }).filter(function(l){ return l.description || l.unitPrice; });
+  }
+
+  function syncTotal(){
+    var lines = lineData();
+    var total = lines.reduce(function(sum, l){
+      return sum + (Math.round((l.quantity || 0) * (l.unitPrice || 0) * 100) / 100);
+    }, 0);
+    var note = document.getElementById('qtotal');
+    if (!note) return;
+    note.textContent = lines.length
+      ? 'Customer pays ' + money(total)
+      : 'No lines yet';
+  }
+
+  if (qLines) {
+    addLine();
+    document.getElementById('qaddline').addEventListener('click', function(){
+      addLine().querySelector('.qdesc').focus();
+    });
+    qLines.addEventListener('click', function(event){
+      var drop = event.target.closest('.qdrop');
+      if (!drop) return;
+      // Never leave the form with nothing to type into.
+      if (qLines.querySelectorAll('.qline').length > 1) drop.closest('.qline').remove();
+      else drop.closest('.qline').querySelectorAll('input').forEach(function(i){ i.value = i.classList.contains('qqty') ? '1' : ''; });
+      syncTotal();
+    });
+    qLines.addEventListener('input', syncTotal);
+  }
+
+  var exemptBox = document.getElementById('qexempt');
+  if (exemptBox) exemptBox.addEventListener('change', function(){
+    var fields = document.getElementById('qexemptfields');
+    fields.hidden = !exemptBox.checked;
+    // Required only while they're in play, or the form can't submit unexempt.
+    fields.querySelectorAll('input').forEach(function(input){
+      if (input.name !== 'exemptExpires') input.required = exemptBox.checked;
+    });
+  });
+
+  if (qForm) qForm.addEventListener('submit', function(event){
+    event.preventDefault();
+    var btn = document.getElementById('qcreate');
+    var out = document.getElementById('qresult');
+    var data = new FormData(qForm);
+
+    btn.disabled = true;
+    btn.textContent = 'Creating…';
+    out.innerHTML = '';
+
+    post('/dashboard/api/quote', {
+      title: data.get('title'),
+      customer: data.get('customer'),
+      department: data.get('department'),
+      email: data.get('email'),
+      notes: data.get('notes'),
+      expiryDays: data.get('expiryDays'),
+      taxExempt: !!data.get('taxExempt'),
+      exemptEntity: data.get('exemptEntity'),
+      exemptCertNumber: data.get('exemptCertNumber'),
+      exemptExpires: data.get('exemptExpires'),
+      lines: lineData()
+    }).then(function(res){
+      out.innerHTML = '<p class="ok">Quote ready. Send them this link:</p>' +
+        '<div class="qlink"><input type="text" readonly value="' + res.url + '">' +
+        '<button type="button" class="btn tiny" id="qcopynew">Copy</button></div>';
+      document.getElementById('qcopynew').addEventListener('click', function(){
+        copy(res.url);
+      });
+      toast('Quote created for ' + money(res.total) + '.');
+      setTimeout(function(){ location.reload(); }, 4000);
+    }).catch(function(err){
+      out.innerHTML = '<p class="err">' + err.message + '</p>';
+      toast(err.message, true);
+    }).then(function(){
+      btn.disabled = false;
+      btn.textContent = 'Create quote';
+    });
+  });
+
+  function copy(text){
+    // clipboard.writeText needs a secure context; the prompt is the fallback
+    // that still works if the dashboard is ever opened over plain http.
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(function(){ toast('Link copied.'); });
+    } else {
+      window.prompt('Copy this link:', text);
+    }
+  }
+
+  document.addEventListener('click', function(event){
+    var copyBtn = event.target.closest('.qcopy');
+    if (copyBtn) {
+      copy(location.origin + '/quote/' + copyBtn.getAttribute('data-id'));
+      return;
+    }
+
+    var mailBtn = event.target.closest('.qmail');
+    if (mailBtn) {
+      var link = location.origin + '/quote/' + mailBtn.getAttribute('data-id');
+      var who = mailBtn.getAttribute('data-who').split(' ').pop();
+      var body = who + ',\\n\\n' +
+        'Here is the quote for ' + mailBtn.getAttribute('data-what') + '.\\n\\n' +
+        link + '\\n\\n' +
+        'Everything is on that page. When you are ready, the button at the ' +
+        'bottom takes the payment and we get started.\\n\\n' +
+        'Any changes, just tell me and I will send a new one.\\n\\n' +
+        'Rawhide City Leather\\n';
+      window.location.href = 'mailto:' + encodeURIComponent(mailBtn.getAttribute('data-email')) +
+        '?subject=' + encodeURIComponent('Quote — ' + mailBtn.getAttribute('data-what')) +
+        '&body=' + encodeURIComponent(body);
+      return;
+    }
+
+    var voidBtn = event.target.closest('.qvoid');
+    if (!voidBtn) return;
+    if (!confirm('Void this quote? The link stops working immediately.')) return;
+
+    voidBtn.disabled = true;
+    post('/dashboard/api/quote/void', { id: voidBtn.getAttribute('data-id') })
+      .then(function(){
+        toast('Quote voided.');
+        setTimeout(function(){ location.reload(); }, 900);
+      })
+      .catch(function(err){
+        voidBtn.disabled = false;
+        toast(err.message, true);
+      });
+  });
+
   /* ---- status filter on the all-orders table ---- */
 
   // 'active' and 'refunded' span more than one bucket, so each filter is a
@@ -931,6 +1257,59 @@ table.mini tr:last-child td{border-bottom:0}
 /* Outlined, not filled — it sits beside a status pill and must not outshout it. */
 .pill.refund{margin-left:5px;background:none;color:var(--bad);
   box-shadow:inset 0 0 0 1px currentColor}
+.pill.exempt{margin-left:6px;background:none;color:var(--soft);
+  box-shadow:inset 0 0 0 1px var(--line-2)}
+
+/* ---------------------------------------------------------------- quotes */
+.qform{border:1px solid var(--line);border-radius:3px;padding:16px 16px 14px;
+  margin-bottom:18px;background:#FBFAF7}
+.qgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
+.qfield{display:flex;flex-direction:column;gap:5px;min-width:0}
+.qfield>span{font-family:var(--display);text-transform:uppercase;letter-spacing:.15em;
+  font-size:9.5px;color:var(--soft)}
+.qfield>span em{font-style:normal;text-transform:none;letter-spacing:.02em;opacity:.7}
+.qfield input,.qfield select,.qfield textarea{font:inherit;font-size:13px;padding:8px 10px;
+  border:1px solid var(--line-2);border-radius:2px;background:var(--paper);color:var(--ink);
+  width:100%;min-width:0}
+.qfield textarea{resize:vertical;line-height:1.5}
+.qfield input:focus,.qfield select:focus,.qfield textarea:focus,
+.qline input:focus{outline:2px solid var(--ink);outline-offset:-1px}
+.qwide{grid-column:1/-1}
+.qnarrow{max-width:200px}
+.qnotes{margin-top:12px}
+
+.qlines{margin-top:16px}
+.qlinehead,.qline{display:grid;grid-template-columns:minmax(0,1fr) 76px 116px 30px;gap:8px;
+  align-items:center}
+.qlinehead{font-family:var(--display);text-transform:uppercase;letter-spacing:.15em;
+  font-size:9.5px;color:var(--soft);margin-bottom:6px}
+.qlinehead .num{text-align:right}
+.qline{margin-bottom:7px}
+.qline input{font:inherit;font-size:13px;padding:8px 10px;border:1px solid var(--line-2);
+  border-radius:2px;background:var(--paper);color:var(--ink);width:100%;min-width:0}
+.qline input.num{text-align:right;font-variant-numeric:tabular-nums}
+.qdrop{border:0;background:none;color:var(--soft);font-size:19px;line-height:1;cursor:pointer;
+  padding:4px 6px;border-radius:2px}
+.qdrop:hover{background:var(--bad-bg);color:var(--bad)}
+
+.qexempt{margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}
+.qcheck{display:inline-flex;align-items:center;gap:8px;cursor:pointer;
+  font-family:var(--display);text-transform:uppercase;letter-spacing:.13em;font-size:10.5px}
+.qcheck input{width:15px;height:15px;accent-color:#0F0F0F;cursor:pointer}
+.qexempthint{margin:8px 0 0}
+.qexemptfields{margin-top:12px}
+
+.qlink{display:flex;gap:8px;margin-top:8px;align-items:center}
+.qlink input{font-family:ui-monospace,'Cascadia Mono',Consolas,monospace;font-size:12px;
+  padding:8px 10px;border:1px solid var(--line-2);border-radius:2px;flex:1;min-width:0;
+  background:var(--paper);color:var(--ink)}
+.qactions{white-space:nowrap}
+.qactions .btn{margin-right:5px}
+.qtable{margin-top:4px}
+@media (max-width:640px){
+  .qlinehead{display:none}
+  .qline{grid-template-columns:minmax(0,1fr) 64px 96px 28px;gap:6px}
+}
 
 .filters{display:flex;gap:0;margin-bottom:12px;border:1px solid var(--line-2);
   border-radius:2px;overflow-x:auto;overscroll-behavior-x:contain;

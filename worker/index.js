@@ -6,18 +6,24 @@
  * the asset router, which applies the 404 page.
  *
  * Routes
- *   GET  /dashboard                  orders, revenue, ship queue
+ *   GET  /dashboard                  orders, revenue, ship queue, quotes
  *   POST /dashboard/pirate-ship.csv  address spreadsheet for the selected orders
  *   POST /dashboard/api/ship         one order: save tracking, mark shipped
  *   POST /dashboard/api/ship-batch   paste Pirate Ship's list, ship them all
- *   POST /dashboard/hooks/snipcart   webhook: tracking added elsewhere -> Shipped
+ *   POST /dashboard/api/quote        build a custom-job quote, get a link
+ *   POST /dashboard/api/quote/void   kill a quote link
+ *   POST /dashboard/hooks/snipcart   webhook: tracking -> Shipped, paid -> quote
  *   GET  /packing-slip?token=…       printable slip / build sheet
+ *   GET  /quote/…                    PUBLIC. The crew's quote page.
  *
  * Secrets (set with `wrangler secret put NAME`):
  *   SNIPCART_SECRET — Snipcart secret API key. Reads and updates orders, never
  *                     ships to the browser.
  *   SLIP_USER       — username for the browser login prompt
  *   SLIP_PASS       — password for the browser login prompt
+ *
+ * Bindings:
+ *   QUOTES — KV namespace holding custom-job quotes. See the README.
  */
 
 import { esc, json, notice, page } from './lib.js';
@@ -30,6 +36,10 @@ import {
   analyze, renderDashboard, DEFAULT_RANGE, DASHBOARD_STYLES, DASHBOARD_SCRIPT,
 } from './dashboard.js';
 import { pirateShipCsv, parseTrackingPaste } from './pirateship.js';
+import {
+  buildQuote, putQuote, getQuote, listQuotes, voidQuote, markQuotePaid,
+  renderQuotePage, quoteStatus, isQuoteId, QuoteError, QUOTE_ITEM_PREFIX,
+} from './quote.js';
 
 export default {
   async fetch(request, env) {
@@ -41,6 +51,17 @@ export default {
     if (path === '/dashboard/hooks/snipcart') {
       try {
         return await guardConfigured(env, () => handleWebhook(request, env));
+      } catch (err) {
+        return failure(err, request);
+      }
+    }
+
+    // Public on purpose. Snipcart's crawler fetches this page to check the
+    // price before it will accept the order, and it can't answer a login
+    // prompt — the unguessable id in the URL is what keeps a quote private.
+    if (path.startsWith('/quote/')) {
+      try {
+        return await handleQuotePage(path, env);
       } catch (err) {
         return failure(err, request);
       }
@@ -64,6 +85,8 @@ async function route(path, request, env, url) {
     if (path === '/dashboard/pirate-ship.csv') return await handleCsv(request, env);
     if (path === '/dashboard/api/ship') return await handleShip(request, env);
     if (path === '/dashboard/api/ship-batch') return await handleShipBatch(request, env);
+    if (path === '/dashboard/api/quote') return await handleQuoteCreate(request, env);
+    if (path === '/dashboard/api/quote/void') return await handleQuoteVoid(request, env);
     if (path === '/packing-slip') return await handleSlip(request, env, url);
     return notFound();
   } catch (err) {
@@ -165,13 +188,111 @@ async function handleDashboard(request, env, url) {
   if (request.method !== 'GET') return json({ error: 'Use GET.' }, 405);
 
   const range = url.searchParams.get('range') || DEFAULT_RANGE;
-  const { orders, truncated } = await getAllOrders(env);
+  const [{ orders, truncated }, quotes] = await Promise.all([
+    getAllOrders(env),
+    // A missing KV binding shouldn't take the whole dashboard down — the
+    // quotes card just renders empty until it's wired up.
+    env.QUOTES ? listQuotes(env).catch(() => []) : Promise.resolve([]),
+  ]);
   const stats = analyze(orders, range);
 
-  return page('Dashboard', renderDashboard(stats, { truncated }), {
+  return page('Dashboard', renderDashboard(stats, { truncated, quotes }), {
     styles: DASHBOARD_STYLES,
     script: DASHBOARD_SCRIPT,
   });
+}
+
+/* ------------------------------------------------------------------ quotes */
+
+function guardQuotes(env) {
+  if (env.QUOTES) return null;
+  return json({
+    error: 'Quote storage is not set up. Create the KV namespace and add the ' +
+      'QUOTES binding to wrangler.jsonc — see the README.',
+  }, 500);
+}
+
+async function handleQuoteCreate(request, env) {
+  if (!fromDashboard(request)) return json({ error: 'Bad request.' }, 403);
+  const missing = guardQuotes(env);
+  if (missing) return missing;
+
+  const body = await request.json().catch(() => ({}));
+
+  let quote;
+  try {
+    quote = buildQuote(body);
+  } catch (err) {
+    // A validation complaint is the shop's typo, not a server fault — 400 so
+    // the form shows the message instead of the generic error page.
+    if (err instanceof QuoteError) return json({ error: err.message }, 400);
+    throw err;
+  }
+
+  await putQuote(env, quote);
+
+  return json({
+    ok: true,
+    id: quote.id,
+    total: quote.total,
+    listPrice: quote.listPrice,
+    url: new URL('/quote/' + quote.id, request.url).toString(),
+  });
+}
+
+async function handleQuoteVoid(request, env) {
+  if (!fromDashboard(request)) return json({ error: 'Bad request.' }, 403);
+  const missing = guardQuotes(env);
+  if (missing) return missing;
+
+  const body = await request.json().catch(() => ({}));
+  const id = String(body.id || '');
+  if (!isQuoteId(id)) return json({ error: 'Bad quote id.' }, 400);
+
+  try {
+    const quote = await voidQuote(env, id);
+    if (!quote) return json({ error: 'No quote with that id.' }, 404);
+    return json({ ok: true, id });
+  } catch (err) {
+    if (err instanceof QuoteError) return json({ error: err.message }, 409);
+    throw err;
+  }
+}
+
+/**
+ * The crew's page. Unauthenticated, so it says as little as possible about
+ * anything but the one quote whose id was in the URL.
+ */
+async function handleQuotePage(path, env) {
+  const id = path.slice('/quote/'.length);
+  if (!env.QUOTES || !isQuoteId(id)) return quoteGone();
+
+  const quote = await getQuote(env, id);
+  if (!quote) return quoteGone();
+
+  const status = quoteStatus(quote);
+
+  return new Response(renderQuotePage(quote, { status }), {
+    // 410 on a dead quote is deliberate. Snipcart's crawler treats a non-2xx
+    // as a failed price check, so an expired or voided link can't be paid even
+    // if someone kept the checkout tab open.
+    status: status === 'expired' || status === 'void' ? 410 : 200,
+    headers: {
+      'content-type': 'text/html; charset=utf-8',
+      'cache-control': 'no-store',
+      'x-robots-tag': 'noindex, nofollow',
+      'referrer-policy': 'no-referrer',
+    },
+  });
+}
+
+/** One page for "no such quote" and "not yours to see" — they look identical. */
+function quoteGone() {
+  return page('Quote not found', notice(
+    'No quote here.',
+    'This link is wrong, or the quote has been withdrawn. Check with the shop at ' +
+    '<a href="mailto:rawhidecityleather@gmail.com">rawhidecityleather@gmail.com</a>.'
+  ), { styles: DASHBOARD_STYLES, status: 404 });
 }
 
 /* ------------------------------------------------------------ pirate ship */
@@ -283,6 +404,11 @@ async function handleWebhook(request, env) {
   if (request.method !== 'POST') return json({ error: 'Use POST.' }, 405);
 
   const body = await request.json().catch(() => ({}));
+
+  if (body.eventName === 'order.completed') {
+    return handleQuotePaid(body.content || {}, env);
+  }
+
   if (body.eventName !== 'order.trackingNumber.changed') {
     return json({ ok: true, ignored: body.eventName || 'unknown event' });
   }
@@ -314,6 +440,29 @@ async function handleWebhook(request, env) {
   return json({ ok: true, shipped: order.invoiceNumber || order.token });
 }
 
+/**
+ * A quote just got paid — stamp it so its link stops taking money and the
+ * customer sees "paid" instead of a live button.
+ *
+ * Only a convenience. The dashboard decides paid/unpaid by matching real
+ * Snipcart orders, so if this event was never registered nothing breaks; the
+ * link just stays live until it expires.
+ */
+async function handleQuotePaid(order, env) {
+  if (!env.QUOTES) return json({ ok: true, skipped: 'no quote storage' });
+
+  const item = (order.items || []).find((i) =>
+    String(i.id || '').startsWith(QUOTE_ITEM_PREFIX));
+  if (!item) return json({ ok: true, skipped: 'not a quote order' });
+
+  try {
+    const quote = await markQuotePaid(env, item.id, order);
+    return json({ ok: true, quote: quote ? quote.id : 'already marked' });
+  } catch (err) {
+    return json({ error: err.message }, 502);
+  }
+}
+
 /* ------------------------------------------------------------ packing slip */
 
 async function handleSlip(request, env, url) {
@@ -331,9 +480,23 @@ async function handleSlip(request, env, url) {
     });
   }
 
-  return page(`Order ${order.invoiceNumber || ''}`.trim(), renderSlip(order), {
-    styles: SLIP_STYLES,
-  });
+  return page(`Order ${order.invoiceNumber || ''}`.trim(),
+    renderSlip(order, { quote: await quoteForOrder(env, order) }), {
+      styles: SLIP_STYLES,
+    });
+}
+
+/** The quote an order came from, if it came from one. Null is the normal case. */
+async function quoteForOrder(env, order) {
+  if (!env.QUOTES) return null;
+
+  const item = (order.items || []).find((i) =>
+    String(i.id || '').startsWith(QUOTE_ITEM_PREFIX));
+  if (!item) return null;
+
+  // A slip that can't reach KV should still print. The exemption block is the
+  // only thing missing, and the alternative is no packing slip at all.
+  return getQuote(env, String(item.id).slice(QUOTE_ITEM_PREFIX.length)).catch(() => null);
 }
 
 // Exported so the layout can be previewed against a fixture without a live key.

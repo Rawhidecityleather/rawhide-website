@@ -253,11 +253,88 @@ tracking gets added somewhere else, like Snipcart's own dashboard.
    ```
    https://rawhidecityleather.com/dashboard/hooks/snipcart
    ```
-3. Subscribe it to **order.trackingNumber.changed**
+3. Subscribe it to **order.trackingNumber.changed** and **order.completed**
 
 Without this the dashboard still works — the Ship button and the bulk paste set
 the status themselves. The webhook only covers tracking numbers that arrive by
-some other route.
+some other route. `order.completed` is what closes a quote link the moment it's
+paid; without it the link stays live until it expires.
+
+## Quotes for crew and station orders
+
+Live at **/dashboard#quotes**. This is how you bill a crew for a job that isn't
+in the catalog — twelve memorial straps, a promotion set, a retirement piece.
+
+You build the quote, they get a link, they pay through the normal checkout. The
+order lands like any other, so the ship queue, packing slip, Pirate Ship export
+and tracking all work with nothing extra to do.
+
+### One-time setup
+
+Quotes are stored in a Cloudflare KV namespace. Create it once:
+
+```bash
+npx wrangler kv namespace create QUOTES
+```
+
+Paste the id it prints into `wrangler.jsonc` where it says
+`PASTE_KV_NAMESPACE_ID_HERE`, then deploy. Until that's done the Quotes card
+shows up empty and creating one gives you an error saying exactly this.
+
+### Sending one
+
+1. **Dashboard → Quotes**, fill in what it is, who it's for, and the lines
+2. **Create quote**, then **Copy** the link and send it to them
+3. They open it, hit **Accept & Pay**, and it becomes a normal order
+
+Links expire on the schedule you pick — 30 days by default. **Void** kills one
+early if you got a price wrong. A quote that's been paid can't be voided.
+
+The link is public and unguessable. It has to be public: before Snipcart takes
+the money it fetches the quote page to check the price against the cart, and it
+can't get past a login prompt. Treat the link like a payment link — anyone who
+has it can pay it, and nobody who doesn't can find it.
+
+### The sale and quote pricing
+
+**While a sitewide discount is running, the price on the button is grossed up.**
+Snipcart's automatic discounts can only be pointed *at* products, never away
+from them, so a quote can't sit outside the sale. A $1,800 quote goes out with
+$2,250 on the button, Snipcart takes its 20%, and the crew pays $1,800. The
+quote page shows both numbers, same as the product pages do.
+
+That means **`CHECKOUT_DISCOUNT` at the top of `worker/quote.js` has to go to 0
+when the sale ends**, alongside the announcement bar, the struck-through prices
+and the rest of the sale teardown. Leave it at 0.2 with no sale running and
+every quote overcharges by 25%.
+
+Outstanding quotes are the reason expiry matters. A link created during the sale
+carries the grossed-up price for as long as it lives, so before you switch the
+sale off, check **Quotes** for anything still open and void what you don't want
+paid at the old arithmetic.
+
+### Tax-exempt departments
+
+Most departments and districts are exempt from sales tax, but the exemption is
+only good if you're holding the paperwork. Get their certificate first — in
+Florida that's a **Consumer's Certificate of Exemption (Form DR-14)** — then
+tick **Tax exempt** and record the entity, the certificate number, and the date
+it runs out.
+
+What that does:
+
+- the checkout charges **no sales tax** on that order
+- the quote page shows the entity and certificate number on its face, so their
+  purchasing office has it on what they print
+- the packing slip prints a **Sales tax exempt** block with the same details
+- the dashboard puts a **Cert** flag on any quote whose certificate has expired,
+  or expires before the quote does
+
+Keep the certificate itself somewhere you can find it — the dashboard records
+the number, not the document, and the document is what an auditor asks for. If a
+department's certificate lapses, their next quote is taxable until they send a
+current one. Worth running past your accountant once so you know what you're
+keeping and for how long.
 
 ### Secrets
 

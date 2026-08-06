@@ -8,7 +8,12 @@ import { esc, money, shortDate } from './lib.js';
 const SHOP_EMAIL = 'rawhidecityleather@gmail.com';
 const SHOP_SITE = 'rawhidecityleather.com';
 
-export function renderSlip(order) {
+/**
+ * `quote` is the custom-build quote this order came from, when it came from
+ * one. It's what carries the tax-exemption paperwork — Snipcart only records
+ * that no tax was charged, not why, and "why" is the part worth keeping.
+ */
+export function renderSlip(order, { quote = null } = {}) {
   const ship = order.shippingAddress || order.billingAddress || {};
   const items = order.items || [];
 
@@ -51,7 +56,7 @@ export function renderSlip(order) {
       ${items.map(renderItem).join('')}
     </section>
 
-    ${renderTotals(order)}
+    ${renderTotals(order, quote)}
     ${renderNotes(order)}
 
     <footer class="foot">
@@ -149,7 +154,10 @@ function renderTotals(order) {
   if (typeof items === 'number') rows.push(['Subtotal', money(items, cur)]);
   if (discount) rows.push(['Discount', '-' + money(Math.abs(discount), cur)]);
   if (typeof shipping === 'number') rows.push(['Shipping', shipping ? money(shipping, cur) : 'Free']);
+  // A zero tax row is normally noise, but on an exempt order it's the point —
+  // print it so the slip says no tax was charged rather than staying silent.
   if (tax) rows.push(['Tax', money(tax, cur)]);
+  else if (quote?.taxExempt) rows.push(['Tax', 'Exempt']);
 
   const total = order.grandTotal ?? order.total ?? order.finalGrandTotal ?? 0;
 
@@ -158,7 +166,26 @@ function renderTotals(order) {
       ${rows.map(([label, v]) => `<tr><th>${label}</th><td>${esc(v)}</td></tr>`).join('')}
       <tr class="grand"><th>Total</th><td>${esc(money(total, cur))}</td></tr>
     </table>
+    ${renderExemption(quote)}
   </section>`;
+}
+
+/**
+ * The exemption on the face of the slip. This is the copy that goes in the box
+ * and in the shop's file, so it names the entity and the certificate rather
+ * than just asserting the order was exempt.
+ */
+function renderExemption(quote) {
+  if (!quote?.taxExempt || !quote.exemption) return '';
+  const { entity, certNumber, expires } = quote.exemption;
+
+  return `<div class="exempt">
+    <p class="exempt-head">Sales tax exempt</p>
+    <p>${esc(entity)}<br>Certificate ${esc(certNumber)}${
+      expires ? ` &middot; valid through ${esc(expires)}` : ''
+    }</p>
+    <p class="soft">Quote ${esc(quote.id)} &middot; certificate on file with the shop.</p>
+  </div>`;
 }
 
 function renderNotes(order) {
@@ -233,8 +260,16 @@ h2{font-size:11px;letter-spacing:.22em;color:var(--soft);margin:0 0 6px;padding-
   text-transform:uppercase;color:var(--soft);flex:0 0 1.1in;line-height:1.6}
 .callout-value{font-size:14px;font-weight:700;line-height:1.3;overflow-wrap:anywhere}
 
-.totals{display:flex;justify-content:flex-end;margin-top:12px}
+/* Column, not row — the exemption block sits under the table and matches its
+   right edge, so it reads as part of the money rather than a loose aside. */
+.totals{display:flex;flex-direction:column;align-items:flex-end;margin-top:12px}
 .totals table{border-collapse:collapse;min-width:2.3in}
+.exempt{margin-top:10px;padding:8px 11px;border:1px solid var(--line);
+  border-left:3px solid var(--ink);max-width:3.4in;page-break-inside:avoid;break-inside:avoid}
+.exempt p{margin:0 0 3px;font-size:11.5px;line-height:1.45}
+.exempt p:last-child{margin-bottom:0}
+.exempt-head{font-family:var(--display);font-size:9.5px;letter-spacing:.14em;
+  text-transform:uppercase}
 .totals th{font-weight:400;color:var(--soft);text-align:left;padding:2px 18px 2px 0}
 .totals td{text-align:right;padding:2px 0;font-variant-numeric:tabular-nums}
 .totals .grand th,.totals .grand td{border-top:1px solid var(--ink);padding-top:5px;font-weight:700;
