@@ -9,3 +9,10 @@ brand-explorations/
 email/
 .git
 .wrangler/
+# Local secrets. These are gitignored, but .gitignore doesn't reach the asset
+# uploader — without these lines a .dev.vars sitting in the working directory
+# gets published as a static file and served to anyone who asks for it.
+.dev.vars
+.dev.vars.*
+.env
+.env.*
