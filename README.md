@@ -369,6 +369,38 @@ npx wrangler secret put SNIPCART_SECRET
 If `SLIP_USER` or `SLIP_PASS` is missing, the dashboard locks everyone out
 rather than opening up.
 
+## Tests
+
+**Run these before deploying anything in `worker/`.**
+
+```bash
+node worker/tests/run.mjs
+```
+
+No install, no dependencies, no test framework — plain Node. It exits non-zero
+on failure, so it works as a gate. To run one suite:
+
+```bash
+node worker/tests/run.mjs slip
+```
+
+| Suite | Covers |
+|---|---|
+| `quote` | pricing and the gross-up, validation, tax exemption, certificate warnings, status, the page Snipcart's crawler reads, HTML escaping |
+| `slip` | packing slip rendering with and without a quote attached |
+| `worker` | routes through the real fetch handler — auth, the quote API, the public quote page, voiding, the webhook |
+
+`worker` swaps in a KV shim and a stub asset router, so it needs neither
+Cloudflare nor a Snipcart key. Anything that calls Snipcart directly — the
+dashboard, the packing-slip route — can't be reached that way, which is why
+`slip` drives `renderSlip` from a fixture instead. **If you touch a render
+function, add a fixture case.** On 2026-08-06 a one-word slip change went out
+untested and broke every packing slip in production; `renderSlip` and
+`renderQuotePage` are exported specifically so that's a two-line test.
+
+What the suites can't tell you: whether Snipcart accepts a real quote order.
+That's a live checkout, and nothing here mocks it.
+
 ## Switching from "Email to Order" to PayPal Pay Links
 
 Each product's Buy button is currently a `mailto:` link. When you have PayPal Pay Links:
