@@ -401,20 +401,6 @@ untested and broke every packing slip in production; `renderSlip` and
 What the suites can't tell you: whether Snipcart accepts a real quote order.
 That's a live checkout, and nothing here mocks it.
 
-## Switching from "Email to Order" to PayPal Pay Links
-
-Each product's Buy button is currently a `mailto:` link. When you have PayPal Pay Links:
-
-1. Create a Pay Link per product in PayPal (Account → Pay & Get Paid → PayPal.Me or Payment Links)
-2. Open the product page (e.g., `product-helmet-band.html`)
-3. Find this line:
-   ```html
-   <a href="mailto:rawhidecityleather@gmail.com?subject=..." class="btn btn-primary btn-full">Email to Order</a>
-   ```
-4. Replace `href="mailto:..."` with `href="YOUR_PAYPAL_LINK_HERE"`
-5. Change `Email to Order` to `Buy Now`
-6. Save the file. Done.
-
 ## Deploying
 
 The site runs on **Cloudflare Workers**, not Netlify. One command puts
