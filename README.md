@@ -249,16 +249,32 @@ This is what makes "tracking number added → Shipped" happen even when the
 tracking gets added somewhere else, like Snipcart's own dashboard.
 
 1. Log into **app.snipcart.com** → **Store Configurations** → **Webhooks**
-2. Add this URL:
+2. Put this in the URL field:
    ```
    https://rawhidecityleather.com/dashboard/hooks/snipcart
    ```
-3. Subscribe it to **order.trackingNumber.changed** and **order.completed**
 
-Without this the dashboard still works — the Ship button and the bulk paste set
-the status themselves. The webhook only covers tracking numbers that arrive by
-some other route. `order.completed` is what closes a quote link the moment it's
-paid; without it the link stays live until it expires.
+That's the whole setup. **There is no per-event subscription** — Snipcart has
+one URL field and sends every event to it. So the handler in `worker/index.js`
+gets called for everything and picks out the two it cares about:
+
+| Event | What it does |
+|---|---|
+| `order.trackingNumber.changed` | flips the order to Shipped, so the status matches reality even when the tracking number was added in Snipcart's own dashboard |
+| `order.completed` | closes a quote link the moment it's paid |
+
+Everything else gets a polite `{"ok":true,"ignored":"…"}` and nothing happens.
+Adding a new event means adding a branch there, not changing anything in
+Snipcart.
+
+Without the webhook the dashboard still works — the Ship button and the bulk
+paste set the status themselves, and the dashboard decides a quote is paid by
+matching real orders rather than trusting the stored flag. A quote link would
+just stay live until it expires.
+
+The same page keeps a history of every hook sent, with the request and the
+response side by side, and a **Send this hook again** button for replaying one
+against a change without waiting for a real order.
 
 ## Quotes for crew and station orders
 
