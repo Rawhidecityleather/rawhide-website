@@ -136,7 +136,7 @@ function renderAddress(a) {
   }</p>`;
 }
 
-function renderTotals(order) {
+function renderTotals(order, quote) {
   const cur = order.currency;
 
   // Field names verified against a live order (itemsTotal 200, savedAmount 40,
