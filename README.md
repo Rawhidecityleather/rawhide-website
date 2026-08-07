@@ -415,34 +415,73 @@ Each product's Buy button is currently a `mailto:` link. When you have PayPal Pa
 5. Change `Email to Order` to `Buy Now`
 6. Save the file. Done.
 
-## Deploying to Netlify
+## Deploying
 
-### One-time: get your site online (5 minutes)
+The site runs on **Cloudflare Workers**, not Netlify. One command puts
+everything live — the pages, the images, and the Worker behind the dashboard:
 
-1. Go to **netlify.com** → click **Sign up** (free, use your Google or email)
-2. After signup, click **Add new site** → **Deploy manually**
-3. Drag the entire **`rawhide-website` folder** into the browser drop zone
-4. Netlify gives you a random URL like `dreamy-leather-7a3f2.netlify.app`
-5. Click **Site settings** → **Change site name** → enter `rawhide-city-leather` (or whatever)
-6. Your site is live at `https://rawhide-city-leather.netlify.app`
+```bash
+npx wrangler deploy
+```
 
-### Connect your domain (rawhidecityleather.com)
+That's the whole process. Changed a price, swapped a photo, edited the Worker —
+same command either way. It takes about ten seconds and only uploads the files
+that actually changed.
 
-1. In Netlify: **Site settings** → **Domain management** → **Add custom domain**
-2. Enter `rawhidecityleather.com` → Netlify will check DNS
-3. Go to wherever you bought the domain (Wix, GoDaddy, etc.)
-4. Find DNS settings → add these records exactly as Netlify shows them:
-   - An **A record** pointing to Netlify's IP (Netlify will show you)
-   - A **CNAME record** for `www` pointing to your Netlify URL
-5. Save DNS, wait 1–24 hours for it to propagate
-6. Netlify auto-issues a free SSL certificate (https://) once DNS is connected
+**If you touched anything in `worker/`, run the tests first** and only deploy if
+they pass. In Git Bash:
 
-### Updating the site later
+```bash
+node worker/tests/run.mjs && npx wrangler deploy
+```
 
-When you change a file or add a photo:
-1. Go to **netlify.com** → your site dashboard
-2. Click **Deploys** tab
-3. Drag the updated `rawhide-website` folder into the drop zone
-4. New version goes live in ~30 seconds
+PowerShell has no `&&`, so there it's:
 
-That's it.
+```powershell
+node worker/tests/run.mjs; if ($?) { npx wrangler deploy }
+```
+
+### Pushing to GitHub does not deploy
+
+There's no CI here. `git push` backs the code up; `wrangler deploy` puts it
+live. They're separate, and either can be ahead of the other. If a change isn't
+showing up on the site, this is almost always why.
+
+### What's already set up
+
+Done once, and not worth touching again:
+
+| Piece | Where it lives |
+|---|---|
+| Worker | `quiet-firefly-3711` on the `rawhidecityleather@gmail.com` account |
+| Domain | `rawhidecityleather.com`, attached in the Cloudflare dashboard under the Worker's **Settings → Domains & Routes** — deliberately *not* in `wrangler.jsonc`, so deploying can't disturb it |
+| Static files | served straight from this folder by the `ASSETS` binding |
+| `run_worker_first` | in `wrangler.jsonc` — the paths the Worker answers instead of the file router (`/dashboard*`, `/packing-slip*`, `/quote*`) |
+| Secrets | `wrangler secret put NAME` — see the table above |
+| Quote storage | the `QUOTES` KV namespace |
+
+If wrangler ever asks you to log in:
+
+```bash
+npx wrangler login
+```
+
+### Undoing a bad deploy
+
+```bash
+npx wrangler versions list
+npx wrangler rollback <version-id>
+```
+
+Every deploy keeps its predecessors, so going back is seconds rather than a
+rebuild. Grab the id of the last good one from the list.
+
+### Watching it run
+
+```bash
+npx wrangler tail
+```
+
+Live log of every request hitting the Worker — status, timing, and any
+exception with its stack. This is the fastest way to find out what a failing
+dashboard or webhook is actually doing.
