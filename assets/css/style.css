@@ -400,3 +400,47 @@ p{margin:0 0 1em}
   .site-nav .dropdown::before{display:none}
   .site-nav .dropdown li{padding:2px 0}
 }
+
+/* Guides — long-form prose. Body copy only; headings and .rte come from above. */
+.guide{max-width:780px;margin:0 auto}
+.guide h2{font-size:1.5rem;margin:48px 0 .6em}
+.guide h2:first-child{margin-top:0}
+.guide h3{font-size:1.1rem;margin:32px 0 .5em;color:var(--c-text)}
+.guide p{margin:0 0 1.1em;color:var(--c-text-soft)}
+.guide strong{color:var(--c-cream)}
+.guide ul{list-style:none;padding:0;margin:0 0 1.4em}
+.guide ul li{position:relative;padding-left:22px;margin-bottom:10px;color:var(--c-text-soft);line-height:1.55}
+.guide ul li::before{content:"—";position:absolute;left:0;color:var(--c-text)}
+.guide a{color:var(--c-accent)}
+.guide-meta{font-family:var(--font-stamp);font-size:.72rem;letter-spacing:.12em;color:var(--c-muted);margin:0 0 32px}
+.guide-lead{font-size:1.12rem;color:var(--c-text);margin:0 0 1.4em}
+.guide-callout{background:var(--c-bg-2);border-left:3px solid var(--c-accent);padding:16px 20px;margin:0 0 1.6em}
+.guide-callout p{margin:0;color:var(--c-text-soft)}
+.guide-next{border-top:1px solid var(--c-line);margin-top:56px;padding-top:28px}
+.guide-next h2{font-size:1.05rem;margin:0 0 16px}
+
+/* Body-copy links
+   ---------------
+   --c-accent, --c-cream and --c-text all resolve to #0F0F0F on this theme, and
+   links carry no other treatment, so a link inside a sentence is
+   indistinguishable from bold text. Underline is doing the work colour can't.
+
+   Scoped to <main> plus .faq-content, because the FAQ section is a sibling of
+   <main>, not inside it. The header, nav, footer and social icons all sit
+   outside <main> and keep their own treatment untouched. */
+main a,.faq-content a{text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:1px}
+
+/* Chrome that lives inside <main> and is already obviously clickable from its
+   shape or size. text-decoration inherits into descendants, so without the
+   first rule the underline runs through every word of a product card.
+   The :hover half suppresses the global `a:hover{text-decoration:underline}`
+   for these too — a whole product card underlining on hover is the same bug in
+   a different state. Colour is deliberately left alone here: `main .btn:hover`
+   would outrank `.btn-primary:hover` and break every button's hover colour. */
+main .btn,main .product-card,main .insta-cell,main .category-tile,
+main .category-nav a,main .site-logo,main .cart-link,
+main h1 a,main h2 a,main h3 a,main h4 a,
+main .btn:hover,main .product-card:hover,main .insta-cell:hover,
+main .category-tile:hover,main .category-nav a:hover,main .site-logo:hover,
+main .cart-link:hover,main h1 a:hover,main h2 a:hover,main h3 a:hover,
+main h4 a:hover{text-decoration:none}
