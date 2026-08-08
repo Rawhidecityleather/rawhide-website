@@ -169,6 +169,39 @@ export default async function run() {
       lines: [{ description: 'd', quantity: 1, unitPrice: 5 }],
     }, DASH)).status === 400);
 
+  suite('worker — legacy Wix product URLs');
+
+  const known = await get('/product-page/custom-radio-strap');
+  check('a known old URL 301s to its product page',
+    known.status === 301 &&
+    known.headers.get('location') === ORIGIN + '/product-fully-custom-radio-strap',
+    `${known.status} → ${known.headers.get('location')}`);
+
+  const unknown = await get('/product-page/something-we-never-mapped');
+  check('an unmapped old URL 301s to /shop',
+    unknown.status === 301 && unknown.headers.get('location') === ORIGIN + '/shop',
+    `${unknown.status} → ${unknown.headers.get('location')}`);
+
+  // Wix linked some products with a trailing slash; fetch() normalises the
+  // path before matching, so both shapes have to land on the same page.
+  const trailing = await get('/product-page/custom-radio-strap/');
+  check('a trailing slash lands on the same page',
+    trailing.headers.get('location') === ORIGIN + '/product-fully-custom-radio-strap');
+
+  const mixedCase = await get('/product-page/Custom-Radio-Strap');
+  check('slug matching ignores case',
+    mixedCase.headers.get('location') === ORIGIN + '/product-fully-custom-radio-strap');
+
+  const noSlug = await get('/product-page');
+  check('the bare /product-page 301s to /shop',
+    noSlug.status === 301 && noSlug.headers.get('location') === ORIGIN + '/shop');
+
+  // 301 is permanent and browsers cache it hard. If this ever fires on a live
+  // product URL, that page becomes unreachable until the cache expires.
+  const live = await get('/shop.html');
+  check('real pages are untouched',
+    live.status === 200 && live.headers.get('x-served-by') === 'assets');
+
   suite('worker — webhook');
 
   // Token first, method second: an unauthenticated probe should learn nothing

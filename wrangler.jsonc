@@ -14,9 +14,12 @@
     // wins and these never reach the auth check. /quote* is here for the same
     // reason — there's no file behind it, the Worker builds the page.
     //
+    // /product-page* is the old Wix URL shape. Nothing on disk matches it, so
+    // without this entry the 404 page wins and the redirects never run.
+    //
     // No slash before the star. "/quote/*" does not match and the quote pages
     // silently fall through to the 404 page — verified against production.
-    "run_worker_first": ["/packing-slip*", "/dashboard*", "/quote*"]
+    "run_worker_first": ["/packing-slip*", "/dashboard*", "/quote*", "/product-page*"]
   },
   // Custom-build quotes. Created 2026-08-06 with
   //   wrangler kv namespace create QUOTES

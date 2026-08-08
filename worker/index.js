@@ -6,6 +6,7 @@
  * the asset router, which applies the 404 page.
  *
  * Routes
+ *   GET  /product-page/…             301 to the new product page. Old Wix URLs.
  *   GET  /dashboard                  orders, revenue, ship queue, quotes
  *   POST /dashboard/pirate-ship.csv  address spreadsheet for the selected orders
  *   POST /dashboard/api/ship         one order: save tracking, mark shipped
@@ -45,6 +46,13 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     const path = url.pathname.replace(/\/+$/, '') || '/';
+
+    // Dead URLs from the Wix store, still holding the site's Google rankings.
+    // Listed in `run_worker_first` so they reach this line instead of the
+    // asset router's 404 page.
+    if (path === '/product-page' || path.startsWith('/product-page/')) {
+      return redirectLegacyProduct(path, url);
+    }
 
     // The webhook authenticates with Snipcart's request token, not the login
     // prompt — Snipcart has no way to send Basic credentials.
@@ -128,6 +136,39 @@ function wantsJson(request) {
 function notFound() {
   return page('Not found', notice('Nothing here.', 'Try the <a href="/dashboard">dashboard</a>.'),
     { styles: DASHBOARD_STYLES, status: 404 });
+}
+
+/* -------------------------------------------------------- legacy Wix URLs */
+
+/**
+ * The Wix store served products at /product-page/<slug>. Those URLs are where
+ * Google still holds this site's radio strap rankings — "radio strap" (2,900
+ * searches/mo, #60), "custom radio straps" (1,600/mo, #42), "personalized
+ * radio straps" (1,600/mo, #50), "custom leather radio strap" (590/mo, #41) —
+ * and every one of them has answered 404 since the move off Wix. The ranking
+ * history points at a dead page, which is the likeliest reason those terms sit
+ * in the 40s and 60s instead of climbing.
+ *
+ * Only slugs confirmed against the live Google index go in this map. A guess
+ * that lands wrong is worse than the fallback: it hands a customer the wrong
+ * product and teaches Google the wrong page for the term.
+ *
+ * To extend — Search Console → Pages → "Not found (404)", filter for
+ * /product-page/, and pair each slug with the product it actually sold.
+ */
+const LEGACY_PRODUCT_URLS = new Map([
+  ['custom-radio-strap', '/product-fully-custom-radio-strap'],
+]);
+
+/**
+ * Unknown slugs go to /shop rather than 404. Google may read a pile of
+ * redirects onto one page as a soft 404 and pass little through, but a
+ * customer following an old link still lands somewhere they can buy.
+ */
+function redirectLegacyProduct(path, url) {
+  const slug = path.slice('/product-page/'.length).toLowerCase();
+  const target = LEGACY_PRODUCT_URLS.get(slug) || '/shop';
+  return Response.redirect(new URL(target, url).toString(), 301);
 }
 
 /* ------------------------------------------------------------------- auth */
