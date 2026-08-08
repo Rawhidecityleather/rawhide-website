@@ -15,24 +15,20 @@ The templates:
 
 ## Why there is no discount in these emails
 
-Snipcart lets you attach a discount to each recovery step. **Don't.** Three reasons:
+Snipcart lets you attach a discount to each recovery step. **Don't.** The reason:
 
-1. **There is nothing left to give.** The store is already running 20% off everything
-   with free shipping and no minimum. A recovery coupon on top of that cuts into a
-   margin that is already discounted.
-2. **It might stack.** The sitewide "NEW SITE" 20% discount is set `combinable = TRUE`
-   in Snipcart. A recovery discount could compound on top of it rather than replace it.
-   Nobody has tested what that does to the total, and an abandoned cart email is a bad
-   place to find out.
-3. **It teaches the wrong habit.** This is a small niche where buyers talk to each
-   other. Train firefighters to abandon a cart and wait for a coupon, and they will.
+**It teaches the wrong habit.** This is a small niche where buyers talk to each
+other. Train firefighters to abandon a cart and wait for a coupon, and they will.
 
-What actually stalls a $132 custom radio strap is not price. It is a buyer who is not
+What actually stalls a $165 custom radio strap is not price. It is a buyer who is not
 sure they picked the right length, or who got to the 6 week lead time and hesitated.
 That is why step 2 answers those directly instead of waving money.
 
-If the 20% sale ever ends and you want to test a recovery discount, that is the moment
-to revisit it, and test one step at a time.
+Two other reasons used to apply and no longer do, both tied to the sitewide 20% off
+sale that ran July–August 2026: there was nothing left to give on top of it, and the
+"NEW SITE" discount was set `combinable = TRUE`, so a recovery coupon might have
+compounded rather than replaced it. If you do decide to test a recovery discount now,
+test one step at a time — and check the combinable flag on whatever you create.
 
 ## Setting up the campaign
 

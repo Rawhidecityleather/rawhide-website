@@ -6,6 +6,7 @@
  */
 
 import { suite, check } from './harness.mjs';
+import { money } from '../lib.js';
 import {
   buildQuote, listPriceFor, renderQuotePage, quoteStatus, quoteWarnings,
   isQuoteId, QuoteError, CHECKOUT_DISCOUNT,
@@ -113,15 +114,26 @@ export default function run() {
   const page = renderQuotePage(quote, { status: 'open' });
   check('the crawler can find the add-item button', page.includes('snipcart-add-item'));
   check('item id matches the record', page.includes(`data-item-id="${quote.itemId}"`));
-  check('price on the page is the grossed-up one', page.includes('data-item-price="2250.00"'));
+  check('price on the page is what the cart will charge',
+    page.includes(`data-item-price="${quote.listPrice.toFixed(2)}"`),
+    `button=${quote.listPrice}`);
   check('item url points back at this page', page.includes(`data-item-url="/quote/${quote.id}"`));
   check('page is noindex', page.includes('noindex'));
 
-  // The customer must never see the grossed-up figure — it would not reconcile
-  // against the line items directly above it and reads as an arithmetic error.
+  // The crew always sees the number it was quoted. Under a sitewide sale the
+  // button carries a grossed-up figure instead, and that figure must never
+  // reach the page — it would not reconcile against the line items directly
+  // above it and reads as an arithmetic error.
   check('the crew sees the quoted number', page.includes('$1,800.00'));
-  check('the grossed-up figure is never shown', !page.includes('$2,250.00'));
-  check('the checkout surprise is pre-empted', page.includes('Checkout shows the shop sale applied'));
+  if (CHECKOUT_DISCOUNT) {
+    check('the grossed-up figure is never shown',
+      !page.includes(money(quote.listPrice, 'usd')));
+    check('the checkout surprise is pre-empted',
+      page.includes('Checkout shows the shop sale applied'));
+  } else {
+    check('no sale note when no sale is running',
+      !page.includes('Checkout shows the shop sale applied'));
+  }
 
   check('a paid page drops the buy button',
     !renderQuotePage(quote, { status: 'paid' }).includes('snipcart-add-item'));

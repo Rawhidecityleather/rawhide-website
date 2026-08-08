@@ -107,8 +107,8 @@ Once the IDs are in, both Google and Meta receive the full funnel:
 | Starts checkout | `begin_checkout` | — | `InitiateCheckout` |
 | Completes order | `purchase` | `conversion` | `Purchase` |
 
-Purchase value is Snipcart's actual charged total, so the 20% discount is
-already taken out — the numbers in your ad dashboards match real revenue.
+Purchase value is Snipcart's actual charged total, so any discount is already
+taken out — the numbers in your ad dashboards match real revenue.
 
 ### Testing it
 
@@ -311,23 +311,25 @@ the money it fetches the quote page to check the price against the cart, and it
 can't get past a login prompt. Treat the link like a payment link — anyone who
 has it can pay it, and nobody who doesn't can find it.
 
-### The sale and quote pricing
+### Sitewide discounts and quote pricing
 
-**While a sitewide discount is running, the price on the button is grossed up.**
+**No sitewide discount is running.** `CHECKOUT_DISCOUNT` at the top of
+`worker/quote.js` is `0`, so the price on the button is the quoted price.
+
+If you start another automatic discount, that constant has to move with it.
 Snipcart's automatic discounts can only be pointed *at* products, never away
-from them, so a quote can't sit outside the sale. A $1,800 quote goes out with
-$2,250 on the button, Snipcart takes its 20%, and the crew pays $1,800. The
-quote page shows both numbers, same as the product pages do.
+from them, so a quote can't sit outside the sale. Under a 20% rule, a $1,800
+quote goes out with $2,250 on the button, Snipcart takes its 20%, and the crew
+pays $1,800. The quote page shows both numbers.
 
-That means **`CHECKOUT_DISCOUNT` at the top of `worker/quote.js` has to go to 0
-when the sale ends**, alongside the announcement bar, the struck-through prices
-and the rest of the sale teardown. Leave it at 0.2 with no sale running and
-every quote overcharges by 25%.
+**The constant and the Snipcart rule have to change together.** A rule live with
+`CHECKOUT_DISCOUNT` at 0 undercharges by the rule's rate; the constant left at
+0.2 with no rule overcharges by 25%.
 
-Outstanding quotes are the reason expiry matters. A link created during the sale
-carries the grossed-up price for as long as it lives, so before you switch the
-sale off, check **Quotes** for anything still open and void what you don't want
-paid at the old arithmetic.
+Outstanding quotes are the reason expiry matters. A link created under a sale
+carries the grossed-up price for as long as it lives, so before switching a sale
+off, check **Quotes** for anything still open and void what you don't want paid
+at the old arithmetic.
 
 ### Tax-exempt departments
 

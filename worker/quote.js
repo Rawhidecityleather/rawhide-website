@@ -28,17 +28,23 @@ export const QUOTE_ITEM_PREFIX = 'quote-';
 /**
  * The discount Snipcart takes at checkout, as a fraction.
  *
- * The shop is running 20% off everything as an automatic cart rule, and
- * Snipcart's automatic discounts only target inclusively — you can say "these
- * products" but not "everything except these". So a quote item cannot opt out,
- * and a $1,800 quote would collect $1,440 unless the number on the button is
- * grossed up first.
+ * Zero while no sitewide cart rule is running: the button carries the quoted
+ * number and the crew pays the quoted number.
  *
- * SET THIS TO 0 WHEN THE SALE ENDS. It belongs on the teardown list in the
- * README with the announcement bar and the struck-through prices. Leaving it at
- * 0.2 after the rule is gone means every quote overcharges by 25%.
+ * Set it again only if another automatic discount goes live. Snipcart's
+ * automatic discounts target inclusively — you can say "these products" but not
+ * "everything except these" — so a quote item cannot opt out, and a $1,800
+ * quote would collect $1,440 under a 20% rule unless the number on the button
+ * is grossed up first.
+ *
+ * This has to move in step with the Snipcart rule, not before or after it. A
+ * rule live with this at 0 undercharges by the rule's rate; this left at 0.2
+ * with no rule overcharges by 25%.
  */
-export const CHECKOUT_DISCOUNT = 0.2;
+export const CHECKOUT_DISCOUNT = 0;
+
+/** Orders at or above this ship free; below it, $10 flat. Matches /shipping. */
+const FREE_SHIPPING_OVER = 150;
 
 /** Quotes stop working after this many days. */
 const DEFAULT_EXPIRY_DAYS = 30;
@@ -338,7 +344,12 @@ export function renderQuotePage(quote, { status }) {
         data-item-custom1-type="readonly"
         data-item-custom1-value="${esc(quote.id)}"
       >Accept &amp; Pay ${esc(money(quote.total, 'usd'))}</button>
-      <p class="q-help">Card payment through our normal checkout. Free shipping.${
+      <p class="q-help">Card payment through our normal checkout. ${
+        // Shipping follows the standing rule, same as the rest of the shop.
+        // Nearly every crew job clears $150, but say which one applies rather
+        // than promising free and having checkout add $10.
+        quote.total >= FREE_SHIPPING_OVER ? 'Free shipping.' : '$10 flat rate shipping.'
+      }${
         // Checkout shows the list price struck through with the shop sale taken
         // off it, the same as every product page. Say so here or the two
         // numbers on that screen look like they came out of nowhere.

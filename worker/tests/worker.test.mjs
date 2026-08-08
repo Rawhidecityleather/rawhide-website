@@ -10,6 +10,7 @@
 
 import { suite, check } from './harness.mjs';
 import worker from '../index.js';
+import { CHECKOUT_DISCOUNT } from '../quote.js';
 
 /** get/put/list with metadata — the three things quote.js actually uses. */
 function makeKV() {
@@ -94,7 +95,9 @@ export default async function run() {
 
   check('quote is created', created.status === 200 && quote.ok === true);
   check('response carries the crew-facing total', quote.total === 1800);
-  check('response carries the grossed-up button price', quote.listPrice === 2250);
+  check('button price collects exactly the quoted total',
+    Math.round(quote.listPrice * (1 - CHECKOUT_DISCOUNT) * 100) / 100 === 1800,
+    `button=${quote.listPrice} rate=${CHECKOUT_DISCOUNT}`);
   check('link is on the live domain', quote.url === ORIGIN + '/quote/' + quote.id, quote.url);
 
   const bad = await post('/dashboard/api/quote', { title: 'x', customer: 'y', lines: [] }, DASH);
@@ -119,7 +122,9 @@ export default async function run() {
   check('is noindex', (pageRes.headers.get('x-robots-tag') || '').includes('noindex'));
   check('is not cached', pageRes.headers.get('cache-control') === 'no-store');
   check('the crawler can find the button', html.includes('snipcart-add-item'));
-  check('the price matches what the cart will hold', html.includes('data-item-price="2250.00"'));
+  check('the price matches what the cart will hold',
+    html.includes(`data-item-price="${quote.listPrice.toFixed(2)}"`),
+    `button=${quote.listPrice}`);
   check('the crew sees the quoted number', html.includes('$1,800.00'));
 
   check('a made-up id is a 404', (await get('/quote/notarealquoteid')).status === 404);
