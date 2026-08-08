@@ -13,8 +13,10 @@ re-paste it at **Pirate Ship > Settings > Emails > Rawhide Tracking Email > Edit
 - Buying a label on Pirate Ship automatically emails the customer the branded
   "Rawhide Tracking Email" template (set as the account default). A BCC copy goes
   to rawhidecityleather@gmail.com.
-- Emails send from **Rawhide City Leather <orders@rawhidecityleather.com>**, a
-  verified Postmark sender signature. Customer replies go to orders@, which
+- Emails send from **Rawhide City Leather <orders@rawhidecitylthr.com>**, a verified
+  Postmark sender signature. (Confirmed in the Pirate Ship UI on Aug 7 2026. The Jul 20
+  commit rewrote this line to say `rawhidecityleather.com`, but the actual setting was
+  never changed — see the DNS section below.) Customer replies go to orders@, which
   Cloudflare Email Routing forwards to rawhidecityleather@gmail.com.
 - The **Track Your Shipment** button links to rawhidecityleather.com/track, which
   detects the carrier from the number (1Z prefix = UPS, all digits = USPS) and
@@ -29,17 +31,47 @@ re-paste it at **Pirate Ship > Settings > Emails > Rawhide Tracking Email > Edit
 Also available but unused: `[Recipient Name]`, `[Recipient Address]`, `[Order #]`.
 No emoji in the body: Pirate Ship's editor breaks on raw emoji.
 
-## DNS and infrastructure (all in Cloudflare, zone rawhidecityleather.com)
+## DNS and infrastructure (Cloudflare)
 
-- **Email Routing**: enabled; rule orders@rawhidecityleather.com -> forward to
-  rawhidecityleather@gmail.com (destination verified). Managed under
-  Email > Email Routing. Its MX/SPF/DKIM records are locked by Cloudflare.
-- **Postmark DKIM** (added Jul 8 2026): TXT `20260708213347pm._domainkey` with the
-  `k=rsa; p=...` value from Pirate Ship's Verify DKIM dialog.
-- **Postmark return path**: CNAME `pm-bounces` -> `pm.mtasv.net`, DNS only.
-- Pirate Ship's Verify DKIM / Verify Return Path buttons flip to verified
-  automatically once Postmark re-checks the records (can take a few hours; the
-  records are live and were confirmed by DNS query).
+> **Corrected Aug 7 2026 after a DNS audit. Read this before trusting anything above.**
+> The Jul 20 "Make rawhidecityleather.com the primary domain" commit (c064c9b) did a
+> find-and-replace across this file and rewrote this section to say the mail records
+> live in zone `rawhidecityleather.com`. **No DNS records were ever moved.** They are
+> all still in zone `rawhidecitylthr.com`, where they were created Jul 8.
+
+Verified against Cloudflare's authoritative nameservers on Aug 7 2026:
+
+**Zone `rawhidecitylthr.com` — where the working mail auth actually lives:**
+
+- Postmark DKIM: TXT `20260708213347pm._domainkey` = `k=rsa; p=MIGfMA0...GwIDAQAB` — present.
+- Postmark return path: CNAME `pm-bounces` -> `pm.mtasv.net` — present.
+- DMARC: TXT `_dmarc` = `v=DMARC1; p=none; rua=mailto:rawhidecityleather@gmail.com` — present.
+
+**Zone `rawhidecityleather.com` — the current primary, missing all of it:**
+
+- No Postmark DKIM record. No `pm-bounces` return path.
+- DMARC is `v=DMARC1; p=reject; sp=reject; adkim=s; aspf=s;` — strict alignment, hard
+  reject, and **no `rua=`**, so failures bounce silently with nothing reported anywhere.
+  Nobody documented setting this; it did not come from this repo.
+
+Both zones have Email Routing enabled (MX -> route1/2/3.mx.cloudflare.net, SPF
+`include:_spf.mx.cloudflare.net`). Those records are Cloudflare-managed and survived.
+
+**Consequence: nothing is broken.** Verified in Pirate Ship > Settings > Tracking Emails
+on Aug 7 2026 — the "Rawhide Tracking Email" template (marked Default) has Sender Email
+`orders@rawhidecitylthr.com`. That is the zone holding the DKIM, the return path, and a
+`p=none` DMARC, so tracking emails sign correctly and deliver. The mismatch was only ever
+in this document.
+
+The risk is future: **do not change that sender to `orders@rawhidecityleather.com` until
+the DKIM and `pm-bounces` records exist in the `rawhidecityleather.com` zone.** Flipping
+it first means every tracking email gets hard-rejected by DMARC `p=reject`, with no
+bounce report to tell you.
+
+**Do not copy the old key into the new zone.** The selector `20260708213347pm` is the
+keypair Postmark generated for the `rawhidecitylthr.com` domain record. Moving to
+`orders@rawhidecityleather.com` means adding that domain in Pirate Ship's Verify DKIM
+dialog, which issues a new selector and key — use those.
 
 ## Getting orders into Pirate Ship
 
@@ -66,7 +98,16 @@ customer.
 
 ## DMARC
 
-Added July 8, 2026: TXT `_dmarc` = `v=DMARC1; p=none; rua=mailto:rawhidecityleather@gmail.com`.
-Monitor-only for now (blocks nothing, sends occasional aggregate reports to the
-business gmail). After a few quiet weeks, tighten to `p=quarantine` and later
-`p=reject` by editing that record in Cloudflare DNS.
+Added July 8, 2026 **to zone rawhidecitylthr.com**: TXT `_dmarc` =
+`v=DMARC1; p=none; rua=mailto:rawhidecityleather@gmail.com`. Monitor-only (blocks
+nothing, sends aggregate reports to the business gmail). Still in place as of Aug 7 2026.
+
+The plan was to tighten to `p=quarantine` and later `p=reject` after a few quiet weeks
+of reports. That never happened on this zone.
+
+Zone `rawhidecityleather.com` carries a different, much harsher record that skipped
+the whole ramp: `v=DMARC1; p=reject; sp=reject; adkim=s; aspf=s;` with no `rua=`.
+Strict alignment plus hard reject plus zero reporting is the worst combination to sit
+on while DKIM is missing — mail gets refused and nothing tells you. Before sending any
+mail from this domain, either add the DKIM record (see above) or drop it back to
+`p=none` with a `rua=` while things get sorted.
