@@ -97,6 +97,21 @@ export function shipBy(item, orderDate) {
   return { due: new Date(placed.getTime() + lead.days * 86400000), promise: lead.promise };
 }
 
+/**
+ * The one date an order has to beat: the earliest of its items'.
+ *
+ * The box ships as one box, so a helmet band riding along with a radio strap
+ * doesn't get to wait six weeks — the band goes late at three whatever the
+ * strap is doing. The queue needs the date something first slips, not the last.
+ */
+export function orderShipBy(order) {
+  const dates = (order?.items || [])
+    .map((item) => shipBy(item, order.creationDate)?.due)
+    .filter(Boolean);
+  if (!dates.length) return null;
+  return new Date(Math.min(...dates.map((d) => d.getTime())));
+}
+
 /** "2026-08" — the month bucket key for the revenue chart. */
 export function monthKey(iso) {
   const d = new Date(iso);

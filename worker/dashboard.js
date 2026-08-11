@@ -8,7 +8,8 @@
  */
 
 import {
-  esc, money, moneyShort, tinyDate, shortDate, daysSince, monthKey, monthLabel,
+  esc, money, moneyShort, tinyDate, shortDate, daysSince, daysUntil,
+  orderShipBy, monthKey, monthLabel,
 } from './lib.js';
 import {
   isCancelled, isShipped, needsShipping, netRevenue, grandTotal,
@@ -417,6 +418,7 @@ function renderQueue(queue) {
       <td><a class="mono" href="/packing-slip?token=${esc(order.token)}">${esc(order.invoiceNumber || order.token)}</a></td>
       <td class="nowrap">${esc(tinyDate(order.creationDate))}
         ${age !== null ? `<span class="age${age >= 42 ? ' hot' : ''}">${age}d</span>` : ''}</td>
+      <td class="nowrap">${renderDue(order)}</td>
       <td>${esc(a.fullName || a.name || order.email || '')}
         <span class="soft block">${esc([a.city, a.province].filter(Boolean).join(', '))}</span></td>
       <td class="items">${items}</td>
@@ -454,13 +456,31 @@ function renderQueue(queue) {
     <div class="scroll">
       <table class="grid">
         <thead><tr>
-          <th class="pick"></th><th>Order</th><th>Placed</th><th>Customer</th>
+          <th class="pick"></th><th>Order</th><th>Placed</th><th>Ship by</th><th>Customer</th>
           <th>Items</th><th class="num">Weight</th><th class="num">Total</th><th>Tracking</th>
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>
   </section>`;
+}
+
+/**
+ * The queue's deadline cell. The badge is the whole point — the date alone
+ * makes you do arithmetic, and the number of days left is what decides which
+ * order goes on the bench next.
+ */
+function renderDue(order) {
+  const due = orderShipBy(order);
+  if (!due) return '<span class="soft">&mdash;</span>';
+
+  const left = daysUntil(due);
+  const badge = left < 0 ? [`${Math.abs(left)}d late`, 'hot']
+    : left === 0 ? ['today', 'hot']
+    : [`${left}d`, left <= 7 ? 'soon' : ''];
+
+  return `${esc(tinyDate(due))}
+    <span class="due${badge[1] ? ' ' + badge[1] : ''}">${esc(badge[0])}</span>`;
 }
 
 function renderTrackingPanel() {
@@ -1240,6 +1260,10 @@ table.grid a.mono:hover{border-bottom-color:var(--ink)}
 .age{display:inline-block;margin-left:6px;font-size:10px;font-weight:700;color:var(--soft);
   background:var(--stone);border-radius:2px;padding:1px 5px}
 .age.hot{background:var(--bad-bg);color:var(--bad)}
+.due{display:inline-block;margin-left:6px;font-size:10px;font-weight:700;color:var(--soft);
+  background:var(--stone);border-radius:2px;padding:1px 5px}
+.due.soon{background:var(--warn-bg);color:var(--warn)}
+.due.hot{background:var(--bad-bg);color:var(--bad)}
 
 table.mini td{padding:6px 8px;border-bottom:1px solid var(--line);font-size:13px}
 table.mini tr:last-child td{border-bottom:0}
