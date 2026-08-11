@@ -1188,12 +1188,17 @@ a{color:inherit}
   padding:16px 28px;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap}
 .topbar h1{font-size:22px;letter-spacing:.1em}
 .sub{margin:3px 0 0;font-size:12px;color:var(--soft)}
-.topright{display:flex;align-items:center;gap:12px}
+.topright{display:flex;align-items:center;gap:12px;min-width:0}
 /* overflow-x:auto, not hidden — hidden still clips the rounded corners the same
    way, but on a phone it also swallowed the last chips with no way to reach
-   them. Scrolling keeps every filter available at any width. */
+   them. Scrolling keeps every filter available at any width.
+ *
+ * min-width:0 is what makes that scrolling actually happen. A flex item won't
+ * shrink below its content by default, so the strip stayed 340px wide on a
+ * 375px phone, shouldered Refresh off the edge, and the whole page scrolled
+ * sideways rather than the strip. */
 .chips{display:flex;gap:0;border:1px solid var(--line-2);border-radius:2px;
-  overflow-x:auto;overscroll-behavior-x:contain;background:var(--paper)}
+  overflow-x:auto;overscroll-behavior-x:contain;background:var(--paper);min-width:0}
 .chip{font-family:var(--display);text-transform:uppercase;letter-spacing:.11em;font-size:10.5px;
   padding:8px 13px;color:var(--soft);text-decoration:none;background:none;border:0;cursor:pointer;
   border-right:1px solid var(--line);flex:0 0 auto;white-space:nowrap}
