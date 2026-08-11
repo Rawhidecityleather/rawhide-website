@@ -3,7 +3,8 @@
  * sheet on the bench.
  */
 
-import { esc, money, shortDate } from './lib.js';
+import { esc, money, shortDate, shipBy, daysUntil } from './lib.js';
+import { isShipped } from './snipcart.js';
 
 const SHOP_EMAIL = 'rawhidecityleather@gmail.com';
 const SHOP_SITE = 'rawhidecityleather.com';
@@ -53,7 +54,10 @@ export function renderSlip(order, { quote = null } = {}) {
 
     <section class="items">
       <h2>Build sheet</h2>
-      ${items.map(renderItem).join('')}
+      ${items.map((item) => renderItem(item, {
+        orderDate: order.creationDate,
+        shipped: isShipped(order),
+      })).join('')}
     </section>
 
     ${renderTotals(order, quote)}
@@ -86,7 +90,7 @@ function calloutLabel(name) {
   return CALLOUT_LABELS[key] || name || '';
 }
 
-function renderItem(item) {
+function renderItem(item, { orderDate, shipped } = {}) {
   const fields = (item.customFields || []).filter((f) => f && String(f.value || '').trim());
   const critical = fields.filter((f) => CRITICAL_FIELD.test(f.name || ''));
   const specs = fields.filter((f) => !CRITICAL_FIELD.test(f.name || ''));
@@ -116,7 +120,32 @@ function renderItem(item) {
     ${opts ? `<dl class="opts">${opts}</dl>` : ''}
     ${callout ? `<div class="callout">${callout}</div>` : ''}
     ${!opts && !callout ? '<p class="soft no-opts">No options selected.</p>' : ''}
+    ${renderDue(item, orderDate, shipped)}
   </article>`;
+}
+
+/**
+ * When this piece has to be out the door. Per item, not per order: a radio
+ * strap bought alongside a helmet band is owed six weeks out while the band is
+ * owed three, and the bench needs to see both dates on the same sheet.
+ */
+function renderDue(item, orderDate, shipped) {
+  const by = shipBy(item, orderDate);
+  if (!by) return '';
+
+  const left = daysUntil(by.due);
+  const countdown = shipped || left === null ? ''
+    : left > 1 ? `${left} days left`
+    : left === 1 ? '1 day left'
+    : left === 0 ? 'due today'
+    : `${Math.abs(left)} day${left === -1 ? '' : 's'} late`;
+
+  return `<div class="due${countdown && left < 0 ? ' late' : ''}">
+    <span class="due-label">Ship by</span>
+    <span class="due-date">${esc(shortDate(by.due))}</span>
+    ${countdown ? `<span class="due-left">${esc(countdown)}</span>` : ''}
+    <span class="due-lead soft">${esc(by.promise)} from order</span>
+  </div>`;
 }
 
 function renderAddress(a) {
@@ -250,6 +279,15 @@ h2{font-size:11px;letter-spacing:.22em;color:var(--soft);margin:0 0 6px;padding-
 .opt dt{flex:0 0 auto;color:var(--soft);font-size:11px;text-transform:uppercase;letter-spacing:.05em}
 .opt dd{margin:0;font-weight:600;min-width:0;overflow-wrap:anywhere}
 .no-opts{margin:0;font-style:italic}
+
+.due{display:flex;align-items:baseline;gap:8px;margin-top:8px;padding-top:6px;
+  border-top:1px dashed var(--line-faint);font-size:11px}
+.due-label{font-family:var(--display);font-size:9.5px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--soft)}
+.due-date{font-weight:700;font-size:12.5px}
+.due-left{font-weight:600}
+.due-lead{margin-left:auto}
+.due.late .due-left{font-weight:700;text-decoration:underline}
 
 /* Border + weight carry the emphasis, not colour — these print on B&W lasers. */
 .callout{margin-top:8px;border:1.5px solid var(--ink);border-radius:2px;

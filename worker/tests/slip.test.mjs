@@ -77,6 +77,49 @@ export default function run() {
   check('claims no exemption', !taxableSlip.includes('Sales tax exempt'));
   check('still shows the real tax', taxableSlip.includes('$3.50'));
 
+  suite('slip — ship-by dates');
+
+  // Dates are relative to today, so the fixture's fixed creationDate is no use
+  // here — these orders are placed a known number of days back from now.
+  const placed = (daysAgo) =>
+    new Date(Date.now() - daysAgo * 86400000).toISOString();
+
+  const strap = renderSlip({ ...order, creationDate: placed(7) });
+  check('dates a radio strap six weeks out', strap.includes('Ship by'));
+  check('counts the days a radio strap has left', strap.includes('35 days left'));
+  check('names the lead time it came from', strap.includes('6 weeks from order'));
+
+  const band = renderSlip({
+    ...order, creationDate: placed(7),
+    items: [{ id: 'helmet-band', name: 'Helmet Band', quantity: 1, totalPrice: 50 }],
+  });
+  check('puts a helmet band in the three-week bucket', band.includes('14 days left'));
+  check('labels the short lead time', band.includes('1–3 weeks from order'));
+
+  // Everything with "strap" in the name is not a six-week build.
+  const glove = renderSlip({
+    ...order, creationDate: placed(7),
+    items: [{ id: 'glove-strap', name: 'Glove Strap', quantity: 1, totalPrice: 30 }],
+  });
+  check('keeps glove straps out of the radio-strap bucket', glove.includes('14 days left'));
+
+  const butter = renderSlip({
+    ...order, creationDate: placed(1),
+    items: [{ id: 'leather-butter', name: 'Leather Butter', quantity: 1, totalPrice: 8 }],
+  });
+  check('holds leather butter to business days', butter.includes('1–3 business days from order'));
+
+  const late = renderSlip({ ...order, creationDate: placed(45) });
+  check('says how late an overdue strap is', late.includes('3 days late'));
+  check('marks the overdue row', late.includes('due late'));
+
+  const due = renderSlip({ ...order, creationDate: placed(42) });
+  check('calls the deadline day due today', due.includes('due today'));
+
+  const gone = renderSlip({ ...order, creationDate: placed(45), status: 'Shipped' });
+  check('drops the countdown once the order shipped', !gone.includes('days late'));
+  check('still prints the date it was owed', gone.includes('Ship by'));
+
   // A zero-tax order is not the same thing as an exempt one — an out-of-state
   // order has no Florida tax and must not print paperwork saying it was exempt.
   check('zero tax with no quote stays silent rather than claiming exemption',
