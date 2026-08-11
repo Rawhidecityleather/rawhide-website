@@ -8,8 +8,12 @@
 
 import { suite, check } from './harness.mjs';
 import { leadTime, shipBy, orderShipBy, daysUntil } from '../lib.js';
+import { analyze } from '../dashboard.js';
 
-const placed = (daysAgo) => new Date(Date.now() - daysAgo * 86400000).toISOString();
+// One clock for the whole file. Two calls to Date.now() a millisecond apart
+// would stop the tie-break case below from actually tying.
+const NOW = Date.now();
+const placed = (daysAgo) => new Date(NOW - daysAgo * 86400000).toISOString();
 
 export default function run() {
   suite('lib — lead times');
@@ -77,4 +81,46 @@ export default function run() {
     orderShipBy({ creationDate: placed(0), items: [] }) === null);
   check('an order with no date has no deadline',
     orderShipBy({ items: [{ id: 'helmet-band' }] }) === null);
+
+  suite('dashboard — queue order');
+
+  // Deliberately handed over newest-first, the order Snipcart lists them in,
+  // so a queue that came back in the same order proves nothing happened.
+  const waiting = (invoice, daysAgo, items) => ({
+    token: invoice, invoiceNumber: invoice, creationDate: placed(daysAgo),
+    status: 'Processed', paymentStatus: 'Paid', currency: 'usd',
+    grandTotal: 100, items,
+  });
+  const strap = [{ id: 'fully-custom-radio-strap', name: 'Fully Custom Radio Strap' }];
+  const band = [{ id: 'helmet-band', name: 'Helmet Band' }];
+
+  const q = analyze([
+    waiting('NEW-STRAP', 2, strap),      // due in 40
+    waiting('LATE-BAND', 30, band),      // due 9 days ago
+    waiting('SOON-BAND', 18, band),      // due in 3
+    waiting('OLD-STRAP', 30, strap),     // due in 12
+  ], 'all').queue.map((o) => o.invoiceNumber);
+
+  check('the most overdue order is first', q[0] === 'LATE-BAND');
+  check('then the one due soonest', q[1] === 'SOON-BAND');
+  check('an old strap still outranks a new one', q[2] === 'OLD-STRAP');
+  check('the furthest-out order is last', q[3] === 'NEW-STRAP');
+
+  // Age alone would have put the two 30-day-old orders side by side; the
+  // deadline is what splits them, and the band is the one on fire.
+  check('age is not what drives the order', q.indexOf('LATE-BAND') < q.indexOf('SOON-BAND'));
+
+  check('nothing to date an order by sorts it last',
+    analyze([
+      waiting('NO-ITEMS', 5, []),
+      waiting('HAS-BAND', 1, band),
+    ], 'all').queue.map((o) => o.invoiceNumber)[1] === 'NO-ITEMS');
+
+  // A three-week-old strap and a band ordered this morning are both owed on
+  // the same day. The strap has been on the bench longer, so it goes first.
+  const tied = analyze([
+    waiting('TODAYS-BAND', 0, band),
+    waiting('AGED-STRAP', 21, strap),
+  ], 'all').queue.map((o) => o.invoiceNumber);
+  check('the longer wait breaks a tie', tied[0] === 'AGED-STRAP' && tied[1] === 'TODAYS-BAND');
 }

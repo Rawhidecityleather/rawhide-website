@@ -91,7 +91,17 @@ export function analyze(orders, requestedRange) {
   const revenue = sum(inRange, netRevenue);
   const paidCount = inRange.filter(countsAsSale).length;
 
-  const queue = sorted.filter(needsShipping);
+  // The queue is the one list that isn't newest-first: it's work to be done,
+  // so it runs most-overdue down to furthest-out. An order with nothing to date
+  // it — no items, or a creation date Snipcart mangled — sorts to the bottom
+  // rather than pretending to be due today.
+  const queue = sorted.filter(needsShipping).sort((a, b) => {
+    const da = orderShipBy(a);
+    const db = orderShipBy(b);
+    if (!da || !db) return (da ? 0 : 1) - (db ? 0 : 1);
+    // Same deadline: the one that's been waiting longer goes first.
+    return da.getTime() - db.getTime() || placedAt(a) - placedAt(b);
+  });
   const oldestQueued = queue.length
     ? Math.max(...queue.map((o) => daysSince(o.creationDate) ?? 0))
     : 0;
@@ -437,7 +447,8 @@ function renderQueue(queue) {
   return `<section id="queue" class="card">
     <div class="cardhead">
       <h2>Ship queue</h2>
-      <span class="cardnote">${queue.length} paid order${queue.length === 1 ? '' : 's'} waiting</span>
+      <span class="cardnote">${queue.length} paid order${queue.length === 1 ? '' : 's'} waiting
+        &middot; soonest deadline first</span>
     </div>
 
     <div class="bulkbar">
