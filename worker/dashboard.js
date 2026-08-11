@@ -429,14 +429,14 @@ function renderQueue(queue) {
     return `<tr data-token="${esc(order.token)}">
       <td class="pick"><input type="checkbox" class="sel" value="${esc(order.token)}"
         aria-label="Select order ${esc(order.invoiceNumber || order.token)}"></td>
-      <td><a class="mono" href="/packing-slip?token=${esc(order.token)}">${esc(order.invoiceNumber || order.token)}</a></td>
-      <td class="nowrap">${esc(tinyDate(order.creationDate))}</td>
-      <td class="nowrap">${renderDue(order)}</td>
-      <td>${esc(a.fullName || a.name || order.email || '')}
+      <td class="c-order"><a class="mono" href="/packing-slip?token=${esc(order.token)}">${esc(order.invoiceNumber || order.token)}</a></td>
+      <td class="c-placed nowrap" data-label="Placed">${esc(tinyDate(order.creationDate))}</td>
+      <td class="c-due nowrap" data-label="Ship by">${renderDue(order)}</td>
+      <td class="c-cust">${esc(a.fullName || a.name || order.email || '')}
         <span class="soft block">${esc([a.city, a.province].filter(Boolean).join(', '))}</span></td>
-      <td class="items">${items}</td>
-      <td class="num soft nowrap">${esc(String(orderWeightOunces(order)))} oz</td>
-      <td class="num strong">${esc(money(grandTotal(order), order.currency))}</td>
+      <td class="c-items items">${items}</td>
+      <td class="c-weight num soft nowrap" data-label="Weight">${esc(String(orderWeightOunces(order)))} oz</td>
+      <td class="c-total num strong" data-label="Total">${esc(money(grandTotal(order), order.currency))}</td>
       <td class="shipcell">
         <form class="shipform">
           <input type="text" name="tracking" placeholder="Tracking number"
@@ -1394,6 +1394,40 @@ code{font-family:ui-monospace,'Consolas',monospace;background:rgba(15,15,15,.06)
 
 @media (max-width:1080px){
   .split{grid-template-columns:1fr}
+}
+/* Phone: the queue stops being a table. Nine columns will not fit 375px, and
+   swiping sideways to find out whose order you're looking at is no way to work
+   the bench. Each order becomes a card read top to bottom, in the order the
+   questions get asked: who is it, when is it owed, what's in it. */
+@media screen and (max-width:700px){
+  #queue .scroll{overflow-x:visible}
+  #queue table.grid,#queue table.grid tbody{display:block}
+  #queue table.grid thead{display:none}
+  #queue table.grid tr{display:flex;flex-wrap:wrap;gap:3px 14px;position:relative;
+    padding:12px 13px 13px 38px;margin-bottom:10px;
+    border:1px solid var(--line);border-radius:2px}
+  #queue table.grid tr:hover{background:none}
+  #queue table.grid td{flex:0 0 100%;display:block;border:0;padding:0;
+    text-align:left;white-space:normal;min-width:0}
+  #queue table.grid td[data-label]::before{content:attr(data-label) " ";
+    font-family:var(--display);font-size:10px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--soft)}
+  #queue table.grid td.pick{position:absolute;left:12px;top:14px;flex:none;width:auto}
+  #queue table.grid td.c-order{order:1;font-size:14.5px}
+  #queue table.grid td.c-cust{order:2;font-weight:600}
+  #queue table.grid td.c-cust .block{display:inline;font-weight:400}
+  #queue table.grid td.c-cust .block::before{content:" · "}
+  /* Two dates ride one line, weight and total the next. Three on a line looked
+     tidy until a four-figure crew order pushed the total onto its own row. */
+  #queue table.grid td.c-due{order:3;flex:0 0 auto}
+  #queue table.grid td.c-placed{order:4;flex:0 0 auto}
+  #queue table.grid td.c-items{order:5;margin-top:3px}
+  #queue table.grid td.c-weight{order:6;flex:0 0 auto;margin-top:3px}
+  #queue table.grid td.c-total{order:7;flex:0 0 auto;margin-top:3px}
+  #queue table.grid td.c-placed,
+  #queue table.grid td.c-weight,
+  #queue table.grid td.c-total{font-size:11.5px}
+  #queue table.grid td.shipcell{order:8;margin-top:9px;min-width:0}
 }
 @media (max-width:860px){
   .rail{position:static;height:auto;width:100%;flex:none}
