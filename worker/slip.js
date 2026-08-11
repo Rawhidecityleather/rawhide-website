@@ -280,14 +280,23 @@ h2{font-size:11px;letter-spacing:.22em;color:var(--soft);margin:0 0 6px;padding-
 .opt dd{margin:0;font-weight:600;min-width:0;overflow-wrap:anywhere}
 .no-opts{margin:0;font-style:italic}
 
-.due{display:flex;align-items:baseline;gap:8px;margin-top:8px;padding-top:6px;
+.due{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px;margin-top:8px;padding-top:6px;
   border-top:1px dashed var(--line-faint);font-size:11px}
+/* Each part stays whole. "Aug 14," over "2026" reads as two dates, and a
+   countdown split across lines stops being a countdown. */
+.due-label,.due-date,.due-left{white-space:nowrap}
 .due-label{font-family:var(--display);font-size:9.5px;letter-spacing:.14em;
   text-transform:uppercase;color:var(--soft)}
 .due-date{font-weight:700;font-size:12.5px}
 .due-left{font-weight:600}
 .due-lead{margin-left:auto}
 .due.late .due-left{font-weight:700;text-decoration:underline}
+
+/* On a phone the lead-time hint takes its own line instead of squeezing the
+   date. Screen only — the printed sheet is 7.5in and never gets this narrow. */
+@media screen and (max-width:560px){
+  .due-lead{flex-basis:100%;margin-left:0}
+}
 
 /* Border + weight carry the emphasis, not colour — these print on B&W lasers. */
 .callout{margin-top:8px;border:1.5px solid var(--ink);border-radius:2px;
