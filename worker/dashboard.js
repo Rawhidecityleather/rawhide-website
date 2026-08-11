@@ -417,7 +417,6 @@ function renderQueue(queue) {
 
   const rows = queue.map((order) => {
     const a = order.shippingAddress || order.billingAddress || {};
-    const age = daysSince(order.creationDate);
     const items = (order.items || [])
       .map((i) => `${i.quantity || 1}&times; ${esc(i.name || '')}`)
       .join('<br>');
@@ -426,8 +425,7 @@ function renderQueue(queue) {
       <td class="pick"><input type="checkbox" class="sel" value="${esc(order.token)}"
         aria-label="Select order ${esc(order.invoiceNumber || order.token)}"></td>
       <td><a class="mono" href="/packing-slip?token=${esc(order.token)}">${esc(order.invoiceNumber || order.token)}</a></td>
-      <td class="nowrap">${esc(tinyDate(order.creationDate))}
-        ${age !== null ? `<span class="age${age >= 42 ? ' hot' : ''}">${age}d</span>` : ''}</td>
+      <td class="nowrap">${esc(tinyDate(order.creationDate))}</td>
       <td class="nowrap">${renderDue(order)}</td>
       <td>${esc(a.fullName || a.name || order.email || '')}
         <span class="soft block">${esc([a.city, a.province].filter(Boolean).join(', '))}</span></td>
@@ -1268,9 +1266,6 @@ table.grid a.mono:hover{border-bottom-color:var(--ink)}
 .items{font-size:12.5px;line-height:1.5;min-width:11rem}
 .pick{width:30px;padding-right:0}
 .pick input{width:15px;height:15px;accent-color:#0F0F0F;cursor:pointer}
-.age{display:inline-block;margin-left:6px;font-size:10px;font-weight:700;color:var(--soft);
-  background:var(--stone);border-radius:2px;padding:1px 5px}
-.age.hot{background:var(--bad-bg);color:var(--bad)}
 .due{display:inline-block;margin-left:6px;font-size:10px;font-weight:700;color:var(--soft);
   background:var(--stone);border-radius:2px;padding:1px 5px}
 .due.soon{background:var(--warn-bg);color:var(--warn)}
