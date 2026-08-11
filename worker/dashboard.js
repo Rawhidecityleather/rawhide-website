@@ -8,7 +8,7 @@
  */
 
 import {
-  esc, money, moneyShort, tinyDate, shortDate, daysSince, daysUntil,
+  esc, money, moneyShort, tinyDate, shortDate, daysUntil,
   orderShipBy, monthKey, monthLabel,
 } from './lib.js';
 import {
@@ -102,16 +102,18 @@ export function analyze(orders, requestedRange) {
     // Same deadline: the one that's been waiting longer goes first.
     return da.getTime() - db.getTime() || placedAt(a) - placedAt(b);
   });
-  const oldestQueued = queue.length
-    ? Math.max(...queue.map((o) => daysSince(o.creationDate) ?? 0))
-    : 0;
+  // Queue is already sorted soonest-first, so the head of the list is the next
+  // thing due and anything past its date is bunched at the front.
+  const dueDates = queue.map(orderShipBy).filter(Boolean);
+  const overdue = dueDates.filter((d) => daysUntil(d) < 0).length;
 
   return {
     rangeKey,
     orders: sorted,
     inRange,
     queue,
-    oldestQueued,
+    overdue,
+    nextDue: dueDates[0] || null,
     revenue,
     paidCount,
     avgOrder: paidCount ? revenue / paidCount : 0,
@@ -278,11 +280,14 @@ function renderKpis(stats, rangeLabel) {
     },
     {
       label: 'Awaiting shipment',
-      note: stats.queue.length
-        ? `oldest ${stats.oldestQueued} day${stats.oldestQueued === 1 ? '' : 's'} in`
-        : 'nothing waiting',
+      // Amber is for something actually going wrong. A full queue on schedule
+      // is just work; a queue with a missed date is the thing to look at.
+      note: !stats.queue.length ? 'nothing waiting'
+        : stats.overdue ? `${stats.overdue} past due`
+        : stats.nextDue ? `next due ${tinyDate(stats.nextDue)}`
+        : 'no dates on file',
       value: String(stats.queue.length),
-      flag: stats.queue.length > 0,
+      flag: stats.overdue > 0,
     },
     {
       label: 'Lifetime revenue',

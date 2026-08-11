@@ -118,6 +118,25 @@ export default function run() {
 
   // A three-week-old strap and a band ordered this morning are both owed on
   // the same day. The strap has been on the bench longer, so it goes first.
+  suite('dashboard — awaiting shipment tile');
+
+  const tile = (orders) => {
+    const s = analyze(orders, 'all');
+    return { overdue: s.overdue, next: s.nextDue && daysUntil(s.nextDue) };
+  };
+
+  check('an empty queue has nothing overdue',
+    tile([]).overdue === 0 && tile([]).next === null);
+  check('a queue on schedule counts none overdue and dates the next one',
+    (() => {
+      const t = tile([waiting('A', 2, band), waiting('B', 1, strap)]);
+      return t.overdue === 0 && t.next === 19;
+    })());
+  check('missed dates are counted',
+    tile([waiting('A', 30, band), waiting('B', 25, band), waiting('C', 1, strap)]).overdue === 2);
+  check('an order with no date is not counted as overdue',
+    tile([waiting('A', 99, [])]).overdue === 0);
+
   const tied = analyze([
     waiting('TODAYS-BAND', 0, band),
     waiting('AGED-STRAP', 21, strap),

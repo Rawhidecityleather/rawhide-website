@@ -48,13 +48,6 @@ export function tinyDate(iso) {
       : { month: 'short', day: 'numeric', year: '2-digit' });
 }
 
-/** Whole days since `iso`. Drives the "sitting too long" flag on open orders. */
-export function daysSince(iso) {
-  const d = new Date(iso);
-  if (isNaN(d)) return null;
-  return Math.floor((Date.now() - d.getTime()) / 86400000);
-}
-
 /** Whole calendar days from today until `date`. Negative once it's past. */
 export function daysUntil(date) {
   const d = new Date(date);
