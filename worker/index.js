@@ -45,13 +45,41 @@ import {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    const path = url.pathname.replace(/\/+$/, '') || '/';
+
+    // Both normalisations below write into one URL and issue one redirect. An
+    // old Wix URL on the www host needs both, and that combination is exactly
+    // where Google holds the radio strap rankings — doing it in two hops would
+    // put an extra redirect on the site's most valuable inbound links.
+    const canonical = new URL(url);
+
+    // www and the apex both answer 200 and serve the whole shop, so Google
+    // holds two copies of every page. The <link rel="canonical"> tag points at
+    // the apex, but a canonical is a hint — this is what actually collapses
+    // them.
+    if (canonical.hostname.startsWith('www.')) {
+      canonical.hostname = canonical.hostname.slice('www.'.length);
+    }
+
+    const path = canonical.pathname.replace(/\/+$/, '') || '/';
 
     // Dead URLs from the Wix store, still holding the site's Google rankings.
     // Listed in `run_worker_first` so they reach this line instead of the
     // asset router's 404 page.
     if (path === '/product-page' || path.startsWith('/product-page/')) {
-      return redirectLegacyProduct(path, url);
+      canonical.pathname = legacyProductTarget(path);
+      // Any query string on these was Wix's own and means nothing to the new
+      // pages. Dropping it also matches what this redirect did before.
+      canonical.search = '';
+    }
+
+    // 308 for POST: a 301 lets the browser downgrade the method to GET, which
+    // would silently break a dashboard form submitted from the www host.
+    if (canonical.href !== url.href) {
+      const permanent = request.method === 'GET' || request.method === 'HEAD';
+      return new Response(null, {
+        status: permanent ? 301 : 308,
+        headers: { location: canonical.href },
+      });
     }
 
     // The webhook authenticates with Snipcart's request token, not the login
@@ -165,10 +193,9 @@ const LEGACY_PRODUCT_URLS = new Map([
  * redirects onto one page as a soft 404 and pass little through, but a
  * customer following an old link still lands somewhere they can buy.
  */
-function redirectLegacyProduct(path, url) {
+function legacyProductTarget(path) {
   const slug = path.slice('/product-page/'.length).toLowerCase();
-  const target = LEGACY_PRODUCT_URLS.get(slug) || '/shop';
-  return Response.redirect(new URL(target, url).toString(), 301);
+  return LEGACY_PRODUCT_URLS.get(slug) || '/shop';
 }
 
 /* ------------------------------------------------------------------- auth */

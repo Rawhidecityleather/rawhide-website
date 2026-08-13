@@ -174,6 +174,58 @@ export default async function run() {
       lines: [{ description: 'd', quantity: 1, unitPrice: 5 }],
     }, DASH)).status === 400);
 
+  suite('worker — www to apex');
+
+  const WWW = 'https://www.rawhidecityleather.com';
+  const fromWww = (path, init) => worker.fetch(new Request(WWW + path, init), env);
+
+  const wwwHome = await fromWww('/');
+  check('the www home page 301s to the apex',
+    wwwHome.status === 301 && wwwHome.headers.get('location') === ORIGIN + '/',
+    `${wwwHome.status} → ${wwwHome.headers.get('location')}`);
+
+  const wwwPage = await fromWww('/product-fully-custom-radio-strap');
+  check('the path is preserved',
+    wwwPage.headers.get('location') === ORIGIN + '/product-fully-custom-radio-strap');
+
+  const wwwQuery = await fromWww('/shop?sort=price');
+  check('the query string survives',
+    wwwQuery.headers.get('location') === ORIGIN + '/shop?sort=price');
+
+  // The old Wix URLs were indexed on www, and they are the site's most
+  // valuable inbound links. Host and product mapping collapse into one hop so
+  // there is no redirect chain between Google and the live page.
+  const wwwLegacy = await fromWww('/product-page/custom-radio-strap');
+  check('an old Wix URL on www reaches the product page in one hop',
+    wwwLegacy.status === 301 &&
+    wwwLegacy.headers.get('location') === ORIGIN + '/product-fully-custom-radio-strap',
+    `${wwwLegacy.status} → ${wwwLegacy.headers.get('location')}`);
+
+  const wwwLegacyUnknown = await fromWww('/product-page/never-mapped');
+  check('an unmapped old URL on www lands on /shop in one hop',
+    wwwLegacyUnknown.headers.get('location') === ORIGIN + '/shop');
+
+  const wwwLegacySlash = await fromWww('/product-page/custom-radio-strap/');
+  check('trailing slash still collapses in one hop',
+    wwwLegacySlash.headers.get('location') === ORIGIN + '/product-fully-custom-radio-strap');
+
+  // A Wix query string means nothing to the new pages, and this is the one
+  // place the redirect deliberately drops it rather than passing it through.
+  const wwwLegacyQuery = await fromWww('/product-page/custom-radio-strap?variant=7');
+  check('the Wix query string is dropped on the product mapping',
+    wwwLegacyQuery.headers.get('location') === ORIGIN + '/product-fully-custom-radio-strap');
+
+  const wwwPost = await fromWww('/dashboard/api/quote', {
+    method: 'POST', headers: DASH, body: '{}',
+  });
+  check('a POST gets a 308, so the method survives the hop',
+    wwwPost.status === 308, String(wwwPost.status));
+
+  // The stub only 200s the paths in REAL_FILES, so use one of those.
+  const apexPage = await get('/shop.html');
+  check('the apex is left alone',
+    apexPage.status === 200 && apexPage.headers.get('x-served-by') === 'assets');
+
   suite('worker — legacy Wix product URLs');
 
   const known = await get('/product-page/custom-radio-strap');

@@ -10,16 +10,24 @@
     "binding": "ASSETS",
     "html_handling": "auto-trailing-slash",
     "not_found_handling": "404-page",
-    // The asset router answers before the Worker, so without this the 404 page
-    // wins and these never reach the auth check. /quote* is here for the same
-    // reason — there's no file behind it, the Worker builds the page.
+    // The asset router answers before the Worker, so anything the Worker has
+    // to see must be listed here or it never runs.
     //
-    // /product-page* is the old Wix URL shape. Nothing on disk matches it, so
-    // without this entry the 404 page wins and the redirects never run.
+    // "/*" — the www -> apex 301 lives at the top of the Worker's fetch, and it
+    // has to cover every page on the www host, not a list of paths. That means
+    // every request goes through the Worker now. The paths that already needed
+    // it are covered by the same wildcard: /dashboard* and /packing-slip* (the
+    // auth check), /quote* (no file on disk, the Worker builds the page), and
+    // /product-page* (the old Wix URL shape, redirected to the live product).
+    //
+    // "!/assets/*" — CSS, JS and images skip the Worker and go straight to the
+    // asset router. They're the bulk of the requests and there is nothing for
+    // the Worker to do to them. Redirecting an image host does nothing for
+    // search either; only the HTML pages are indexed as pages.
     //
     // No slash before the star. "/quote/*" does not match and the quote pages
     // silently fall through to the 404 page — verified against production.
-    "run_worker_first": ["/packing-slip*", "/dashboard*", "/quote*", "/product-page*"]
+    "run_worker_first": ["/*", "!/assets/*"]
   },
   // Custom-build quotes. Created 2026-08-06 with
   //   wrangler kv namespace create QUOTES
