@@ -105,10 +105,13 @@
       shipping:{title:'Shipping Method'}
     });
   }
+  // There is deliberately no shipping_same_as_billing config call here. That was
+  // Snipcart.execute(), the v1/v2 API, and it does not exist in the v3.7.1 theme
+  // we load — it threw an uncaught TypeError on every page load and the setting
+  // never applied. v3 already checks "use this address for shipping" by default,
+  // so true was the behaviour we had regardless. That default is also why the
+  // step labels above rename billing to "Your Address".
   document.addEventListener('snipcart.ready',setCheckoutLabels);
-  document.addEventListener('snipcart.ready',function(){
-    Snipcart.execute('config','shipping_same_as_billing',true);
-  });
   setCheckoutLabels();
 
   // Order forms: on submit, push the item + all customizations into the Snipcart cart.
