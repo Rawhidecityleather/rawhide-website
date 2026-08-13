@@ -65,6 +65,15 @@
       <g:identifier_exists>no</g:identifier_exists>
       <g:product_type>Belts</g:product_type>
       <g:google_product_category>169</g:google_product_category>
+      <!-- Apparel & Accessories requires all four of these. Size is "Custom"
+           because the belt is cut to a waist measurement the customer types in
+           at checkout, so there is no size set to enumerate. Colour is Black to
+           match the feed image; the page also offers Brown and Mahogany, which
+           would need per-colour variants under an item_group_id to express. -->
+      <g:color>Black</g:color>
+      <g:size>Custom</g:size>
+      <g:age_group>adult</g:age_group>
+      <g:gender>unisex</g:gender>
       <g:min_handling_time>7</g:min_handling_time>
       <g:max_handling_time>21</g:max_handling_time>
       <g:shipping>
@@ -133,11 +142,17 @@
       <g:brand>Rawhide City Leather</g:brand>
       <g:identifier_exists>no</g:identifier_exists>
       <g:product_type>Accessories &gt; Hats</g:product_type>
-      <!-- Apparel & Accessories. Google requires color, size, age_group and
-           gender under this branch — none are here yet, so expect this item to
-           be flagged until the hat's 26 colour options are split into variants
-           with an item_group_id. -->
+      <!-- Apparel & Accessories, so all four attributes below are required.
+           Black matches the feed image; the page carries 26 colour options in
+           total, which want splitting into variants under an item_group_id
+           before this listing represents the range honestly. "One size" is the
+           hat itself — both the waterproof shell and the Richardson 112 are
+           adjustable snapbacks. -->
       <g:google_product_category>173</g:google_product_category>
+      <g:color>Black</g:color>
+      <g:size>One size</g:size>
+      <g:age_group>adult</g:age_group>
+      <g:gender>unisex</g:gender>
       <g:min_handling_time>7</g:min_handling_time>
       <g:max_handling_time>21</g:max_handling_time>
       <g:shipping>
@@ -160,6 +175,12 @@
       <g:identifier_exists>no</g:identifier_exists>
       <g:product_type>Belts</g:product_type>
       <g:google_product_category>169</g:google_product_category>
+      <!-- See the basket weave belt above. Black matches the image here too;
+           this one's other option is Brown. -->
+      <g:color>Black</g:color>
+      <g:size>Custom</g:size>
+      <g:age_group>adult</g:age_group>
+      <g:gender>unisex</g:gender>
       <g:min_handling_time>7</g:min_handling_time>
       <g:max_handling_time>21</g:max_handling_time>
       <g:shipping>
