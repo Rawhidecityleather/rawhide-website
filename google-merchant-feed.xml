@@ -5,6 +5,18 @@
     <link>https://rawhidecityleather.com/</link>
     <description>Handmade firefighter leather gear. Hand-cut, hand-stamped, and finished by hand in Lakeland, Florida.</description>
 
+    <!-- No <g:shipping> anywhere in this feed, on purpose. Shipping is $10 flat
+         in the continental US and free over $150 (see /shipping), and that
+         threshold cannot be expressed per item: nine hardcoded blocks got the
+         rule wrong on every product except the one that clears $150 by itself.
+         It lives in Merchant Center's account-level shipping settings instead.
+
+         This is load-bearing. Item-level shipping OVERRIDES account settings,
+         so putting a <g:shipping> block back on any item silently disables the
+         free-over-$150 rule for that product. And shipping data is required in
+         the US one way or the other — if the account-level rules are missing,
+         every item here is disapproved for having no shipping at all. -->
+
     <item>
       <g:id>fully-custom-radio-strap</g:id>
       <g:title>Fully Custom Adjustable Radio Strap</g:title>
@@ -20,14 +32,6 @@
       <g:google_product_category>263</g:google_product_category>
       <g:min_handling_time>25</g:min_handling_time>
       <g:max_handling_time>30</g:max_handling_time>
-      <!-- Free over $150 (see /shipping), and this is the only item that clears
-           it on its own. A feed price that disagrees with the landing page is a
-           standard disapproval, so it has to say 0 here. -->
-      <g:shipping>
-        <g:country>US</g:country>
-        <g:service>Ground</g:service>
-        <g:price>0.00 USD</g:price>
-      </g:shipping>
     </item>
 
     <item>
@@ -45,11 +49,6 @@
       <g:google_product_category>263</g:google_product_category>
       <g:min_handling_time>25</g:min_handling_time>
       <g:max_handling_time>30</g:max_handling_time>
-      <g:shipping>
-        <g:country>US</g:country>
-        <g:service>Ground</g:service>
-        <g:price>10.00 USD</g:price>
-      </g:shipping>
     </item>
 
     <item>
@@ -76,11 +75,6 @@
       <g:gender>unisex</g:gender>
       <g:min_handling_time>7</g:min_handling_time>
       <g:max_handling_time>21</g:max_handling_time>
-      <g:shipping>
-        <g:country>US</g:country>
-        <g:service>Ground</g:service>
-        <g:price>10.00 USD</g:price>
-      </g:shipping>
     </item>
 
     <item>
@@ -101,11 +95,6 @@
       <g:google_product_category>2047</g:google_product_category>
       <g:min_handling_time>7</g:min_handling_time>
       <g:max_handling_time>21</g:max_handling_time>
-      <g:shipping>
-        <g:country>US</g:country>
-        <g:service>Ground</g:service>
-        <g:price>10.00 USD</g:price>
-      </g:shipping>
     </item>
 
     <item>
@@ -123,11 +112,6 @@
       <g:google_product_category>2047</g:google_product_category>
       <g:min_handling_time>7</g:min_handling_time>
       <g:max_handling_time>21</g:max_handling_time>
-      <g:shipping>
-        <g:country>US</g:country>
-        <g:service>Ground</g:service>
-        <g:price>10.00 USD</g:price>
-      </g:shipping>
     </item>
 
     <item>
@@ -155,11 +139,6 @@
       <g:gender>unisex</g:gender>
       <g:min_handling_time>7</g:min_handling_time>
       <g:max_handling_time>21</g:max_handling_time>
-      <g:shipping>
-        <g:country>US</g:country>
-        <g:service>Ground</g:service>
-        <g:price>10.00 USD</g:price>
-      </g:shipping>
     </item>
 
     <item>
@@ -183,11 +162,6 @@
       <g:gender>unisex</g:gender>
       <g:min_handling_time>7</g:min_handling_time>
       <g:max_handling_time>21</g:max_handling_time>
-      <g:shipping>
-        <g:country>US</g:country>
-        <g:service>Ground</g:service>
-        <g:price>10.00 USD</g:price>
-      </g:shipping>
     </item>
 
     <item>
@@ -205,11 +179,6 @@
       <g:google_product_category>2047</g:google_product_category>
       <g:min_handling_time>7</g:min_handling_time>
       <g:max_handling_time>21</g:max_handling_time>
-      <g:shipping>
-        <g:country>US</g:country>
-        <g:service>Ground</g:service>
-        <g:price>10.00 USD</g:price>
-      </g:shipping>
     </item>
 
     <item>
@@ -229,11 +198,6 @@
       <g:google_product_category>628</g:google_product_category>
       <g:min_handling_time>1</g:min_handling_time>
       <g:max_handling_time>3</g:max_handling_time>
-      <g:shipping>
-        <g:country>US</g:country>
-        <g:service>Ground</g:service>
-        <g:price>10.00 USD</g:price>
-      </g:shipping>
     </item>
 
   </channel>
