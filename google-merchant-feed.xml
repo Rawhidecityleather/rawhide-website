@@ -17,12 +17,16 @@
       <g:brand>Rawhide City Leather</g:brand>
       <g:identifier_exists>no</g:identifier_exists>
       <g:product_type>Radio Straps</g:product_type>
+      <g:google_product_category>263</g:google_product_category>
       <g:min_handling_time>25</g:min_handling_time>
       <g:max_handling_time>30</g:max_handling_time>
+      <!-- Free over $150 (see /shipping), and this is the only item that clears
+           it on its own. A feed price that disagrees with the landing page is a
+           standard disapproval, so it has to say 0 here. -->
       <g:shipping>
         <g:country>US</g:country>
         <g:service>Ground</g:service>
-        <g:price>10.00 USD</g:price>
+        <g:price>0.00 USD</g:price>
       </g:shipping>
     </item>
 
@@ -38,6 +42,7 @@
       <g:brand>Rawhide City Leather</g:brand>
       <g:identifier_exists>no</g:identifier_exists>
       <g:product_type>Radio Straps</g:product_type>
+      <g:google_product_category>263</g:google_product_category>
       <g:min_handling_time>25</g:min_handling_time>
       <g:max_handling_time>30</g:max_handling_time>
       <g:shipping>
@@ -81,6 +86,10 @@
       <g:brand>Rawhide City Leather</g:brand>
       <g:identifier_exists>no</g:identifier_exists>
       <g:product_type>Accessories</g:product_type>
+      <!-- 2047 is the parent node. Google's taxonomy has no fire-service child
+           to sit under, and the American Football chin strap / helmet nodes
+           would match this to the wrong sport entirely. -->
+      <g:google_product_category>2047</g:google_product_category>
       <g:min_handling_time>7</g:min_handling_time>
       <g:max_handling_time>21</g:max_handling_time>
       <g:shipping>
@@ -102,6 +111,7 @@
       <g:brand>Rawhide City Leather</g:brand>
       <g:identifier_exists>no</g:identifier_exists>
       <g:product_type>Accessories</g:product_type>
+      <g:google_product_category>2047</g:google_product_category>
       <g:min_handling_time>7</g:min_handling_time>
       <g:max_handling_time>21</g:max_handling_time>
       <g:shipping>
@@ -123,6 +133,11 @@
       <g:brand>Rawhide City Leather</g:brand>
       <g:identifier_exists>no</g:identifier_exists>
       <g:product_type>Accessories &gt; Hats</g:product_type>
+      <!-- Apparel & Accessories. Google requires color, size, age_group and
+           gender under this branch — none are here yet, so expect this item to
+           be flagged until the hat's 26 colour options are split into variants
+           with an item_group_id. -->
+      <g:google_product_category>173</g:google_product_category>
       <g:min_handling_time>7</g:min_handling_time>
       <g:max_handling_time>21</g:max_handling_time>
       <g:shipping>
@@ -166,6 +181,7 @@
       <g:brand>Rawhide City Leather</g:brand>
       <g:identifier_exists>no</g:identifier_exists>
       <g:product_type>Accessories</g:product_type>
+      <g:google_product_category>2047</g:google_product_category>
       <g:min_handling_time>7</g:min_handling_time>
       <g:max_handling_time>21</g:max_handling_time>
       <g:shipping>
@@ -187,6 +203,9 @@
       <g:brand>Rawhide City Leather</g:brand>
       <g:identifier_exists>no</g:identifier_exists>
       <g:product_type>Leather Care</g:product_type>
+      <!-- Google has no leather-care node; Shoe Care & Tools is where
+           conditioners and polishes live in its taxonomy. -->
+      <g:google_product_category>628</g:google_product_category>
       <g:min_handling_time>1</g:min_handling_time>
       <g:max_handling_time>3</g:max_handling_time>
       <g:shipping>
