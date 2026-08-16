@@ -311,6 +311,64 @@ the money it fetches the quote page to check the price against the cart, and it
 can't get past a login prompt. Treat the link like a payment link — anyone who
 has it can pay it, and nobody who doesn't can find it.
 
+## Custom stamp artwork
+
+The fully custom radio strap sells custom stamps as a paid option — one for $15,
+two for $25 — and each one needs the customer's artwork.
+
+Snipcart has six custom-field types and none of them is a file, so the artwork
+can't ride along in the cart. The product page uploads the file to the Worker
+first, gets a URL back, and puts that URL in an ordinary readonly custom field.
+The order carries the link; the bytes live in R2. The link prints on the packing
+slip, clickable.
+
+### One-time setup
+
+```bash
+npx wrangler r2 bucket create rawhide-logo-uploads
+```
+
+The `LOGOS` binding in `wrangler.jsonc` already points at that name. Until the
+bucket exists, uploads fail with a message saying so, and the customer is told
+to email the file instead — the order still goes through.
+
+### What it accepts
+
+PNG, JPG, WEBP, GIF, HEIC and PDF, up to 8 MB. The type is decided by reading
+the file's first bytes, not by trusting its extension — a `.png` that's really
+an HTML page is refused.
+
+**SVG is deliberately not accepted.** It's XML that can carry script, and these
+files are served back from our own origin, so an SVG would be a stored XSS on
+the packing slip. Don't add it back.
+
+### Where the files live
+
+Nothing is public. `/logo/<key>` sits behind the same login as the dashboard and
+the packing slip, so once you're logged in the link on a slip just opens. The
+keys are random, so they can't be guessed or walked from one order to the next.
+
+Files are never deleted automatically. If the bucket ever needs trimming, an R2
+lifecycle rule is the way — but at this order volume it will be years.
+
+To remove one file by hand:
+
+```bash
+npx wrangler r2 object delete "rawhide-logo-uploads/<key>.png" --remote
+```
+
+**`--remote` is not optional.** Without it wrangler deletes from the local
+simulated bucket, prints "Delete complete", and leaves the real object exactly
+where it was.
+
+### If the money ever changes
+
+The stamp prices live in **two** places on
+`product-fully-custom-radio-strap.html`: the visible `<select>` and the hidden
+`snipcart-add-item` button Snipcart re-fetches to price the order. Both have to
+change together or the cart charges something the page never offered. There's a
+test that fails if they drift — `node worker/tests/run.mjs uploads`.
+
 ### Sitewide discounts and quote pricing
 
 **No sitewide discount is running.** `CHECKOUT_DISCOUNT` at the top of
@@ -444,9 +502,10 @@ Done once, and not worth touching again:
 | Worker | `quiet-firefly-3711` on the `rawhidecityleather@gmail.com` account |
 | Domain | `rawhidecityleather.com`, attached in the Cloudflare dashboard under the Worker's **Settings → Domains & Routes** — deliberately *not* in `wrangler.jsonc`, so deploying can't disturb it |
 | Static files | served straight from this folder by the `ASSETS` binding |
-| `run_worker_first` | in `wrangler.jsonc` — the paths the Worker answers instead of the file router (`/dashboard*`, `/packing-slip*`, `/quote*`) |
+| `run_worker_first` | in `wrangler.jsonc` — the paths the Worker answers instead of the file router (`/dashboard*`, `/packing-slip*`, `/quote*`, `/logo/*`, `/api/*`) |
 | Secrets | `wrangler secret put NAME` — see the table above |
 | Quote storage | the `QUOTES` KV namespace |
+| Artwork storage | the `LOGOS` R2 bucket (`rawhide-logo-uploads`) |
 
 If wrangler ever asks you to log in:
 

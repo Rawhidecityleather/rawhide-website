@@ -76,7 +76,7 @@ export function renderSlip(order, { quote = null } = {}) {
  * Deliberately narrow: must catch "Text on belt" and "Stamped text" without
  * catching "Text color", "Text outline color" or "Text paint color".
  */
-const CRITICAL_FIELD = /stamp|^message$|^notes$|^patch details$|^text on /i;
+const CRITICAL_FIELD = /stamp|artwork|^message$|^notes$|^patch details$|^text on /i;
 
 /**
  * Shorter labels for the callout only. The field names customers pick at
@@ -90,6 +90,17 @@ function calloutLabel(name) {
   return CALLOUT_LABELS[key] || name || '';
 }
 
+/**
+ * Artwork fields carry a /logo/… link to the file the customer uploaded. On
+ * screen it's one click to the art; on paper it still reads as a URL.
+ *
+ * Runs on already-escaped text, so nothing a customer types can open a tag —
+ * the match can only ever be the plain URL characters left after escaping.
+ */
+function linkify(escaped) {
+  return escaped.replace(/https?:\/\/[^\s<"']+/g, (url) => `<a href="${url}">${url}</a>`);
+}
+
 function renderItem(item, { orderDate, shipped } = {}) {
   const fields = (item.customFields || []).filter((f) => f && String(f.value || '').trim());
   const critical = fields.filter((f) => CRITICAL_FIELD.test(f.name || ''));
@@ -97,7 +108,7 @@ function renderItem(item, { orderDate, shipped } = {}) {
 
   const callout = critical.map((f) => `<div class="callout-row">
       <span class="callout-label">${esc(calloutLabel(f.name))}</span>
-      <span class="callout-value">${esc(String(f.value).trim()).replace(/\n/g, '<br>')}</span>
+      <span class="callout-value">${linkify(esc(String(f.value).trim())).replace(/\n/g, '<br>')}</span>
     </div>`).join('');
 
   const opts = specs.map((f) => {
@@ -107,7 +118,7 @@ function renderItem(item, { orderDate, shipped } = {}) {
     const wide = value.length > 40 || value.includes('\n');
     return `<div class="opt${wide ? ' wide' : ''}">
       <dt>${esc(f.name || '')}</dt>
-      <dd>${esc(value).replace(/\n/g, '<br>')}</dd>
+      <dd>${linkify(esc(value)).replace(/\n/g, '<br>')}</dd>
     </div>`;
   }).join('');
 

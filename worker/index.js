@@ -15,6 +15,8 @@
  *   POST /dashboard/api/quote/void   kill a quote link
  *   POST /dashboard/hooks/snipcart   webhook: tracking -> Shipped, paid -> quote
  *   GET  /packing-slip?token=…       printable slip / build sheet
+ *   GET  /logo/<key>                 customer artwork for a custom stamp
+ *   POST /api/logo-upload            PUBLIC. Artwork upload from a product page.
  *   GET  /quote/…                    PUBLIC. The crew's quote page.
  *
  * Secrets (set with `wrangler secret put NAME`):
@@ -25,6 +27,7 @@
  *
  * Bindings:
  *   QUOTES — KV namespace holding custom-job quotes. See the README.
+ *   LOGOS  — R2 bucket holding customer artwork uploads. See the README.
  */
 
 import { esc, json, notice, page } from './lib.js';
@@ -37,6 +40,7 @@ import {
   analyze, renderDashboard, DEFAULT_RANGE, DASHBOARD_STYLES, DASHBOARD_SCRIPT,
 } from './dashboard.js';
 import { pirateShipCsv, parseTrackingPaste } from './pirateship.js';
+import { handleLogoUpload, handleLogoFetch } from './uploads.js';
 import {
   buildQuote, putQuote, getQuote, listQuotes, voidQuote, markQuotePaid,
   renderQuotePage, quoteStatus, isQuoteId, QuoteError, QUOTE_ITEM_PREFIX,
@@ -92,12 +96,36 @@ export default {
       }
     }
 
+    // Public on purpose: the customer uploading their artwork is a shopper, not
+    // the shop. Deliberately outside guardConfigured — an upload has nothing to
+    // do with Snipcart, and a missing SNIPCART_SECRET shouldn't break the
+    // product page.
+    if (path === '/api/logo-upload') {
+      try {
+        return await handleLogoUpload(request, env);
+      } catch (err) {
+        return failure(err, request);
+      }
+    }
+
     // Public on purpose. Snipcart's crawler fetches this page to check the
     // price before it will accept the order, and it can't answer a login
     // prompt — the unguessable id in the URL is what keeps a quote private.
     if (path.startsWith('/quote/')) {
       try {
         return await handleQuotePage(path, env);
+      } catch (err) {
+        return failure(err, request);
+      }
+    }
+
+    // Customer artwork is somebody else's property — it sits behind the same
+    // login as the slip it prints on, not out in the open. Answered before
+    // guardConfigured because fetching a stored file never touches Snipcart.
+    if (path.startsWith('/logo/')) {
+      if (!authorized(request, env)) return unauthorized();
+      try {
+        return await handleLogoFetch(path, env);
       } catch (err) {
         return failure(err, request);
       }

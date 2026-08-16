@@ -13,6 +13,7 @@ const SUITES = [
   ['lib', () => import('./lib.test.mjs')],
   ['quote', () => import('./quote.test.mjs')],
   ['slip', () => import('./slip.test.mjs')],
+  ['uploads', () => import('./uploads.test.mjs')],
   ['worker', () => import('./worker.test.mjs')],
 ];
 

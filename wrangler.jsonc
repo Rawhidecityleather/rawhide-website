@@ -34,6 +34,12 @@
   "kv_namespaces": [
     { "binding": "QUOTES", "id": "272cd3400d3e4eae945bfbe2b16ab43f" }
   ],
+  // Customer artwork for custom stamp work. Create the bucket once with
+  //   wrangler r2 bucket create rawhide-logo-uploads
+  // Nothing here is public: /logo/<key> is behind the dashboard login.
+  "r2_buckets": [
+    { "binding": "LOGOS", "bucket_name": "rawhide-logo-uploads" }
+  ],
   "compatibility_flags": [
     "nodejs_compat"
   ]

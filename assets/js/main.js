@@ -143,10 +143,24 @@
           idx++;
           var p='data-item-custom'+idx;
           hiddenBtn.setAttribute(p+'-name',el.getAttribute('data-label')||el.name);
+          // Optional fields left blank are skipped above, so a field can land on
+          // a different index than the one the static markup declared it at.
+          // -options and -type therefore get set or cleared every time: a
+          // leftover price modifier from the field that used to sit here would
+          // charge for something the customer didn't pick.
           var opts=el.getAttribute('data-options');
           if(opts)hiddenBtn.setAttribute(p+'-options',opts);
-          if(el.tagName==='TEXTAREA')hiddenBtn.setAttribute(p+'-type','textarea');
+          else hiddenBtn.removeAttribute(p+'-options');
+          var type=el.getAttribute('data-type')||(el.tagName==='TEXTAREA'?'textarea':'');
+          if(type)hiddenBtn.setAttribute(p+'-type',type);
+          else hiddenBtn.removeAttribute(p+'-type');
           hiddenBtn.setAttribute(p+'-value',val);
+        });
+        // Anything declared past the last field used is a ghost from the static
+        // markup — Snipcart would render it as an empty extra option.
+        Array.prototype.slice.call(hiddenBtn.attributes).forEach(function(attr){
+          var m=/^data-item-custom(\d+)-/.exec(attr.name);
+          if(m&&Number(m[1])>idx)hiddenBtn.removeAttribute(attr.name);
         });
         hiddenBtn.click();
         setTimeout(function(){if(window.Snipcart)window.Snipcart.api.theme.cart.open();},1600);
@@ -175,6 +189,114 @@
         alert('Sorry, something went wrong adding this to your cart. Please try again or email rawhidecityleather@gmail.com.');
       });
     });
+  });
+
+  // Artwork uploads. Snipcart has no file-upload field type, so the file goes to
+  // our own Worker first and the cart carries the URL it hands back, in an
+  // ordinary readonly custom field. Everything here degrades to "email it to us":
+  // if the upload fails the customer is told so and can still order.
+  var LOGO_MAX = 8 * 1024 * 1024;
+
+  // Add to Cart has to wait for an upload in flight, or the order arrives with an
+  // empty artwork field. Counted per form — there are two pickers on the page.
+  function uploadPending(form, delta){
+    if(!form)return;
+    var n = Math.max(0, (Number(form.getAttribute('data-uploading')) || 0) + delta);
+    form.setAttribute('data-uploading', String(n));
+    var submit = form.querySelector('button[type="submit"]');
+    if(!submit)return;
+    submit.disabled = n > 0;
+    submit.textContent = n > 0 ? 'Uploading artwork...' : 'Add to Cart';
+  }
+
+  document.querySelectorAll('[data-logo-upload]').forEach(function(picker){
+    var form = picker.closest('form');
+    var slot = picker.closest('[data-logo-slot]');
+    var field = document.getElementById(picker.getAttribute('data-logo-target'));
+    var status = slot ? slot.querySelector('[data-logo-status]') : null;
+
+    function say(message, bad){
+      if(!status)return;
+      status.textContent = message;
+      status.style.color = bad ? 'var(--c-accent)' : 'var(--c-text-soft)';
+    }
+
+    picker.addEventListener('change', function(){
+      var file = picker.files && picker.files[0];
+      if(field) field.value = '';
+      if(!file){ say(''); return; }
+
+      // Checked here as well as in the Worker so an 8 MB phone photo fails in
+      // one second instead of after the whole upload.
+      if(file.size > LOGO_MAX){
+        picker.value = '';
+        say('That file is over 8 MB. Send a smaller export, or email it after ordering.', true);
+        return;
+      }
+
+      say('Uploading ' + file.name + '...');
+      uploadPending(form, 1);
+
+      var body = new FormData();
+      body.append('file', file);
+
+      fetch('/api/logo-upload', { method: 'POST', body: body })
+        .then(function(res){
+          return res.json()
+            .catch(function(){ return { error: 'Upload failed.' }; })
+            .then(function(data){
+              if(!res.ok || !data.ok) throw new Error(data.error || 'Upload failed.');
+              return data;
+            });
+        })
+        .then(function(data){
+          // Name and URL together: the name is what the customer recognises in
+          // the cart, the URL is what the shop clicks on the packing slip.
+          if(field) field.value = data.name + ' - ' + data.url;
+          say(data.name + ' attached.');
+        })
+        .catch(function(err){
+          picker.value = '';
+          if(field) field.value = '';
+          say((err.message || 'Upload failed.') +
+            ' You can also email it to rawhidecityleather@gmail.com after ordering.', true);
+        })
+        .then(function(){ uploadPending(form, -1); });
+    });
+  });
+
+  // Show one file picker per stamp bought, and only ask for artwork that's
+  // actually been paid for.
+  document.querySelectorAll('[data-logo-count]').forEach(function(select){
+    var form = select.closest('form');
+    if(!form) return;
+    var slots = form.querySelectorAll('[data-logo-slot]');
+
+    function sync(){
+      // "None" parses to NaN, which is the zero we want.
+      var wanted = parseInt(select.value, 10) || 0;
+      Array.prototype.forEach.call(slots, function(slot){
+        var on = Number(slot.getAttribute('data-logo-slot')) <= wanted;
+        slot.hidden = !on;
+
+        var picker = slot.querySelector('[data-logo-upload]');
+        var field = slot.querySelector('input[name]');
+        if(picker) picker.required = on;
+
+        // Clearing on the way down matters: picking two stamps, uploading both,
+        // then dropping back to one would otherwise ship a second URL the
+        // customer is no longer paying for.
+        if(!on){
+          if(picker) picker.value = '';
+          if(field) field.value = '';
+          var status = slot.querySelector('[data-logo-status]');
+          if(status) status.textContent = '';
+        }
+      });
+    }
+
+    select.addEventListener('change', sync);
+    sync();
   });
 
   // Newsletter: Kit's script posts the signup, but renders no confirmation in our
