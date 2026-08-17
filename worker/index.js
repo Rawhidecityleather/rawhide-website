@@ -19,15 +19,23 @@
  *   POST /api/logo-upload            PUBLIC. Artwork upload from a product page.
  *   GET  /quote/…                    PUBLIC. The crew's quote page.
  *
+ * Cron
+ *   hourly — abandoned cart recovery, step 3. See worker/recovery.js.
+ *
  * Secrets (set with `wrangler secret put NAME`):
  *   SNIPCART_SECRET — Snipcart secret API key. Reads and updates orders, never
  *                     ships to the browser.
  *   SLIP_USER       — username for the browser login prompt
  *   SLIP_PASS       — password for the browser login prompt
+ *   SENDGRID_KEY    — cart recovery email. Mail Send permission only.
+ *   RECOVERY_FROM   — from address for recovery email, on the authenticated
+ *                     rawhidecityleather.com domain.
+ *   RECOVERY_POSTAL_ADDRESS — footer mailing address. CAN-SPAM. A PO box is fine.
  *
  * Bindings:
- *   QUOTES — KV namespace holding custom-job quotes. See the README.
- *   LOGOS  — R2 bucket holding customer artwork uploads. See the README.
+ *   QUOTES   — KV namespace holding custom-job quotes. See the README.
+ *   RECOVERY — KV namespace recording which carts have had a recovery email.
+ *   LOGOS    — R2 bucket holding customer artwork uploads. See the README.
  */
 
 import { esc, json, notice, page } from './lib.js';
@@ -41,12 +49,35 @@ import {
 } from './dashboard.js';
 import { pirateShipCsv, parseTrackingPaste } from './pirateship.js';
 import { handleLogoUpload, handleLogoFetch } from './uploads.js';
+import { runRecovery } from './recovery.js';
 import {
   buildQuote, putQuote, getQuote, listQuotes, voidQuote, markQuotePaid,
   renderQuotePage, quoteStatus, isQuoteId, QuoteError, QUOTE_ITEM_PREFIX,
 } from './quote.js';
 
 export default {
+  /**
+   * Abandoned cart recovery. Runs hourly rather than once a day so a cart
+   * crossing the 72 hour line waits at most an hour, instead of landing at
+   * whatever time of day the daily run happens to fire.
+   *
+   * runRecovery never throws for a single bad cart — it reports per-cart
+   * status — so anything caught here is a whole-run failure worth logging.
+   */
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(
+      runRecovery(env)
+        .then((report) => {
+          console.log('cart recovery', JSON.stringify(report.counts || {}),
+            `scanned=${report.scanned} due=${report.due}`,
+            report.skipped ? `skipped=${report.skipped}` : '');
+        })
+        .catch((err) => {
+          console.error('cart recovery failed', err?.message || err);
+        })
+    );
+  },
+
   async fetch(request, env) {
     const url = new URL(request.url);
 

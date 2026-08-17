@@ -32,9 +32,9 @@ export async function getJson(env, path) {
   return res.json();
 }
 
-export async function putJson(env, path, body) {
+async function sendJson(env, method, path, body) {
   const res = await fetch(API + path, {
-    method: 'PUT',
+    method,
     headers: {
       Authorization: authHeader(env),
       Accept: 'application/json',
@@ -49,6 +49,15 @@ export async function putJson(env, path, body) {
     );
   }
   return res.json().catch(() => ({}));
+}
+
+export function putJson(env, path, body) {
+  return sendJson(env, 'PUT', path, body);
+}
+
+/** Used to mint per-cart recovery discounts. See worker/recovery.js. */
+export function postJson(env, path, body) {
+  return sendJson(env, 'POST', path, body);
 }
 
 export function getOrder(env, token) {

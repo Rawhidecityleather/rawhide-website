@@ -1,0 +1,158 @@
+---
+subject: 15% off your cart, through August 24
+---
+<!-- Rawhide City Leather - abandoned cart recovery, STEP 3 WITH DISCOUNT (~72 hours after abandonment)
+     Discount variant of abandoned-cart-3-lastcall.html. Use ONE of the two, not both.
+     The no-discount original stays in this folder so you can swap back without rewriting anything.
+
+     TWO THINGS TO EDIT EVERY TIME YOU RE-RUN THIS, and they must agree with each other
+     AND with the discount record in Snipcart:
+       1. The date in the `subject:` line above.
+       2. RAWHIDE15 and the date in the "Your code" panel below.
+     Snipcart's discount expiry is one absolute calendar date on the code, not a rolling
+     7 days per customer, so the date has to be written out rather than promised as "7 days."
+     See email/ABANDONED-CART-SETUP.md for the roll-forward checklist. -->
+<div style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">15% off the cart you left, plus the career warranty behind every piece.</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#EBE8E1" style="background-color:#EBE8E1;">
+  <tr>
+    <td align="center" style="padding:32px 12px;">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:100%;">
+
+        <!-- Logo -->
+        <tr>
+          <td align="center" style="padding:0 0 24px 0;">
+            <img src="https://rawhidecityleather.com/assets/img/logo.png" width="170" alt="Rawhide City Leather" style="display:block;width:170px;max-width:60%;height:auto;border:0;">
+          </td>
+        </tr>
+
+        <!-- Card -->
+        <tr>
+          <td bgcolor="#FFFFFF" style="background-color:#FFFFFF;border:1px solid #DFDBD2;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+
+              <!-- Ink banner -->
+              <tr>
+                <td bgcolor="#0F0F0F" align="center" style="background-color:#0F0F0F;padding:26px 24px;">
+                  <p style="margin:0 0 6px 0;font-family:Arial,Helvetica,sans-serif;font-size:11px;letter-spacing:4px;text-transform:uppercase;color:#A9A59B;">Firefighter Owned &middot; Est. 2024</p>
+                  <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-weight:bold;font-size:26px;line-height:1.15;letter-spacing:2px;text-transform:uppercase;color:#EBE8E1;">15% off your cart</p>
+                </td>
+              </tr>
+
+              <!-- Body copy -->
+              <tr>
+                <td style="padding:32px 36px 8px 36px;">
+                  <p style="margin:0 0 16px 0;font-family:Georgia,'Times New Roman',serif;font-size:17px;line-height:1.6;color:#0F0F0F;">Hey {{order.billingAddress.fullName}},</p>
+                  <p style="margin:0 0 16px 0;font-family:Georgia,'Times New Roman',serif;font-size:16px;line-height:1.65;color:#3A3833;">Your cart is still sitting here. Here is 15 percent off to get it finished.</p>
+                </td>
+              </tr>
+
+              <!-- Discount code -->
+              <tr>
+                <td style="padding:8px 36px 8px 36px;">
+                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                      <td bgcolor="#0F0F0F" align="center" style="background-color:#0F0F0F;padding:24px 22px;">
+                        <p style="margin:0 0 10px 0;font-family:Arial,Helvetica,sans-serif;font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#A9A59B;">Your code</p>
+                        <p style="margin:0 0 10px 0;font-family:'Courier New',Courier,monospace;font-weight:bold;font-size:30px;letter-spacing:5px;color:#EBE8E1;">RAWHIDE15</p>
+                        <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#A9A59B;">Good through August 24</p>
+                      </td>
+                    </tr>
+                  </table>
+                  <p style="margin:12px 0 0 0;font-family:Georgia,'Times New Roman',serif;font-size:14px;line-height:1.6;color:#6B6358;">Enter it in the discount box at checkout.</p>
+                </td>
+              </tr>
+
+              <!-- Cart contents -->
+              {{#has_any order.items}}
+              <tr>
+                <td style="padding:16px 36px 8px 36px;">
+                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#EBE8E1" style="background-color:#EBE8E1;border:1px dashed #6B6358;">
+                    <tr>
+                      <td style="padding:20px 20px 0 20px;">
+                        <p style="margin:0 0 12px 0;font-family:Arial,Helvetica,sans-serif;font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#6B6358;">In your cart</p>
+                      </td>
+                    </tr>
+                    {{#each order.items}}
+                    <tr>
+                      <td style="padding:0 20px 10px 20px;">
+                        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                          <tr>
+                            <td style="font-family:Georgia,'Times New Roman',serif;font-size:15px;line-height:1.5;color:#0F0F0F;">{{name}}{{#if quantity}} &times; {{quantity}}{{/if}}</td>
+                            <td align="right" style="font-family:'Courier New',Courier,monospace;font-size:15px;color:#0F0F0F;white-space:nowrap;padding-left:12px;">{{money totalPrice}}</td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                    {{/each}}
+                    <tr>
+                      <td style="padding:2px 20px 20px 20px;">
+                        <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#6B6358;">Free shipping on orders over $85</p>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              {{/has_any}}
+
+              <!-- Finish button -->
+              <tr>
+                <td align="center" style="padding:24px 36px 8px 36px;">
+                  <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                      <td align="center" bgcolor="#0F0F0F" style="background-color:#0F0F0F;">
+                        <a href="{{settings.cartUrl}}" target="_blank" style="display:inline-block;padding:15px 42px;font-family:Arial,Helvetica,sans-serif;font-weight:bold;font-size:13px;letter-spacing:3px;text-transform:uppercase;color:#EBE8E1;text-decoration:none;">Finish Your Order</a>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Divider -->
+              <tr>
+                <td style="padding:24px 36px 0 36px;">
+                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                    <tr><td style="border-top:1px solid #E5E1D8;font-size:0;line-height:0;">&nbsp;</td></tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Warranty -->
+              <tr>
+                <td style="padding:20px 36px 8px 36px;">
+                  <p style="margin:0 0 10px 0;font-family:Arial,Helvetica,sans-serif;font-weight:bold;font-size:13px;letter-spacing:3px;text-transform:uppercase;color:#0F0F0F;">Career warranty</p>
+                  <p style="margin:0 0 12px 0;font-family:Georgia,'Times New Roman',serif;font-size:15px;line-height:1.65;color:#3A3833;">Every piece we build carries it. If workmanship or materials ever fail you, we repair it. That is the whole point of buying from someone who has worn the gear. <a href="https://rawhidecityleather.com/shipping#warranty" target="_blank" style="color:#0F0F0F;text-decoration:underline;">Read the warranty</a>.</p>
+                  <p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:15px;line-height:1.65;color:#3A3833;">This is the last we will email you about this cart.</p>
+                </td>
+              </tr>
+
+              <!-- Tagline stamp -->
+              <tr>
+                <td align="center" style="padding:12px 36px 32px 36px;">
+                  <p style="margin:0;font-family:'Courier New',Courier,monospace;font-style:italic;font-size:14px;color:#6B6358;">"We do not cut corners. We cut leather."</p>
+                </td>
+              </tr>
+
+            </table>
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+          <td align="center" style="padding:28px 24px 8px 24px;">
+            <p style="margin:0 0 6px 0;font-family:Arial,Helvetica,sans-serif;font-weight:bold;font-size:14px;letter-spacing:3px;text-transform:uppercase;color:#0F0F0F;">Rawhide City Leather</p>
+            <p style="margin:0 0 14px 0;font-family:Arial,Helvetica,sans-serif;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#6B6358;">Firefighter Owned &middot; Est. 2024 &middot; Lakeland, FL</p>
+            <p style="margin:0 0 14px 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;letter-spacing:1px;">
+              <a href="https://rawhidecityleather.com/shop" target="_blank" style="color:#0F0F0F;text-decoration:underline;">Shop</a>
+              &nbsp;&middot;&nbsp;
+              <a href="https://rawhidecityleather.com/crews" target="_blank" style="color:#0F0F0F;text-decoration:underline;">Crew Orders</a>
+              &nbsp;&middot;&nbsp;
+              <a href="https://rawhidecityleather.com/contact" target="_blank" style="color:#0F0F0F;text-decoration:underline;">Contact</a>
+            </p>
+            <p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:13px;color:#6B6358;">Questions? Just reply to this email and we will get you squared away.</p>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>

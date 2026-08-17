@@ -29,10 +29,22 @@
     // silently fall through to the 404 page — verified against production.
     "run_worker_first": ["/*", "!/assets/*"]
   },
-  // Custom-build quotes. Created 2026-08-06 with
-  //   wrangler kv namespace create QUOTES
+  // Abandoned cart recovery, step 3. Hourly, not daily: a cart crossing the
+  // 72 hour mark then waits at most an hour rather than until whatever time of
+  // day a daily run fires. Each run is cheap — one Snipcart list call, and
+  // nothing else unless a cart is actually due. See worker/recovery.js.
+  "triggers": {
+    "crons": ["0 * * * *"]
+  },
+  // QUOTES  — custom-build quotes. Created 2026-08-06 with
+  //             wrangler kv namespace create QUOTES
+  // RECOVERY — one record per abandoned cart we have emailed, holding the code
+  //            minted for it. This is what stops the hourly cron from mailing
+  //            the same person every hour for a week. Created 2026-08-17 with
+  //             wrangler kv namespace create RECOVERY
   "kv_namespaces": [
-    { "binding": "QUOTES", "id": "272cd3400d3e4eae945bfbe2b16ab43f" }
+    { "binding": "QUOTES", "id": "272cd3400d3e4eae945bfbe2b16ab43f" },
+    { "binding": "RECOVERY", "id": "be611b5493984061803449b43657eec4" }
   ],
   // Customer artwork for custom stamp work. Create the bucket once with
   //   wrangler r2 bucket create rawhide-logo-uploads

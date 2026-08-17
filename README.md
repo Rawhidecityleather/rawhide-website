@@ -414,7 +414,7 @@ keeping and for how long.
 
 ### Secrets
 
-All three are already set if the packing slip works. To rotate one:
+The first three are already set if the packing slip works. To rotate one:
 
 ```bash
 npx wrangler secret put SNIPCART_SECRET
@@ -425,9 +425,28 @@ npx wrangler secret put SNIPCART_SECRET
 | `SNIPCART_SECRET` | Snipcart **secret** API key. Reads orders, writes tracking and status. Never sent to the browser. |
 | `SLIP_USER` | Dashboard username |
 | `SLIP_PASS` | Dashboard password |
+| `SENDGRID_KEY` | Cart recovery email. Restricted key, **Mail Send** only. |
+| `RECOVERY_FROM` | From address for recovery email. Must be on the SendGrid-authenticated `rawhidecityleather.com`. |
+| `RECOVERY_POSTAL_ADDRESS` | Mailing address printed in the recovery email footer. Required by CAN-SPAM; a PO box is fine. |
 
 If `SLIP_USER` or `SLIP_PASS` is missing, the dashboard locks everyone out
 rather than opening up.
+
+The three recovery secrets are all-or-nothing: with any of them unset, the cron
+runs, sends nothing, and logs `skipped=mailer-not-configured`. That is the safe
+default — it's fine to deploy before the SendGrid account exists.
+
+### Cron
+
+One trigger, hourly, defined in `wrangler.jsonc`: abandoned cart recovery. It
+mints a single-use 15% code per cart at the 72-hour mark and emails it, which is
+the only thing in this repo that contacts customers unprompted. How it works and
+what the guardrails are: `email/ABANDONED-CART-SETUP.md`.
+
+It stores one record per emailed cart in the `RECOVERY` KV namespace, created
+Aug 17 2026 and already wired into `wrangler.jsonc`. That record is what stops
+the hourly cron mailing the same person every hour for a week — if you ever
+recreate the namespace, every cart in the window looks new again.
 
 ## Tests
 
