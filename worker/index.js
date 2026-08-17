@@ -27,9 +27,9 @@
  *                     ships to the browser.
  *   SLIP_USER       — username for the browser login prompt
  *   SLIP_PASS       — password for the browser login prompt
- *   SENDGRID_KEY    — cart recovery email. Mail Send permission only.
- *   RECOVERY_FROM   — from address for recovery email, on the authenticated
- *                     rawhidecityleather.com domain.
+ *   BREVO_KEY       — cart recovery email. See worker/mailer.js for why Brevo.
+ *   RECOVERY_FROM   — from address for recovery email, on the
+ *                     rawhidecityleather.com domain authenticated in Brevo.
  *   RECOVERY_POSTAL_ADDRESS — footer mailing address. CAN-SPAM. A PO box is fine.
  *
  * Bindings:

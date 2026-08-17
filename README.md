@@ -425,8 +425,8 @@ npx wrangler secret put SNIPCART_SECRET
 | `SNIPCART_SECRET` | Snipcart **secret** API key. Reads orders, writes tracking and status. Never sent to the browser. |
 | `SLIP_USER` | Dashboard username |
 | `SLIP_PASS` | Dashboard password |
-| `SENDGRID_KEY` | Cart recovery email. Restricted key, **Mail Send** only. |
-| `RECOVERY_FROM` | From address for recovery email. Must be on the SendGrid-authenticated `rawhidecityleather.com`. |
+| `BREVO_KEY` | Cart recovery email. Brevo API key — free to 300/day. Why Brevo: header comment in `worker/mailer.js`. |
+| `RECOVERY_FROM` | From address for recovery email. Must be on the Brevo-authenticated `rawhidecityleather.com`. |
 | `RECOVERY_POSTAL_ADDRESS` | Mailing address printed in the recovery email footer. Required by CAN-SPAM; a PO box is fine. |
 
 If `SLIP_USER` or `SLIP_PASS` is missing, the dashboard locks everyone out
@@ -434,7 +434,8 @@ rather than opening up.
 
 The three recovery secrets are all-or-nothing: with any of them unset, the cron
 runs, sends nothing, and logs `skipped=mailer-not-configured`. That is the safe
-default — it's fine to deploy before the SendGrid account exists.
+default — it's fine to deploy before the Brevo account exists, and it already is
+deployed that way.
 
 ### Cron
 

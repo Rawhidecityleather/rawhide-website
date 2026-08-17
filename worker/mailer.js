@@ -1,22 +1,26 @@
 /**
  * The one place this Worker hands a message to an email provider.
  *
- * Kept deliberately thin. Everything else in recovery.js is provider-agnostic,
- * so swapping SendGrid for something else is this file and two secrets.
+ * Kept deliberately thin. Everything in recovery.js is provider-agnostic, so
+ * switching providers is this file and the secret names — nothing else.
  *
- * Why SendGrid and not Cloudflare Email Sending, which we could bind with no
- * API key at all: Cloudflare's Email Service is **transactional only** and its
- * terms exclude marketing and bulk campaigns. A discount offer chasing an
- * abandoned cart is marketing however you frame it, and the account it would
- * put at risk is the one hosting the entire site. Not worth it.
+ * Why Brevo, chosen 2026-08-17 after pricing the alternatives:
  *
- * SendGrid also happens to be the provider Snipcart's own settings page takes,
- * so one account fixes order-confirmation deliverability at the same time.
- * See email/SENDGRID-SETUP.md.
+ * - **Not Cloudflare Email Sending**, which would need no API key at all and
+ *   binds straight into the Worker. Its Email Service is transactional-only and
+ *   its terms exclude marketing and bulk. A discount offer chasing an abandoned
+ *   cart is marketing however you frame it, and the account it would put at risk
+ *   is the one hosting the whole site.
+ * - **Not SendGrid**, which killed its permanent free tier in May 2025 and now
+ *   starts at $19.95/mo. Worth paying only if you also want it fixing order
+ *   confirmations, which is a separate problem — Snipcart's own settings field
+ *   is SendGrid-specific. See email/SENDGRID-SETUP.md; that decision is still open.
+ * - **Brevo** is free to 300 emails/day and permits marketing mail. Recovery
+ *   volume is a handful a week, nowhere near the ceiling.
  *
  * Secrets:
- *   SENDGRID_KEY   Restricted-access key, "Mail Send" and nothing else.
- *   RECOVERY_FROM  Sending address on an authenticated domain.
+ *   BREVO_KEY      Brevo API key (Brevo calls these "SMTP & API" keys).
+ *   RECOVERY_FROM  Sending address on a domain authenticated in Brevo.
  *                  Must be @rawhidecityleather.com — the domain customers
  *                  checked out on. Sending recovery mail from
  *                  rawhidecitylthr.com is the exact from/storefront mismatch
@@ -29,7 +33,7 @@
  *                  until this is set, on purpose.
  */
 
-const SENDGRID_API = 'https://api.sendgrid.com/v3/mail/send';
+const BREVO_API = 'https://api.brevo.com/v3/smtp/email';
 
 /** Where an unsubscribe request lands. A real, monitored inbox. */
 export const UNSUBSCRIBE_TO = 'rawhidecityleather@gmail.com';
@@ -37,7 +41,7 @@ export const UNSUBSCRIBE_TO = 'rawhidecityleather@gmail.com';
 export class MailError extends Error {}
 
 export function mailerConfigured(env) {
-  return Boolean(env.SENDGRID_KEY && env.RECOVERY_FROM && env.RECOVERY_POSTAL_ADDRESS);
+  return Boolean(env.BREVO_KEY && env.RECOVERY_FROM && env.RECOVERY_POSTAL_ADDRESS);
 }
 
 /**
@@ -47,43 +51,40 @@ export function mailerConfigured(env) {
 export async function sendMail(env, { to, subject, html, text }) {
   if (!mailerConfigured(env)) {
     throw new MailError(
-      'Email is not configured. Set SENDGRID_KEY, RECOVERY_FROM and ' +
+      'Email is not configured. Set BREVO_KEY, RECOVERY_FROM and ' +
         'RECOVERY_POSTAL_ADDRESS with `wrangler secret put`.'
     );
   }
 
-  const unsubscribe = `mailto:${UNSUBSCRIBE_TO}?subject=Unsubscribe`;
-
-  const res = await fetch(SENDGRID_API, {
+  const res = await fetch(BREVO_API, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${env.SENDGRID_KEY}`,
+      'api-key': env.BREVO_KEY,
+      accept: 'application/json',
       'content-type': 'application/json',
     },
     body: JSON.stringify({
-      personalizations: [{ to: [{ email: to }] }],
-      from: { email: env.RECOVERY_FROM, name: 'Rawhide City Leather' },
-      reply_to: { email: UNSUBSCRIBE_TO, name: 'Rawhide City Leather' },
+      sender: { email: env.RECOVERY_FROM, name: 'Rawhide City Leather' },
+      to: [{ email: to }],
+      replyTo: { email: UNSUBSCRIBE_TO, name: 'Rawhide City Leather' },
       subject,
-      // Plain text first. Order matters to the spec: the last part is the one
-      // clients prefer, so HTML has to come second or nobody sees it.
-      content: [
-        { type: 'text/plain', value: text },
-        { type: 'text/html', value: html },
-      ],
-      headers: { 'List-Unsubscribe': `<${unsubscribe}>` },
-      // Recovery mail is commercial, so it must honour SendGrid's unsubscribe
-      // state rather than bypassing it the way a receipt would.
-      mail_settings: { bypass_list_management: { enable: false } },
+      htmlContent: html,
+      textContent: text,
+      // Brevo requires custom headers in Title-Case with hyphens.
+      headers: {
+        'List-Unsubscribe': `<mailto:${UNSUBSCRIBE_TO}?subject=Unsubscribe>`,
+      },
     }),
   });
 
+  // Brevo answers 201 Created on success, not 200.
   if (!res.ok) {
     const detail = await res.text().catch(() => '');
     throw new MailError(
-      `SendGrid returned ${res.status} ${res.statusText}${detail ? ': ' + detail.slice(0, 300) : ''}`
+      `Brevo returned ${res.status} ${res.statusText}${detail ? ': ' + detail.slice(0, 300) : ''}`
     );
   }
 
-  return { messageId: res.headers.get('x-message-id') || '' };
+  const body = await res.json().catch(() => ({}));
+  return { messageId: body.messageId || '' };
 }

@@ -2,6 +2,18 @@
 
 Written Aug 14 2026. Working checklist — delete this file once it's done.
 
+> **Scope note, Aug 17 2026.** This file is **only** about order confirmations.
+> Abandoned cart recovery does *not* need SendGrid and does not wait on this —
+> it sends through Brevo's free tier instead (see `ABANDONED-CART-SETUP.md` and
+> `worker/mailer.js`). Snipcart's settings field is SendGrid-specific, so
+> SendGrid remains the only option for *this* problem, and the $19.95/mo below
+> buys exactly one thing: order confirmations that stop landing in trash.
+>
+> The $19.95 figure is now **confirmed** — SendGrid ended its permanent free
+> tier in May 2025, leaving a 60-day trial and then Essentials at $19.95/mo for
+> 50K emails. Step 0's "check the real price on the signup screen" still applies,
+> but it is no longer an unverified third-party number.
+
 **Goal:** order confirmation emails are landing in customers' trash. Snipcart sends
 them on `order.completed` through **its own shared SendGrid account** — no API key of
 ours, no authenticated domain. Verified in the dashboard Aug 10 2026: the API key field

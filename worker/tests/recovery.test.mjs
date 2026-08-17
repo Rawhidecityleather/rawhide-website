@@ -76,10 +76,15 @@ function fakeFetch({ carts = [], failMail = false } = {}) {
       });
     }
 
-    if (href.includes('sendgrid')) {
+    if (href.includes('brevo')) {
       if (failMail) return new Response('nope', { status: 500, statusText: 'Server Error' });
       calls.mail.push(body);
-      return new Response('', { status: 202 });
+      // Brevo answers 201, not 200 — a naive `status === 200` check would read
+      // every successful send as a failure.
+      return new Response(JSON.stringify({ messageId: '<abc@relay.brevo.com>' }), {
+        status: 201,
+        headers: { 'content-type': 'application/json' },
+      });
     }
 
     throw new Error('unexpected fetch: ' + href);
@@ -91,7 +96,7 @@ function fakeFetch({ carts = [], failMail = false } = {}) {
 function fakeEnv(overrides = {}) {
   return {
     SNIPCART_SECRET: 'test-key-never-used',
-    SENDGRID_KEY: 'test-key-never-used',
+    BREVO_KEY: 'test-key-never-used',
     RECOVERY_FROM: 'orders@rawhidecityleather.com',
     RECOVERY_POSTAL_ADDRESS: ADDRESS,
     RECOVERY: fakeKV(),
@@ -229,7 +234,7 @@ export default async function run() {
   }
 
   {
-    const env = fakeEnv({ SENDGRID_KEY: '' });
+    const env = fakeEnv({ BREVO_KEY: '' });
     const { fetch, calls } = fakeFetch({ carts: [cart()] });
     const report = await withFetch(fetch, () => runRecovery(env, NOW));
 

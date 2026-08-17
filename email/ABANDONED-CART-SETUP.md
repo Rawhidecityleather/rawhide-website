@@ -128,15 +128,19 @@ All in the site repo.
 **b. Set the three secrets:**
 
 ```bash
-npx wrangler secret put SENDGRID_KEY
+npx wrangler secret put BREVO_KEY
 npx wrangler secret put RECOVERY_FROM
 npx wrangler secret put RECOVERY_POSTAL_ADDRESS
 ```
 
-- `SENDGRID_KEY` — restricted key, **Mail Send only**. See `SENDGRID-SETUP.md`; the
-  same account fixes order-confirmation deliverability, so this is one job not two.
+- `BREVO_KEY` — a Brevo API key (Brevo calls them "SMTP & API" keys). **Free to 300
+  emails/day**, which is far above recovery volume. Why Brevo and not Cloudflare's
+  no-API-key Email Sending, or SendGrid: see the header comment in `worker/mailer.js`.
+  Short version — Cloudflare's terms exclude marketing mail, and SendGrid now costs
+  $19.95/mo and is only worth it if you *also* want order confirmations fixed, which
+  is a separate decision (`SENDGRID-SETUP.md`, still open).
 - `RECOVERY_FROM` — must be on `rawhidecityleather.com`, the domain customers checked
-  out on, and that domain must be authenticated in SendGrid first. Sending from
+  out on, and that domain must be authenticated in Brevo first. Sending from
   `rawhidecitylthr.com` recreates the exact from/storefront mismatch already suspected
   of putting tracking emails in the trash.
 - `RECOVERY_POSTAL_ADDRESS` — a real mailing address for the footer. **A PO box is
@@ -149,7 +153,20 @@ npx wrangler secret put RECOVERY_POSTAL_ADDRESS
 
 Until all three secrets exist, the cron runs, finds nothing it is allowed to do, logs
 `skipped=mailer-not-configured`, and sends nothing. That is the intended safe default —
-you can deploy this before the SendGrid account exists.
+you can deploy this before the Brevo account exists, and it already is deployed.
+
+**Setting up Brevo** is yours to do: create the account, then **Senders, Domains &
+Dedicated IPs → Domains** and authenticate `rawhidecityleather.com`. Brevo hands you
+DKIM and Brevo-code DNS records to add in Cloudflare — **all DNS only, grey cloud**,
+same trap as the SendGrid and Postmark records. Leave the MX records alone; Cloudflare
+Email Routing handles all inbound mail for this domain and domain authentication is
+outbound only.
+
+**Do not ratchet `_dmarc` up while this is in flight.** It currently reads
+`p=none; rua=mailto:rawhidecityleather@gmail.com`. Brevo will be a second service
+signing as this domain alongside Postmark, and eventually maybe SendGrid. Going to
+`p=quarantine` or `p=reject` before every sender is authenticated silently kills the
+ones that are not.
 
 ### 4. Test it before it can reach anyone
 
