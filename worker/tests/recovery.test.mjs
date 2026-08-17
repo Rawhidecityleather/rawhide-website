@@ -123,6 +123,12 @@ export default async function run() {
     isDue(cart({ email: 'test@example.com' }), NOW) === false);
   check('test carts are matched case-insensitively',
     isDue(cart({ email: 'TEST@Example.com' }), NOW) === false);
+  // This one is real: the shop inbox shows up in the live abandoned-cart list
+  // from checkout testing, and would otherwise be mailed its own coupon.
+  check('the shop\'s own inbox never gets mailed a coupon',
+    isDue(cart({ email: 'rawhidecityleather@gmail.com' }), NOW) === false);
+  check('and the dashboard shows it uppercased, so case must not matter',
+    isDue(cart({ email: 'RAWHIDECITYLEATHER@GMAIL.COM' }), NOW) === false);
   check('a cart with no email is skipped', isDue(cart({ email: '' }), NOW) === false);
   check('a junk email is skipped', isDue(cart({ email: 'not-an-address' }), NOW) === false);
   check('an empty cart is skipped', isDue(cart({ items: [] }), NOW) === false);

@@ -51,8 +51,21 @@ export const MAX_ATTEMPTS = 3;
 
 const KEY_PREFIX = 'recovery:';
 
-/** Carts from our own checkout testing. Never real customers. */
-const TEST_EMAILS = new Set(['test@example.com']);
+/**
+ * Never mail these. Our own addresses, not customers.
+ *
+ * `rawhidecityleather@gmail.com` is the shop's own inbox and it does turn up in
+ * the live abandoned-cart list from checkout testing — without it here, Rob gets
+ * a coupon and a real single-use discount is minted and wasted.
+ *
+ * The cost of this list: an address on it can no longer be used to test the real
+ * flow end to end, because the cron will skip it. Use a different inbox you own
+ * for that, and add nothing here that you still want to receive mail.
+ */
+const TEST_EMAILS = new Set([
+  'test@example.com',
+  'rawhidecityleather@gmail.com',
+]);
 
 const STORE_URL = 'https://rawhidecityleather.com';
 

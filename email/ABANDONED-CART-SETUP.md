@@ -180,8 +180,17 @@ deploy.
 Carts older than 7 days are deliberately never touched. If you want to reach one of
 those, it is a manual send from the dashboard.
 
-The `test@example.com` carts are skipped automatically — they are in `TEST_EMAILS` in
-`worker/recovery.js`. Add any other address you test with to that set.
+Two addresses are skipped automatically, both in `TEST_EMAILS` in `worker/recovery.js`:
+`test@example.com`, and **`rawhidecityleather@gmail.com`** — the shop's own inbox, which
+really does appear in the live abandoned-cart list from checkout testing and would
+otherwise be mailed a coupon and burn a minted discount.
+
+Matching is case-insensitive, which matters because the dashboard renders addresses
+uppercased.
+
+**The catch:** an address on that list can no longer be used to test the real flow, since
+the cron skips it. Test with a different inbox you own, and put nothing in `TEST_EMAILS`
+that you still want to receive mail.
 
 ## Template variables (confirmed against Snipcart's docs)
 
