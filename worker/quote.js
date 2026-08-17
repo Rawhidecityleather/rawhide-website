@@ -43,7 +43,7 @@ export const QUOTE_ITEM_PREFIX = 'quote-';
  */
 export const CHECKOUT_DISCOUNT = 0;
 
-/** Orders at or above this ship free; below it, $10 flat. Matches /shipping. */
+/** Orders at or above this ship free; below it, $8.50 flat. Matches /shipping. */
 const FREE_SHIPPING_OVER = 85;
 
 /** Quotes stop working after this many days. */
@@ -348,7 +348,7 @@ export function renderQuotePage(quote, { status }) {
         // Shipping follows the standing rule, same as the rest of the shop.
         // Nearly every crew job clears $85, but say which one applies rather
         // than promising free and having checkout add $10.
-        quote.total >= FREE_SHIPPING_OVER ? 'Free shipping.' : '$10 flat rate shipping.'
+        quote.total >= FREE_SHIPPING_OVER ? 'Free shipping.' : '$8.50 flat rate shipping.'
       }${
         // Checkout shows the list price struck through with the shop sale taken
         // off it, the same as every product page. Say so here or the two

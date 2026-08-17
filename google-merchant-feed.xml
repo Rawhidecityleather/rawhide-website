@@ -5,7 +5,7 @@
     <link>https://rawhidecityleather.com/</link>
     <description>Handmade firefighter leather gear. Hand-cut, hand-stamped, and finished by hand in Lakeland, Florida.</description>
 
-    <!-- No <g:shipping> anywhere in this feed, on purpose. Shipping is $10 flat
+    <!-- No <g:shipping> anywhere in this feed, on purpose. Shipping is $8.50 flat
          to all 50 states and free over $85 (see /shipping), and that
          threshold cannot be expressed per item: nine hardcoded blocks got the
          rule wrong on every product except the one that clears $85 by itself.
