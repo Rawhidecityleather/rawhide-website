@@ -6,14 +6,14 @@
     <description>Handmade firefighter leather gear. Hand-cut, hand-stamped, and finished by hand in Lakeland, Florida.</description>
 
     <!-- No <g:shipping> anywhere in this feed, on purpose. Shipping is $10 flat
-         to all 50 states and free over $150 (see /shipping), and that
+         to all 50 states and free over $85 (see /shipping), and that
          threshold cannot be expressed per item: nine hardcoded blocks got the
-         rule wrong on every product except the one that clears $150 by itself.
+         rule wrong on every product except the one that clears $85 by itself.
          It lives in Merchant Center's account-level shipping settings instead.
 
          This is load-bearing. Item-level shipping OVERRIDES account settings,
          so putting a <g:shipping> block back on any item silently disables the
-         free-over-$150 rule for that product. And shipping data is required in
+         free-over-$85 rule for that product. And shipping data is required in
          the US one way or the other — if the account-level rules are missing,
          every item here is disapproved for having no shipping at all. -->
 
