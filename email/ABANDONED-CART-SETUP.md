@@ -203,17 +203,19 @@ a DMARC record: this zone has one, leave it alone.
 Brevo did not ask for an include. Brevo aligns via DKIM using its own return-path, so
 DMARC passes on DKIM alone. Don't add a Brevo SPF include unless Brevo explicitly asks.
 
-**Do not ratchet `_dmarc` up.** It stays at `p=none`. More services sign as this domain
-than these notes used to assume. Reading the live zone on 2026-08-17 turned up
-**ConvertKit / Kit** DKIM records — `cka._domainkey`, `cka2._domainkey`, `ckespa` — that
-nothing in this repo accounts for, most likely Wix-era leftovers. Cloudflare Email
-Routing also signs, with `cf2024-1._domainkey`. Postmark is on the *other* zone,
-`rawhidecitylthr.com`, not this one.
+**Do not ratchet `_dmarc` up.** It stays at `p=none`. Three services sign as this
+domain, not the one these notes used to assume:
 
-Going to `p=quarantine` or `p=reject` before every one of those is accounted for
-silently kills the ones that are not. Find out whether that ConvertKit account still
-sends before touching the policy — an authenticated sender nobody monitors can send
-mail as this domain.
+| Sender | Records | What it is |
+|---|---|---|
+| **Kit** (ex-ConvertKit) | `cka._domainkey`, `cka2._domainkey`, `ckespa` | The newsletter. Live and ours — the "Get on the List" form on 27 pages posts to Kit form `9729782`. Added 2026-07-26. |
+| **Cloudflare** | `cf2024-1._domainkey` | Email Routing's own DKIM. |
+| **Brevo** | `brevo1/2._domainkey` | Cart recovery, added 2026-08-17. |
+
+Postmark is on the *other* zone, `rawhidecitylthr.com`, not this one.
+
+Going to `p=quarantine` or `p=reject` before all three are authenticated and verified
+silently kills the ones that are not.
 
 ### 4. Test it before it can reach anyone
 
