@@ -17,6 +17,7 @@
  *   GET  /packing-slip?token=…       printable slip / build sheet
  *   GET  /logo/<key>                 customer artwork for a custom stamp
  *   POST /api/logo-upload            PUBLIC. Artwork upload from a product page.
+ *   POST /api/inquiry                PUBLIC. Contact-form inquiry, emailed to the shop.
  *   GET  /quote/…                    PUBLIC. The crew's quote page.
  *
  * Cron
@@ -50,6 +51,7 @@ import {
 import { pirateShipCsv, parseTrackingPaste } from './pirateship.js';
 import { handleLogoUpload, handleLogoFetch } from './uploads.js';
 import { runRecovery } from './recovery.js';
+import { handleInquiry } from './inquiry.js';
 import {
   buildQuote, putQuote, getQuote, listQuotes, voidQuote, markQuotePaid,
   renderQuotePage, quoteStatus, isQuoteId, QuoteError, QUOTE_ITEM_PREFIX,
@@ -127,8 +129,19 @@ export default {
       }
     }
 
-    // Public on purpose: the customer uploading their artwork is a shopper, not
-    // the shop. Deliberately outside guardConfigured — an upload has nothing to
+    // Public on purpose: the person writing in about a custom build is a
+    // shopper, not the shop. Outside guardConfigured — an inquiry has nothing
+    // to do with Snipcart.
+    if (path === '/api/inquiry') {
+      try {
+        return await handleInquiry(request, env);
+      } catch (err) {
+        return failure(err, request);
+      }
+    }
+
+    // Public for the same reason: the customer uploading their artwork is a
+    // shopper. Deliberately outside guardConfigured — an upload has nothing to
     // do with Snipcart, and a missing SNIPCART_SECRET shouldn't break the
     // product page.
     if (path === '/api/logo-upload') {

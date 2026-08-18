@@ -357,30 +357,53 @@
       return lines.join('\n');
     };
 
+    var inquiryDone=function(msg){
+      var wrap=inquiry.parentNode;
+      if(!wrap||wrap.querySelector('[data-inquiry-done]'))return;
+      var done=document.createElement('p');
+      done.setAttribute('data-inquiry-done','');
+      done.style.cssText='margin:0;font-family:var(--font-display);font-weight:600;letter-spacing:.14em;text-transform:uppercase;font-size:.95rem;text-align:center';
+      done.textContent=msg;
+      inquiry.style.display='none';
+      inquiry.insertAdjacentElement('afterend',done);
+    };
+
+    // Last resort, kept from when this form had no working endpoint at all:
+    // hand the inquiry to the visitor's mail client with everything they typed
+    // already in the body. Better than losing it, but it needs them to have a
+    // mail client that opens and to press send themselves — so it is the
+    // fallback, not the path.
+    var inquiryToMailto=function(){
+      window.location.href='mailto:rawhidecityleather@gmail.com'
+        +'?subject='+encodeURIComponent('Website inquiry')
+        +'&body='+encodeURIComponent(inquiryAsText());
+    };
+
     inquiry.addEventListener('submit',function(e){
-      // The Kit form id is a placeholder until it's filled in. Rather than post an
-      // inquiry into a dead endpoint and lose it, hand it off to email with
-      // everything they typed already in the body.
-      if((inquiry.getAttribute('action')||'').indexOf('KIT_FORM_ID')!==-1){
-        e.preventDefault();
-        window.location.href='mailto:rawhidecityleather@gmail.com'
-          +'?subject='+encodeURIComponent('Website inquiry')
-          +'&body='+encodeURIComponent(inquiryAsText());
-        return;
-      }
-      // Kit's script posts this, but renders no confirmation in our own markup.
+      e.preventDefault();
       var btn=inquiry.querySelector('button[type="submit"]');
       if(btn){btn.disabled=true;btn.textContent='Sending...'}
-      setTimeout(function(){
-        var wrap=inquiry.parentNode;
-        if(!wrap||wrap.querySelector('[data-inquiry-done]'))return;
-        var done=document.createElement('p');
-        done.setAttribute('data-inquiry-done','');
-        done.style.cssText='margin:0;font-family:var(--font-display);font-weight:600;letter-spacing:.14em;text-transform:uppercase;font-size:.95rem;text-align:center';
-        done.textContent="Got it. We'll be in touch within 24 hours.";
-        inquiry.style.display='none';
-        inquiry.insertAdjacentElement('afterend',done);
-      },1200);
+
+      fetch(inquiry.getAttribute('action'),{
+        method:'POST',
+        headers:{'content-type':'application/x-www-form-urlencoded'},
+        body:new URLSearchParams(new FormData(inquiry)).toString()
+      }).then(function(res){
+        if(res.ok){inquiryDone("Got it. We'll be in touch within 24 hours.");return;}
+        // 400 means they left something out and can fix it in place. Anything
+        // else is our end, so get out of the way and let email carry it.
+        if(res.status===400){
+          if(btn){btn.disabled=false;btn.textContent='Send It'}
+          res.json().catch(function(){return{}}).then(function(b){
+            alert(b.error||'Please fill in your name, a valid email, and the details.');
+          });
+          return;
+        }
+        inquiryToMailto();
+      }).catch(function(){
+        // Offline, blocked, or the Worker is unreachable.
+        inquiryToMailto();
+      });
     });
   }
 

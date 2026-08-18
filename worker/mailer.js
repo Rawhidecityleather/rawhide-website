@@ -48,7 +48,7 @@ export function mailerConfigured(env) {
  * Sends one message. Throws MailError on anything but a 2xx so the caller can
  * record the failure against the cart and retry it on the next run.
  */
-export async function sendMail(env, { to, subject, html, text }) {
+export async function sendMail(env, { to, subject, html, text, replyTo, transactional = false }) {
   if (!mailerConfigured(env)) {
     throw new MailError(
       'Email is not configured. Set BREVO_KEY, RECOVERY_FROM and ' +
@@ -66,14 +66,25 @@ export async function sendMail(env, { to, subject, html, text }) {
     body: JSON.stringify({
       sender: { email: env.RECOVERY_FROM, name: 'Rawhide City Leather' },
       to: [{ email: to }],
-      replyTo: { email: UNSUBSCRIBE_TO, name: 'Rawhide City Leather' },
+      // Cart recovery replies come back to the shop. A contact-form inquiry
+      // overrides this so hitting reply answers the customer, not ourselves.
+      replyTo: replyTo?.email
+        ? { email: replyTo.email, name: replyTo.name || replyTo.email }
+        : { email: UNSUBSCRIBE_TO, name: 'Rawhide City Leather' },
       subject,
       htmlContent: html,
       textContent: text,
       // Brevo requires custom headers in Title-Case with hyphens.
-      headers: {
-        'List-Unsubscribe': `<mailto:${UNSUBSCRIBE_TO}?subject=Unsubscribe>`,
-      },
+      //
+      // Marketing mail carries List-Unsubscribe; transactional mail must not.
+      // A contact-form inquiry is addressed to the shop's own inbox, and an
+      // unsubscribe link on it is one stray click away from Brevo suppressing
+      // that address — which would silently stop every inquiry notification.
+      ...(transactional ? {} : {
+        headers: {
+          'List-Unsubscribe': `<mailto:${UNSUBSCRIBE_TO}?subject=Unsubscribe>`,
+        },
+      }),
     }),
   });
 

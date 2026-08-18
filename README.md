@@ -118,61 +118,42 @@ taken out — the numbers in your ad dashboards match real revenue.
 3. Place a real $6.40 leather butter order to confirm `purchase` fires with the
    right value, then refund yourself
 
-## Custom build inquiry form (Kit)
+## Custom build inquiry form
 
-The contact page has a real inquiry form that files submissions into Kit. **It
-needs a Kit form created before it works.** Until then it safely falls back to
-opening an email with everything the visitor typed already filled in — nothing
-gets lost, but you should finish the setup.
+The contact page's inquiry form posts to **`POST /api/inquiry`** on the Worker,
+which emails the whole thing to `rawhidecityleather@gmail.com`. Reply-to is set
+to the customer, so hitting reply in Gmail answers them directly.
 
-### 1. Create the Kit form
+It needs the three Brevo secrets above. With those unset the endpoint returns
+503 and the page falls back to opening the visitor's mail client with everything
+they typed already in the body — so nothing is lost either way, it is just
+worse: it needs them to have a working mail client and to press send themselves.
 
-1. Log into **kit.com** → **Grow** → **Landing Pages & Forms** → **Create new**
-2. Choose **Form** → **Inline**, name it `Website Inquiries`
-3. Save it, then click **Publish** → **HTML** and find these two values in the
-   snippet Kit gives you:
-   - The number in `app.kit.com/forms/1234567/subscriptions` → the **form ID**
-   - `data-uid="abc123def4"` → the **UID**
+**History worth knowing.** This form used to post into a Kit form, and shipped
+between 2026-07-26 and 2026-08-18 with a literal unreplaced `KIT_FORM_ID`
+placeholder in the action. The mailto fallback above is what carried it through
+that window. It was moved off Kit rather than repaired because a Kit form
+endpoint is a *newsletter subscription* endpoint: it would have subscribed
+everyone who wrote in about an order, and buried the details of a custom build
+in a subscriber record instead of putting it in the inbox where it gets
+answered.
 
-### 2. Create the custom fields
+The newsletter signup — a different form, on 27 pages — is still Kit, still
+form `9729782`, and was never affected.
 
-In Kit: **Subscribers** → **Custom Fields** → add these four, spelled exactly:
+### Spam handling
 
-| Field name |
-|---|
-| `inquiry_type` |
-| `department` |
-| `needed_by` |
-| `details` |
-
-Kit silently drops data sent to fields that don't exist, so this step is not
-optional. (`first_name` already exists by default.)
-
-### 3. Point the form at it
-
-In `contact.html`, find the three `KIT_FORM_ID` / `KIT_FORM_UID` placeholders
-and replace them:
-
-```html
-action="https://app.kit.com/forms/1234567/subscriptions" data-sv-form="1234567" data-uid="abc123def4"
-```
-
-### 4. Keep inquiries out of your newsletter list
-
-Inquiries and newsletter signups both land in Kit as subscribers. To stop
-sending build questions to people who only wanted the newsletter:
-
-1. **Automate** → **Rules** → **New Rule**
-2. Trigger: **Subscribes to a form** → `Website Inquiries`
-3. Action: **Add tag** → `inquiry`
-4. When you send a newsletter broadcast, filter to subscribers *without* the
-   `inquiry` tag
+The form carries an off-screen honeypot field named `company`. Anything that
+fills it gets a 200 and no email, so a bot has nothing to tune against. Body
+size is capped and every field is truncated. If real spam ever gets through,
+Turnstile is the next step up.
 
 ### Known limit
 
-Kit can't accept file uploads, so the form asks people to email sketches and
-photos separately. If custom builds pick up and chasing photos by email gets
-old, a form backend that takes attachments is the upgrade.
+No file uploads, so the form asks people to email sketches and photos
+separately. If custom builds pick up and chasing photos by email gets old, that
+is the upgrade — the artwork uploader on the product pages already proves the
+pattern.
 
 ## Order dashboard
 
@@ -425,17 +406,19 @@ npx wrangler secret put SNIPCART_SECRET
 | `SNIPCART_SECRET` | Snipcart **secret** API key. Reads orders, writes tracking and status. Never sent to the browser. |
 | `SLIP_USER` | Dashboard username |
 | `SLIP_PASS` | Dashboard password |
-| `BREVO_KEY` | Cart recovery email. Brevo API key — free to 300/day. Why Brevo: header comment in `worker/mailer.js`. |
-| `RECOVERY_FROM` | From address for recovery email. Must be on the Brevo-authenticated `rawhidecityleather.com`. |
-| `RECOVERY_POSTAL_ADDRESS` | Mailing address printed in the recovery email footer. Required by CAN-SPAM; a PO box is fine. |
+| `BREVO_KEY` | Outbound email. Brevo API key — free to 300/day. Why Brevo: header comment in `worker/mailer.js`. |
+| `RECOVERY_FROM` | From address for outbound email. Must be on the Brevo-authenticated `rawhidecityleather.com`. |
+| `RECOVERY_POSTAL_ADDRESS` | Mailing address printed in the cart-recovery footer. Required by CAN-SPAM; a PO box is fine. |
 
 If `SLIP_USER` or `SLIP_PASS` is missing, the dashboard locks everyone out
 rather than opening up.
 
-The three recovery secrets are all-or-nothing: with any of them unset, the cron
-runs, sends nothing, and logs `skipped=mailer-not-configured`. That is the safe
-default — it's fine to deploy before the Brevo account exists, and it already is
-deployed that way.
+Those three now power **two** things: the cart-recovery cron and the contact
+form at `POST /api/inquiry`. They are all-or-nothing. With any unset the cron
+sends nothing and logs `skipped=mailer-not-configured`, and the inquiry endpoint
+returns 503 so the contact page falls back to handing the inquiry to the
+visitor's mail client — which is exactly what it did before the endpoint
+existed. Safe to deploy before the Brevo key is set.
 
 ### Cron
 

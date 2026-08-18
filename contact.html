@@ -52,7 +52,8 @@ src="https://www.facebook.com/tr?id=1579558768885977&ev=PageView&noscript=1"/></
 </div>
 
 <div style="margin-top:48px;background:var(--c-bg-2);border:1px solid var(--c-line-strong);padding:28px 24px">
-<form class="order-form seva-form formkit-form" data-inquiry-form action="https://app.kit.com/forms/KIT_FORM_ID/subscriptions" method="post" data-sv-form="KIT_FORM_ID" data-uid="KIT_FORM_UID" data-format="inline" data-version="5">
+<form class="order-form" data-inquiry-form action="/api/inquiry" method="post">
+  <div style="position:absolute;left:-9999px" aria-hidden="true"><label for="ct-company">Company</label><input id="ct-company" name="company" type="text" tabindex="-1" autocomplete="off"></div>
   <div class="form-row"><label for="ct-about">What's this about?<span class="req">*</span></label><select id="ct-about" name="fields[inquiry_type]" required><option value="" disabled selected hidden>Select...</option><option>Custom build</option><option>Crew or bulk order</option><option>Question about an existing order</option><option>Leave a review</option><option>Something else</option></select></div>
   <div class="form-row-2">
     <div class="form-row"><label for="ct-name">Name<span class="req">*</span></label><input id="ct-name" name="fields[first_name]" type="text" autocomplete="name" required></div>
