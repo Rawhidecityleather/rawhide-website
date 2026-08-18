@@ -1,10 +1,13 @@
 # Abandoned cart recovery for Rawhide City Leather
 
-**Status: built, NOT yet live.** Templates written, Worker code written and tested, and
-the `RECOVERY` KV namespace created (`be611b5493984061803449b43657eec4`, Aug 17 2026).
-Nothing is sending: no recovery campaign exists in Snipcart and the three mail secrets
-are unset. No abandoned cart has ever received one of these. Everything below is the
-setup to run once.
+**Status: everything built and wired; nothing sending yet.** The only thing left is
+the three Brevo secrets — set those and it all goes live at once.
+
+Done: Worker code written, tested and deployed; `RECOVERY` KV namespace created
+(`be611b5493984061803449b43657eec4`); Brevo account authenticated for
+`rawhidecityleather.com`; and the Snipcart campaign **"Standard recovery"**
+(`2f52240e-d938-4662-ace5-5f93921732cc`) created Aug 18 2026 with both templates
+loaded and verified.
 
 Like `email/`'s other templates, the files in this folder stay in the repo and are never
 deployed to the live site (`email/` is listed in `.assetsignore`).
@@ -96,7 +99,9 @@ The editor is code on the left, live preview on the right. Paste one file in, pr
 **Ctrl+S** to refresh the preview, then **Save & Exit**.
 
 The subject line is the `---` block at the very top of each file. Keep it. That is how
-Snipcart reads the subject, and deleting it leaves the email with no subject.
+Snipcart reads the subject, and deleting it leaves the email with no subject. Note the
+capital S in `Subject:` — that is what Snipcart's own default template uses, so the
+templates here match it rather than risk a case-sensitive parser.
 
 If Snipcart only exposes one abandoned-cart template rather than one per step, load
 step 1 as the saved template and keep step 2 in this folder until you are ready to swap
@@ -111,7 +116,12 @@ either way — the Worker builds its own email and never touches Snipcart's temp
 - Leave the minimum order value empty so it matches every cart. Snipcart always
   matches a cart to the *most specific* campaign, so if you later add a high-value
   campaign it will take precedence on its own.
-- Add **two** steps, at 4 hours and 24 hours, with templates 1 and 2.
+- Add **two** steps, with templates 1 and 2. **Snipcart's delays are fixed buckets** —
+  15 min, 1 hour, 6 hours, 1 day, 2 days, 3 days, 1 week — so there is no 4 hour
+  option. Step 1 uses **> 6 hours**, the closest to the 4 the template was written
+  for; 1 hour reads as surveillance on a $165 considered purchase. Step 2 uses
+  **> 1 day**. Snipcart only offers later buckets on later steps, so the ordering
+  enforces itself.
 - **Do not add a third step, and do not attach a discount to anything.** The Worker
   owns 72 hours. A third step here means two last-call emails per customer.
 - Create no discount by hand either. Every recovery code is minted per cart by the
