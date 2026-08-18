@@ -66,7 +66,7 @@ What it does, hourly:
 2. Keeps the ones past 72 hours it has not already emailed.
 3. Mints a single-use code (`RCL` + 8 characters), 15%, expiring exactly 7 days out,
    `combinable: false` so it can never stack on a sitewide sale.
-4. Sends the email through SendGrid.
+4. Sends the email through Brevo.
 5. Writes a KV record so the next run leaves that cart alone.
 
 **The guardrails, and why each exists** — all in `worker/recovery.js`:
@@ -155,18 +155,65 @@ Until all three secrets exist, the cron runs, finds nothing it is allowed to do,
 `skipped=mailer-not-configured`, and sends nothing. That is the intended safe default —
 you can deploy this before the Brevo account exists, and it already is deployed.
 
-**Setting up Brevo** is yours to do: create the account, then **Senders, Domains &
-Dedicated IPs → Domains** and authenticate `rawhidecityleather.com`. Brevo hands you
-DKIM and Brevo-code DNS records to add in Cloudflare — **all DNS only, grey cloud**,
-same trap as the SendGrid and Postmark records. Leave the MX records alone; Cloudflare
-Email Routing handles all inbound mail for this domain and domain authentication is
-outbound only.
+### Brevo domain authentication — DONE 2026-08-17
 
-**Do not ratchet `_dmarc` up while this is in flight.** It currently reads
-`p=none; rua=mailto:rawhidecityleather@gmail.com`. Brevo will be a second service
-signing as this domain alongside Postmark, and eventually maybe SendGrid. Going to
-`p=quarantine` or `p=reject` before every sender is authenticated silently kills the
-ones that are not.
+`rawhidecityleather.com` is **Authenticated** in Brevo. Manual setup method, no branded
+subdomain. These three records are live in Cloudflare and confirmed resolving against
+1.1.1.1:
+
+| Type | Name | Content | Proxy |
+|---|---|---|---|
+| TXT | `@` | `brevo-code:d7ee88359c66e1d3229858e29b7c0aef` | n/a |
+| CNAME | `brevo1._domainkey` | `b1.rawhidecityleather-com.dkim.brevo.com` | DNS only, grey |
+| CNAME | `brevo2._domainkey` | `b2.rawhidecityleather-com.dkim.brevo.com` | DNS only, grey |
+
+Nothing here is secret — DNS is world-readable — so these live in the repo on purpose.
+
+**Brevo's "Automatic" setup method was declined deliberately.** It connects Brevo to
+Cloudflare with write access to the whole zone — MX, site DNS, everything — to add
+three records. Manual was used instead. Don't switch without deciding that trade on
+purpose.
+
+**Grey cloud on both CNAMEs.** Proxying a mail record through Cloudflare breaks it;
+this is the same trap as `pm-bounces` in the Postmark migration and the SendGrid
+CNAMEs. Also watch Cloudflare doubling the hostname on paste: the name must read
+`brevo1._domainkey`, not `brevo1._domainkey.rawhidecityleather.com`.
+
+**Leave MX alone.** Cloudflare Email Routing handles all inbound mail for this domain
+(`orders@`, `info@`, `rob@` forward into the business Gmail). Domain authentication is
+outbound only and does not touch it.
+
+### Brevo offers a fourth record. It was NOT added, on purpose.
+
+Brevo's wizard also hands you a **DMARC** record for `_dmarc`, pointing `rua=` at
+Brevo's own reporting address. **It was skipped.** This domain already has one:
+
+```
+v=DMARC1; p=none; rua=mailto:rawhidecityleather@gmail.com
+```
+
+Under RFC 7489, two TXT records at `_dmarc` means the policy is treated as **absent** —
+adding Brevo's would have silently undone the Aug 10 2026 fix and blinded the `rua=`
+reporting. **Brevo's own verification passed anyway**, marking the DMARC record as
+matching, because it only checks that a valid DMARC record exists. So there is no cost
+to skipping it and a real cost to adding it. Same applies to any future ESP that offers
+a DMARC record: this zone has one, leave it alone.
+
+**No SPF change either.** The apex is `v=spf1 include:_spf.mx.cloudflare.net ~all` and
+Brevo did not ask for an include. Brevo aligns via DKIM using its own return-path, so
+DMARC passes on DKIM alone. Don't add a Brevo SPF include unless Brevo explicitly asks.
+
+**Do not ratchet `_dmarc` up.** It stays at `p=none`. More services sign as this domain
+than these notes used to assume. Reading the live zone on 2026-08-17 turned up
+**ConvertKit / Kit** DKIM records — `cka._domainkey`, `cka2._domainkey`, `ckespa` — that
+nothing in this repo accounts for, most likely Wix-era leftovers. Cloudflare Email
+Routing also signs, with `cf2024-1._domainkey`. Postmark is on the *other* zone,
+`rawhidecitylthr.com`, not this one.
+
+Going to `p=quarantine` or `p=reject` before every one of those is accounted for
+silently kills the ones that are not. Find out whether that ConvertKit account still
+sends before touching the policy — an authenticated sender nobody monitors can send
+mail as this domain.
 
 ### 4. Test it before it can reach anyone
 
