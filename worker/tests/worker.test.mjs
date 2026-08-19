@@ -323,6 +323,97 @@ export default async function run() {
   check('real pages are untouched',
     live.status === 200 && live.headers.get('x-served-by') === 'assets');
 
+  suite('worker — shipping a package we labelled ourselves');
+
+  /*
+   * The whole risk of the notify tick is that it fires when it should not: the
+   * customer of a Pirate Ship label has already been mailed, and a second copy
+   * from us is the duplicate this setup exists to avoid. So the default matters
+   * more than the feature.
+   */
+  const shipCalls = [];
+  const shipEnv = {
+    ...env,
+    BREVO_KEY: 'test-key-never-used',
+    RECOVERY_FROM: 'orders@rawhidecityleather.com',
+    RECOVERY_POSTAL_ADDRESS: 'PO Box 1, Lakeland FL',
+  };
+
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init = {}) => {
+    const href = String(url);
+    shipCalls.push(href);
+    if (href.includes('brevo.com')) {
+      return new Response('{"messageId":"<abc@brevo>"}', { status: 201 });
+    }
+    if (href.includes('/api/orders/')) {
+      return new Response(JSON.stringify({
+        token: 'tok-aaaaaaaa', email: 'jane@example.com',
+        shippingAddress: { fullName: 'Jane Doe' },
+      }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }
+    throw new Error('unexpected fetch: ' + href);
+  };
+
+  const shipPost = (body) =>
+    worker.fetch(new Request(ORIGIN + '/dashboard/api/ship', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...DASH },
+      body: JSON.stringify(body),
+    }), shipEnv);
+
+  try {
+    shipCalls.length = 0;
+    const quiet = await (await shipPost({
+      token: 'tok-aaaaaaaa', trackingNumber: '9400111899223197428490',
+    })).json();
+    check('shipping without the tick emails nobody',
+      quiet.ok === true && quiet.emailed === false, JSON.stringify(quiet));
+    check('and never even reaches the mail provider',
+      !shipCalls.some((u) => u.includes('brevo.com')), shipCalls.join(' '));
+
+    shipCalls.length = 0;
+    const loud = await (await shipPost({
+      token: 'tok-aaaaaaaa', trackingNumber: '9400111899223197428490', notify: true,
+    })).json();
+    check('with the tick the customer is emailed',
+      loud.ok === true && loud.emailed === true, JSON.stringify(loud));
+    check('through the mail provider',
+      shipCalls.some((u) => u.includes('brevo.com')), shipCalls.join(' '));
+
+    // A truthy string is what a hand-rolled request or a stray form value looks
+    // like. Only a real boolean may mail a customer.
+    shipCalls.length = 0;
+    const sloppy = await (await shipPost({
+      token: 'tok-aaaaaaaa', trackingNumber: '9400111899223197428490', notify: 'yes',
+    })).json();
+    check('a truthy-but-not-true notify does not mail anyone',
+      sloppy.emailed === false, JSON.stringify(sloppy));
+
+    globalThis.fetch = async (url, init = {}) => {
+      const href = String(url);
+      if (href.includes('brevo.com')) {
+        return new Response('{"message":"nope"}', { status: 400, statusText: 'Bad Request' });
+      }
+      if (href.includes('/api/orders/')) {
+        return new Response(JSON.stringify({
+          token: 'tok-aaaaaaaa', email: 'jane@example.com',
+          shippingAddress: { fullName: 'Jane Doe' },
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      throw new Error('unexpected fetch: ' + href);
+    };
+    const failed = await (await shipPost({
+      token: 'tok-aaaaaaaa', trackingNumber: '9400111899223197428490', notify: true,
+    })).json();
+    check('a bounced email does not un-ship the order',
+      failed.ok === true && failed.emailed === false, JSON.stringify(failed));
+    check('and the shop is told which half failed',
+      /400|nope/.test(failed.emailError || ''), failed.emailError);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+
   suite('worker — webhook');
 
   // Token first, method second: an unauthenticated probe should learn nothing

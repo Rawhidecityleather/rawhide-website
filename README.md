@@ -235,9 +235,19 @@ when you set the tracking number by hand in Snipcart's own order screen, which
 pops up a prompt. Everything here writes through the REST API instead, so that
 prompt never happens. The customer's tracking email comes from Pirate Ship.
 
-That matters for a package that goes out **without** a Pirate Ship label: mark it
-shipped here and the dashboard is right, the order is right, and the customer has
-been told nothing. Send that one yourself.
+That matters for a package that goes out **without** a Pirate Ship label — handed
+over at the station, a counter label at the post office, a replacement sent at our
+own cost. Nothing has told the customer. For those, tick **email the customer** on
+that order's row before hitting Ship, and the Worker sends it: the same design
+Pirate Ship uses, so the two are indistinguishable.
+
+The tick is **off by default**, and that is deliberate. The common case is a Pirate
+Ship label, which already mailed the customer an hour after it was bought — ticking
+it there would be the duplicate notification this whole setup avoids.
+
+It needs the same Brevo secrets the cart recovery uses (`BREVO_KEY`, `RECOVERY_FROM`,
+`RECOVERY_POSTAL_ADDRESS`). If they are missing the order still ships and the
+dashboard says the email did not send, rather than pretending it did.
 
 - **By itself** — Pirate Ship BCCs its tracking email here and the order ships
   on its own. Nothing to type. Setup is below.

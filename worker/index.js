@@ -85,6 +85,7 @@ import {
   EXPENSES_SCRIPT,
 } from './expenses.js';
 import { handleEmail, readRaw, MAX_EMAIL_BYTES } from './email-in.js';
+import { sendShippedEmail } from './shipped-mail.js';
 import { isTrackingAddress, handleTrackingEmail } from './tracking-in.js';
 
 export default {
@@ -636,12 +637,31 @@ async function handleShip(request, env) {
   const body = await request.json().catch(() => ({}));
   const token = String(body.token || '');
   const trackingNumber = cleanTracking(body.trackingNumber);
+  const notify = body.notify === true;
 
   if (!/^[A-Za-z0-9-]{8,64}$/.test(token)) return json({ error: 'Bad order token.' }, 400);
   if (!trackingNumber) return json({ error: "That doesn't look like a tracking number." }, 400);
 
   await markShipped(env, token, trackingNumber);
-  return json({ ok: true, token, trackingNumber });
+
+  // Only when asked. A Pirate Ship label has already mailed the customer an
+  // hour after it was bought, and this is the box for the package that went out
+  // without one. See worker/shipped-mail.js.
+  if (!notify) return json({ ok: true, token, trackingNumber, emailed: false });
+
+  try {
+    const order = await getOrder(env, token);
+    await sendShippedEmail(env, order, trackingNumber);
+    return json({ ok: true, token, trackingNumber, emailed: true });
+  } catch (err) {
+    // The package really did ship. Report the email failure rather than
+    // failing the whole call and leaving the shop unsure which half happened.
+    console.error('shipped email failed', err?.message || err);
+    return json({
+      ok: true, token, trackingNumber, emailed: false,
+      emailError: err?.message || 'The email did not send.',
+    });
+  }
 }
 
 async function handleShipBatch(request, env) {

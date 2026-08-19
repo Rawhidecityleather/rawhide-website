@@ -474,6 +474,9 @@ function renderQueue(queue) {
             autocomplete="off" spellcheck="false" inputmode="numeric">
           <button type="submit" class="btn tiny">Ship</button>
         </form>
+        <label class="notify" title="Only for a package sent without a Pirate Ship label &mdash; a label already emails the customer by itself.">
+          <input type="checkbox" name="notify"> email the customer
+        </label>
       </td>
     </tr>`;
   }).join('');
@@ -543,15 +546,17 @@ function renderTrackingPanel() {
     <p class="hint">
       Paste Pirate Ship's shipment list straight in &mdash; or type one order and
       tracking number per line. Each match gets its tracking number saved, flips to
-      <strong>Shipped</strong>. It does not email anyone: Snipcart only offers to send
-      a tracking email when you set the number by hand in <em>its own</em> dashboard,
-      and nothing typed here goes through that screen. The customer hears from Pirate
-      Ship, an hour after the label is bought.
+      <strong>Shipped</strong>. Nobody is emailed from here: Snipcart only offers a
+      tracking email when you set the number by hand in <em>its own</em> dashboard, and
+      nothing typed here goes through that screen. The customer hears from Pirate Ship,
+      an hour after the label is bought.
       <br>
       With the tracking BCC set up, labels report themselves back and nothing needs
-      pasting here. This is the fallback for the ones that don't match &mdash; and for
-      a package sent without a Pirate Ship label, where <strong>nobody emails the
-      customer at all</strong> unless you do it yourself.
+      pasting here at all. This stays as the fallback for the ones that don't match.
+      <br>
+      Sent a package <strong>without</strong> a Pirate Ship label? Nothing has told the
+      customer. Tick <em>email the customer</em> on that order's row and we send it
+      ourselves &mdash; the same email Pirate Ship would have.
     </p>
     <textarea id="pastebox" rows="6" spellcheck="false"
       placeholder="1042, 9400111899223197428374&#10;1043, 9400111899223197428381"></textarea>
@@ -1023,11 +1028,20 @@ export const DASHBOARD_SCRIPT = `
     button.disabled = true;
     button.textContent = '…';
 
-    post('/dashboard/api/ship', { token: row.getAttribute('data-token'), trackingNumber: tracking })
+    var notifyBox = row.querySelector('input[name=notify]');
+    var notify = !!(notifyBox && notifyBox.checked);
+
+    post('/dashboard/api/ship', {
+      token: row.getAttribute('data-token'),
+      trackingNumber: tracking,
+      notify: notify
+    })
       .then(function(){
         row.classList.add('shipped');
         button.textContent = 'Shipped';
-        toast('Marked shipped. Pirate Ship emails the customer, not Snipcart.');
+        if (data.emailError) toast('Marked shipped, but the email failed: ' + data.emailError, true);
+        else if (data.emailed) toast('Marked shipped and the customer has been emailed.');
+        else toast('Marked shipped. Nobody was emailed from here.');
         setTimeout(function(){ location.reload(); }, 1200);
       })
       .catch(function(err){
@@ -1580,6 +1594,8 @@ table.mini tr:last-child td{border-bottom:0}
 .selcount{font-size:11.5px;color:var(--soft);font-variant-numeric:tabular-nums}
 .shipcell{min-width:13rem}
 .btn.label{width:100%;margin-bottom:6px;white-space:nowrap}
+.notify{display:flex;align-items:center;gap:5px;margin-top:6px;font-size:11px;color:var(--soft);cursor:pointer}
+.notify input{margin:0}
 .shipform{display:flex;gap:6px}
 .shipform input{flex:1;min-width:8rem;font-family:ui-monospace,'Consolas',monospace;font-size:12px;
   padding:6px 8px;border:1px solid var(--line-2);border-radius:2px;background:var(--paper);color:var(--ink)}
