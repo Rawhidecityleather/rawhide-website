@@ -72,6 +72,8 @@ export default {
         .then((report) => {
           console.log('cart recovery', JSON.stringify(report.counts || {}),
             `scanned=${report.scanned} due=${report.due}`,
+            'reasons=' + JSON.stringify(report.reasons || {}),
+            'ages=' + JSON.stringify(report.ageSpread || {}),
             report.skipped ? `skipped=${report.skipped}` : '');
         })
         .catch((err) => {

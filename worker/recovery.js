@@ -115,28 +115,103 @@ export async function listAbandonedCarts(env, limit = 50) {
   return carts;
 }
 
+/**
+ * Field names, most specific first. Snipcart's abandoned-cart payload does NOT
+ * use `modificationDate` / `creationDate` — assuming it did made every cart
+ * read as undateable, and the first live run skipped all nine with
+ * `reasons={"no-date":9}`. Rather than guess one replacement and wait an hour
+ * per attempt, this tries the plausible spellings in order and falls back to
+ * any date-ish field that parses. `logCartShape` below records what the payload
+ * actually contains so this list can be cut back to the real name.
+ */
+const DATE_FIELDS = [
+  'lastModificationDate', 'modificationDate', 'dateModified', 'modifiedOn',
+  'lastActivityDate', 'abandonedDate',
+  'creationDate', 'dateCreated', 'createdOn',
+];
+
+/**
+ * Snipcart sends these as a **numeric epoch in seconds**, which cost two live
+ * runs to pin down. `Date.parse()` on a number returns NaN, so the first
+ * version read every cart as undateable; treating the number as milliseconds
+ * then dated them all to 1970 and they were skipped as too old. Nine carts
+ * abandoned days apart differ by ~600,000 seconds, which misread as
+ * milliseconds is ten minutes — which is why every age came back identical.
+ *
+ * So: seconds and milliseconds both have to work, and so do the ISO strings
+ * every other Snipcart endpoint returns.
+ */
+function parseDate(value) {
+  if (value == null) return 0;
+
+  const asNumber =
+    typeof value === 'number' ? value
+      : (typeof value === 'string' && /^\d+$/.test(value.trim())) ? Number(value)
+        : null;
+
+  if (asNumber !== null) {
+    if (!Number.isFinite(asNumber) || asNumber <= 0) return 0;
+    // A real date in seconds is ~1.7e9; in milliseconds ~1.7e12. Nothing
+    // plausible sits near the 1e11 line, so it separates them cleanly.
+    return asNumber < 1e11 ? asNumber * 1000 : asNumber;
+  }
+
+  const t = Date.parse(value);
+  return Number.isFinite(t) ? t : 0;
+}
+
 /** When the customer actually walked away: last activity, not cart creation. */
 export function abandonedAt(cart) {
-  return Date.parse(cart?.modificationDate || cart?.creationDate || '') || 0;
+  if (!cart) return 0;
+
+  for (const field of DATE_FIELDS) {
+    const t = parseDate(cart[field]);
+    if (t) return t;
+  }
+
+  // Last resort: any top-level key that looks like a date and parses. Prefer
+  // the most recent, since abandonment is the last thing that happened.
+  let best = 0;
+  for (const [key, value] of Object.entries(cart)) {
+    if (!/date|modified|created|time/i.test(key)) continue;
+    const t = parseDate(value);
+    if (t > best) best = t;
+  }
+  return best;
+}
+
+/**
+ * The key names on one cart, so a payload mismatch is a one-run diagnosis
+ * instead of a guessing game. Names only, never values — this goes to a log.
+ */
+export function cartShape(cart) {
+  return cart ? Object.keys(cart).sort() : [];
 }
 
 /**
  * Old enough to be worth an email, young enough that it isn't archaeology, and
  * addressed to a real person.
  */
-export function isDue(cart, now) {
+export function dueReason(cart, now) {
   const at = abandonedAt(cart);
-  if (!at) return false;
+  if (!at) return 'no-date';
 
   const ageHours = (now - at) / HOUR;
-  if (ageHours < SEND_AFTER_HOURS || ageHours > MAX_AGE_HOURS) return false;
+  if (ageHours < SEND_AFTER_HOURS) return 'too-recent';
+  if (ageHours > MAX_AGE_HOURS) return 'too-old';
 
   const email = String(cart.email || '').trim().toLowerCase();
-  if (!email || !email.includes('@')) return false;
-  if (TEST_EMAILS.has(email)) return false;
+  if (!email || !email.includes('@')) return 'no-email';
+  if (TEST_EMAILS.has(email)) return 'test-email';
 
   // An empty cart has nothing to come back to.
-  return Array.isArray(cart.items) && cart.items.length > 0;
+  if (!Array.isArray(cart.items) || cart.items.length === 0) return 'no-items';
+
+  return 'due';
+}
+
+export function isDue(cart, now) {
+  return dueReason(cart, now) === 'due';
 }
 
 export function cartUrl(cart) {
@@ -490,7 +565,45 @@ export async function runRecovery(env, now = Date.now()) {
   }
 
   const carts = await listAbandonedCarts(env);
-  const due = carts.filter((cart) => isDue(cart, now)).slice(0, MAX_PER_RUN);
+
+  // Tally why each cart was skipped. "due=0" on its own is unactionable — it
+  // could mean the window is genuinely empty, or that a field this code reads
+  // is not in the payload at all, and those need very different fixes.
+  const reasons = {};
+  const due = [];
+  const ages = [];
+  let usingCreationDate = 0;
+  for (const cart of carts) {
+    const reason = dueReason(cart, now);
+    reasons[reason] = (reasons[reason] || 0) + 1;
+    if (reason === 'due' && due.length < MAX_PER_RUN) due.push(cart);
+
+    // Which field the age actually came from, and what it worked out to. If
+    // modificationDate turns out to be a record-touched timestamp rather than
+    // when the customer walked away, every cart reads as brand new and the
+    // whole window is wrong — this is what distinguishes that from an empty
+    // window. Ages only, no addresses: this goes to a log.
+    if (!cart?.modificationDate) usingCreationDate++;
+    const at = abandonedAt(cart);
+    if (at) ages.push(Math.round((now - at) / HOUR));
+  }
+
+  // Only useful while the payload shape is still in doubt; drop it once the
+  // real date field is confirmed and DATE_FIELDS is cut back to that one name.
+  if (carts.length && (!ages.length || ages[0] > MAX_AGE_HOURS)) {
+    const c = carts[0];
+    console.log('cart recovery: dates look wrong. keys =',
+      JSON.stringify(cartShape(c)),
+      'rawDates =', JSON.stringify({
+        modificationDate: c?.modificationDate,
+        creationDate: c?.creationDate,
+      }));
+  }
+
+  ages.sort((a, b) => a - b);
+  const ageSpread = ages.length
+    ? { youngestHours: ages[0], oldestHours: ages[ages.length - 1], usingCreationDate }
+    : null;
 
   const results = [];
   for (const cart of due) {
@@ -510,5 +623,5 @@ export async function runRecovery(env, now = Date.now()) {
     return acc;
   }, {});
 
-  return { scanned: carts.length, due: due.length, counts, results };
+  return { scanned: carts.length, due: due.length, reasons, ageSpread, counts, results };
 }

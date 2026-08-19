@@ -140,6 +140,30 @@ export default async function run() {
   check('a cart with no date is skipped',
     isDue(cart({ modificationDate: '', creationDate: '' }), NOW) === false);
 
+  // The first live run skipped all nine carts with reasons={"no-date":9}:
+  // Snipcart's abandoned-cart payload does not use the field names this code
+  // originally assumed. These pin the alternatives so a schema change is a
+  // failing test rather than a silent hour of sending nothing.
+  const aged = new Date(NOW - 100 * HOUR).toISOString();
+  check('lastModificationDate is understood',
+    isDue({ ...cart(), modificationDate: undefined, lastModificationDate: aged }, NOW) === true);
+  check('dateModified is understood',
+    isDue({ ...cart(), modificationDate: undefined, dateModified: aged }, NOW) === true);
+  check('an unknown but date-ish field still works',
+    isDue({ ...cart(), modificationDate: undefined, someCartDate: aged }, NOW) === true);
+  check('epoch milliseconds are understood, not just ISO strings',
+    isDue({ ...cart(), modificationDate: NOW - 100 * HOUR }, NOW) === true);
+  // What Snipcart actually sends. Reading these as milliseconds dated every
+  // cart to 1970 and skipped the lot as too old, twice.
+  check('epoch SECONDS are understood — this is the real payload format',
+    isDue({ ...cart(), modificationDate: Math.floor((NOW - 100 * HOUR) / 1000) }, NOW) === true);
+  check('epoch seconds as a numeric string also work',
+    isDue({ ...cart(), modificationDate: String(Math.floor((NOW - 100 * HOUR) / 1000)) }, NOW) === true);
+  check('a seconds timestamp is not mistaken for 1970 and skipped as too old',
+    isDue({ ...cart(), modificationDate: Math.floor((NOW - 100 * HOUR) / 1000) }, NOW) === true);
+  check('a cart with genuinely no usable date is still skipped',
+    isDue({ ...cart(), modificationDate: undefined }, NOW) === false);
+
   suite('recovery — the code');
 
   const code = makeCode();
