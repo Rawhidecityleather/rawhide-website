@@ -557,6 +557,7 @@ function renderTrackingPanel() {
       Sent a package <strong>without</strong> a Pirate Ship label? Nothing has told the
       customer. Tick <em>email the customer</em> on that order's row and we send it
       ourselves &mdash; the same email Pirate Ship would have.
+      <button type="button" class="btn tiny ghost" id="testmail">Send me a test copy</button>
     </p>
     <textarea id="pastebox" rows="6" spellcheck="false"
       placeholder="1042, 9400111899223197428374&#10;1043, 9400111899223197428381"></textarea>
@@ -1048,6 +1049,23 @@ export const DASHBOARD_SCRIPT = `
         button.disabled = false;
         button.textContent = 'Ship';
         toast(err.message, true);
+      });
+  });
+
+  /* ---- see the shipped email without shipping anything ---- */
+
+  var testMail = document.getElementById('testmail');
+  if (testMail) testMail.addEventListener('click', function(){
+    testMail.disabled = true;
+    var label = testMail.textContent;
+    testMail.textContent = 'Sending…';
+
+    post('/dashboard/api/ship-test', {})
+      .then(function(data){ toast('Test sent to ' + data.to + '.'); })
+      .catch(function(err){ toast(err.message, true); })
+      .then(function(){
+        testMail.disabled = false;
+        testMail.textContent = label;
       });
   });
 

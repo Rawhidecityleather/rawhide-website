@@ -11,6 +11,7 @@
  *   POST /dashboard/pirate-ship.csv  address spreadsheet for the selected orders
  *   POST /dashboard/api/ship         one order: save tracking, mark shipped
  *   POST /dashboard/api/ship-batch   paste Pirate Ship's list, ship them all
+ *   POST /dashboard/api/ship-test    mail the shipped email to the shop inbox
  *   POST /dashboard/api/quote        build a custom-job quote, get a link
  *   POST /dashboard/api/quote/void   kill a quote link
  *   POST /dashboard/api/quote/paid   stamp a cash quote collected
@@ -85,7 +86,7 @@ import {
   EXPENSES_SCRIPT,
 } from './expenses.js';
 import { handleEmail, readRaw, MAX_EMAIL_BYTES } from './email-in.js';
-import { sendShippedEmail } from './shipped-mail.js';
+import { sendShippedEmail, sendTestShippedEmail } from './shipped-mail.js';
 import { isTrackingAddress, handleTrackingEmail } from './tracking-in.js';
 
 export default {
@@ -288,6 +289,7 @@ async function route(path, request, env, url) {
     if (path === '/dashboard/pirate-ship.csv') return await handleCsv(request, env);
     if (path === '/dashboard/api/ship') return await handleShip(request, env);
     if (path === '/dashboard/api/ship-batch') return await handleShipBatch(request, env);
+    if (path === '/dashboard/api/ship-test') return await handleShipTest(request, env);
     if (path === '/dashboard/api/quote') return await handleQuoteCreate(request, env);
     if (path === '/dashboard/api/quote/void') return await handleQuoteVoid(request, env);
     if (path === '/dashboard/api/quote/paid') return await handleQuoteCashPaid(request, env);
@@ -661,6 +663,22 @@ async function handleShip(request, env) {
       ok: true, token, trackingNumber, emailed: false,
       emailError: err?.message || 'The email did not send.',
     });
+  }
+}
+
+/**
+ * Sends the shipped email to the shop's own inbox so it can be looked at
+ * without shipping anything. Takes no body: the recipient is fixed in
+ * worker/shipped-mail.js and cannot be pointed at a customer.
+ */
+async function handleShipTest(request, env) {
+  if (!fromDashboard(request)) return json({ error: 'Bad request.' }, 403);
+
+  try {
+    const sent = await sendTestShippedEmail(env);
+    return json({ ok: true, to: sent.to });
+  } catch (err) {
+    return json({ error: err?.message || 'The email did not send.' }, 502);
   }
 }
 

@@ -26,7 +26,7 @@
  */
 
 import { esc } from './lib.js';
-import { sendMail, mailerConfigured, MailError } from './mailer.js';
+import { sendMail, mailerConfigured, MailError, UNSUBSCRIBE_TO } from './mailer.js';
 
 const SITE = 'https://rawhidecityleather.com';
 
@@ -199,4 +199,40 @@ export async function sendShippedEmail(env, order, trackingNumber, now = Date.no
     text: shippedText(order, trackingNumber, now),
     transactional: true,
   });
+}
+
+/* --------------------------------------------------------------- test send */
+
+/** A made-up order, so a test never touches a real customer's record. */
+const SAMPLE_ORDER = {
+  email: '',
+  shippingAddress: { fullName: 'Sample Customer' },
+};
+
+const SAMPLE_TRACKING = '9400111899223197428490';
+
+/**
+ * Mails the shipped email to the shop's own inbox, to see how it lands.
+ *
+ * The recipient is NOT a parameter, and that is the point: this endpoint sends
+ * email, so the one thing it must never be able to do is send to an address
+ * someone hands it. It goes to the shop inbox or nowhere.
+ */
+export async function sendTestShippedEmail(env, now = Date.now()) {
+  if (!mailerConfigured(env)) {
+    throw new MailError(
+      'Email is not configured. Set BREVO_KEY, RECOVERY_FROM and ' +
+        'RECOVERY_POSTAL_ADDRESS with `wrangler secret put`.'
+    );
+  }
+
+  const result = await sendMail(env, {
+    to: UNSUBSCRIBE_TO,
+    subject: '[test] ' + SHIPPED_SUBJECT,
+    html: shippedHtml(SAMPLE_ORDER, SAMPLE_TRACKING, now),
+    text: shippedText(SAMPLE_ORDER, SAMPLE_TRACKING, now),
+    transactional: true,
+  });
+
+  return { ...result, to: UNSUBSCRIBE_TO };
 }

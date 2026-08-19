@@ -12,7 +12,8 @@
 
 import { suite, check } from './harness.mjs';
 import {
-  firstName, shipDate, shippedHtml, shippedText, sendShippedEmail, SHIPPED_SUBJECT,
+  firstName, shipDate, shippedHtml, shippedText, sendShippedEmail,
+  sendTestShippedEmail, SHIPPED_SUBJECT,
 } from '../shipped-mail.js';
 
 const USPS = '9400111899223197428490';
@@ -131,4 +132,17 @@ export default async function run() {
   } catch (err) { bounced = err.message; }
   check("a provider error is surfaced, carrying Brevo's own words",
     /400/.test(bounced) && /nope/.test(bounced), bounced);
+
+  suite('shipped mail — the test send');
+
+  const t = fakeFetch();
+  const testResult = await withFetch(t.fetch, () => sendTestShippedEmail(fakeEnv(), NOW));
+  check('it goes to the shop, never a customer',
+    t.sent[0]?.body.to[0].email === 'rawhidecityleather@gmail.com', testResult.to);
+  check('and says it is a test in the subject',
+    /^\[test\]/.test(t.sent[0]?.body.subject || ''), t.sent[0]?.body.subject);
+  check('the sample carries no real order email',
+    !JSON.stringify(t.sent[0]?.body).includes('jane@example.com'));
+  check('but still renders a full email to look at',
+    (t.sent[0]?.body.htmlContent || '').includes('Your gear is on the way'));
 }
