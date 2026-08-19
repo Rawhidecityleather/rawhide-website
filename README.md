@@ -469,7 +469,20 @@ There are two ways in. A **photo** goes to the vision model as an image. A
 text — the ad platforms, hosting and software all invoice that way, and reading
 the real text beats reading a picture of it. A scanned PDF has no text layer, so
 nothing comes back; photograph that page instead and it goes down the image path,
-which does work. **HEIC is stored but never read** — nothing here decodes it.
+which does work.
+
+**HEIC is converted to JPEG on the way in**, by the `IMAGES` binding, before
+anything is stored. iPhones shoot HEIC by default and it is unusable three ways
+over — the model can't decode it, and no browser but Safari will draw it, so the
+thumbnail and the image in the printed packet would both come out broken. The
+JPEG is what lands in the bucket; there is no second copy. The phone's filename
+is kept, the extension records what's actually stored. Scaled down to 2000px on
+the long edge, which is far more than a receipt needs and keeps the file under
+the reader's size limit.
+
+If Images isn't enabled on the account, or a conversion fails, the HEIC is
+stored as-is and the row comes back blank to type in — the receipt is never
+refused. Conversions are billed per transformation and only ever run on a HEIC.
 
 Receipts are private the same way artwork is: `/receipt/<key>` sits behind the
 dashboard login, and the keys are random.

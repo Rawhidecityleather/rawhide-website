@@ -452,8 +452,8 @@ function renderUpload() {
     </div>
     <p class="hint">Photograph the receipt and drop it here, or drop in a PDF invoice.
       The reader fills in the vendor, date and total where it can — check every one of
-      them before it counts. A scanned PDF with no text in it, and any HEIC, gets stored
-      but not read; type those in.</p>
+      them before it counts. A scanned PDF with no text in it gets stored but not read;
+      type that one in.</p>
     <label class="drop" id="drop">
       <input type="file" id="files" accept="image/*,application/pdf" multiple capture="environment" hidden>
       <span class="dropmain">Choose files or drag them here</span>

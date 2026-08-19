@@ -22,7 +22,7 @@ import {
 } from '../expenses.js';
 import {
   parseExtraction, cleanDate, cleanVendor, draftFromExtraction, toBase64,
-  extract, isReceiptKey,
+  extract, isReceiptKey, storeUpload,
 } from '../receipts.js';
 
 const NOW = new Date('2026-08-18T12:00:00Z');
@@ -386,6 +386,123 @@ Total $88.00` }],
     },
   }, bytes, 'pdf');
   check('a converter outage is caught like any other', convertExploded.read === false);
+
+  /* -------------------------------------------------------------- HEIC in */
+  suite('receipts — HEIC off an iPhone');
+
+  // An iPhone shoots HEIC by default. Nothing downstream can use one: the model
+  // cannot decode it and no browser but Safari will draw it, so the thumbnail
+  // and the image in the printed packet would both be broken. It is converted
+  // on the way in and the JPEG is what gets stored.
+  const HEIC_HEAD = (() => {
+    const b = new Uint8Array(64);
+    // ....ftypheic — the brand check in uploads.js reads offsets 4 and 8.
+    const put = (at, text) => [...text].forEach((c, i) => { b[at + i] = c.charCodeAt(0); });
+    put(4, 'ftyp');
+    put(8, 'heic');
+    return b;
+  })();
+
+  function fakeR2() {
+    const objects = new Map();
+    return {
+      objects,
+      async put(key, body, options) { objects.set(key, { body, ...options }); },
+    };
+  }
+
+  function heicUpload(bytes = HEIC_HEAD, filename = 'IMG_4417.HEIC') {
+    const form = new FormData();
+    form.append('file', new Blob([bytes]), filename);
+    return new Request('https://rawhidecityleather.com/dashboard/api/receipt', {
+      method: 'POST', body: form,
+    });
+  }
+
+  const JPEG_OUT = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4]);
+
+  function imagesBinding(behaviour = 'ok') {
+    const calls = [];
+    return {
+      calls,
+      input(stream) {
+        calls.push({ stream });
+        const chain = {
+          transform(opts) { calls[calls.length - 1].transform = opts; return chain; },
+          output(opts) { calls[calls.length - 1].output = opts; return chain; },
+          async response() {
+            if (behaviour === 'throw') throw new Error('images unavailable');
+            if (behaviour === 'notok') return { ok: false };
+            if (behaviour === 'empty') {
+              return { ok: true, async arrayBuffer() { return new ArrayBuffer(0); } };
+            }
+            return { ok: true, async arrayBuffer() { return JPEG_OUT.buffer.slice(0); } };
+          },
+        };
+        return chain;
+      },
+    };
+  }
+
+  const images = imagesBinding();
+  const heicEnv = {
+    RECEIPTS: fakeR2(),
+    IMAGES: images,
+    AI: { async run() { return { response: '{"vendor":"Shell","total":41.2}' }; } },
+  };
+  const stored = await storeUpload(heicUpload(), heicEnv);
+
+  check('the upload succeeds', !stored.error);
+  check('what lands in the bucket is a jpg', stored.key.endsWith('.jpg'));
+  check('the row records it as a jpg', stored.file.ext === 'jpg');
+  check('and marks that it was converted', stored.file.converted === true);
+  check('the phone filename is kept for searching', stored.file.name === 'IMG_4417.HEIC');
+  check('the stored bytes are the JPEG, not the HEIC',
+    heicEnv.RECEIPTS.objects.get(stored.key).body[0] === 0xff);
+  check('the object is served as a JPEG',
+    heicEnv.RECEIPTS.objects.get(stored.key).httpMetadata.contentType === 'image/jpeg');
+  check('R2 records where it came from',
+    heicEnv.RECEIPTS.objects.get(stored.key).customMetadata.convertedFrom === 'heic');
+  check('the size recorded is the converted file', stored.file.size === JPEG_OUT.length);
+  check('it is scaled down, never up', images.calls[0].transform.fit === 'scale-down');
+  check('the conversion asked for a JPEG', images.calls[0].output.format === 'image/jpeg');
+  check('the converted photo then gets read', stored.draft.read === true);
+  check('and the reader saw a jpg', stored.draft.vendor === 'Shell');
+
+  // Every way it can fail keeps the receipt. A HEIC on file that nothing can
+  // read still beats a rejected upload.
+  for (const [label, behaviour] of [
+    ['the converter throws', 'throw'],
+    ['the converter answers not-ok', 'notok'],
+    ['the converter returns nothing', 'empty'],
+  ]) {
+    const env2 = {
+      RECEIPTS: fakeR2(),
+      IMAGES: imagesBinding(behaviour),
+      AI: { async run() { return { response: '{"vendor":"nope"}' }; } },
+    };
+    const kept = await storeUpload(heicUpload(), env2);
+    check(`when ${label} the receipt is still stored`, !kept.error && kept.key.endsWith('.heic'));
+    check(`when ${label} the row comes back to type in`, kept.draft.read === false);
+  }
+
+  const noImages = await storeUpload(heicUpload(), {
+    RECEIPTS: fakeR2(),
+    AI: { async run() { return { response: '{}' }; } },
+  });
+  check('with no Images binding the HEIC is stored as-is',
+    !noImages.error && noImages.file.ext === 'heic');
+  check('and it is not marked converted', noImages.file.converted === false);
+
+  const jpegStraight = await storeUpload((() => {
+    const form = new FormData();
+    form.append('file', new Blob([new Uint8Array([0xff, 0xd8, 0xff, 9, 9, 9, 9, 9])]), 'shop.jpg');
+    return new Request('https://rawhidecityleather.com/dashboard/api/receipt', {
+      method: 'POST', body: form,
+    });
+  })(), { RECEIPTS: fakeR2(), IMAGES: imagesBinding(), AI: { async run() { return { response: '{}' }; } } });
+  check('an ordinary JPG never touches the converter',
+    jpegStraight.file.ext === 'jpg' && jpegStraight.file.converted === false);
 
   suite('receipts — keys');
   check('a real key is accepted', isReceiptKey('a'.repeat(32) + '.jpg'));

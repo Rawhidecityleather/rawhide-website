@@ -68,6 +68,14 @@
   "ai": {
     "binding": "AI"
   },
+  // Turns an iPhone's HEIC into a JPEG at upload. Without it a HEIC receipt is
+  // stored as-is and is unreadable three ways over — the model can't decode it,
+  // and no browser but Safari will draw it, so the thumbnail and the image in
+  // the printed CPA packet both come out broken. Billed per transformation, and
+  // only ever runs on a HEIC. See heicToJpeg in worker/receipts.js.
+  "images": {
+    "binding": "IMAGES"
+  },
   "compatibility_flags": [
     "nodejs_compat"
   ]

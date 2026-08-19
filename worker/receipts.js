@@ -4,7 +4,8 @@
  * The shop photographs a receipt on a phone, it lands in R2, and a model reads
  * the vendor, date and total off it so the row arrives mostly filled in. Two
  * ways in: a photo goes to the vision model as an image, while a PDF invoice
- * has its text layer pulled out first and is read as text.
+ * has its text layer pulled out first and is read as text. A HEIC off an iPhone
+ * is turned into a JPEG before either, since nothing downstream can use one.
  * Nothing here is trusted: every extracted field is a suggestion the shop
  * confirms on the expenses page before the row counts as reviewed. A model that
  * misreads a crumpled thermal receipt costs a correction, never a wrong number
@@ -338,8 +339,8 @@ export async function storeUpload(request, env) {
 
   // Read once, into memory: the same bytes get stored and sent to the model,
   // and a stream can only be walked one time.
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  const kind = detect(bytes.subarray(0, 16));
+  const original = new Uint8Array(await file.arrayBuffer());
+  const kind = detect(original.subarray(0, 16));
   if (!kind) {
     return {
       error: 'That file type is not supported. Send a PNG, JPG, WEBP, GIF, HEIC, or PDF.',
@@ -347,19 +348,43 @@ export async function storeUpload(request, env) {
     };
   }
 
+  let bytes = original;
+  let ext = kind.ext;
+  let mime = kind.mime;
+  let converted = false;
+
+  // An iPhone's default format, turned into one everything downstream can use.
+  // Done before anything is stored, so what lands in the bucket is the JPEG and
+  // there is never a second copy to keep straight.
+  if (ext === 'heic') {
+    const jpeg = await heicToJpeg(env, original);
+    if (jpeg) {
+      bytes = jpeg;
+      ext = 'jpg';
+      mime = 'image/jpeg';
+      converted = true;
+    }
+  }
+
   const name = safeName(file.name);
-  const key = newKey(kind.ext);
+  const key = newKey(ext);
 
   await env.RECEIPTS.put(key, bytes, {
-    httpMetadata: { contentType: kind.mime },
-    customMetadata: { originalName: name, uploaded: new Date().toISOString() },
+    httpMetadata: { contentType: mime },
+    customMetadata: {
+      originalName: name,
+      uploaded: new Date().toISOString(),
+      ...(converted ? { convertedFrom: 'heic' } : {}),
+    },
   });
 
-  const draft = await extract(env, bytes, kind.ext);
+  const draft = await extract(env, bytes, ext);
 
   return {
     key,
-    file: { name, ext: kind.ext, mime: kind.mime, size: file.size },
+    // The name stays the one off the phone — it is what the shop searches for
+    // in a folder — while the extension records what is actually in the bucket.
+    file: { name, ext, mime, size: bytes.length, converted },
     draft,
   };
 }
@@ -386,6 +411,52 @@ export async function handleReceiptFetch(path, env) {
       'x-robots-tag': 'noindex, nofollow',
     },
   });
+}
+
+/* ------------------------------------------------------------------- HEIC */
+
+/**
+ * The longest edge a converted photo keeps. A receipt is legible far below a
+ * modern phone's 12 megapixels, and the full-size JPEG of one can land over
+ * EXTRACT_MAX_BYTES — which would mean converting the file and then still not
+ * reading it.
+ */
+const HEIC_MAX_EDGE = 2000;
+
+/**
+ * iPhones shoot HEIC by default, and it is the one accepted format nothing
+ * downstream can use: the vision model can't decode it, and no browser but
+ * Safari will render it, so the thumbnail and the image in the printed CPA
+ * packet would both come out broken.
+ *
+ * So it doesn't get stored as HEIC. Cloudflare Images decodes it and hands back
+ * a JPEG, and the JPEG is what becomes the receipt — same photograph, in a
+ * format the rest of this actually works with.
+ *
+ * Returns null if it can't be done, and the caller keeps the original. A
+ * HEIC on file that nothing can read still beats a rejected upload: the
+ * receipt is the thing being kept.
+ */
+async function heicToJpeg(env, bytes) {
+  if (!env.IMAGES) return null;
+
+  try {
+    const result = await env.IMAGES
+      .input(new Blob([bytes], { type: 'image/heic' }).stream())
+      // scale-down, so a receipt photographed close up is never blown up.
+      .transform({ width: HEIC_MAX_EDGE, height: HEIC_MAX_EDGE, fit: 'scale-down' })
+      .output({ format: 'image/jpeg', quality: 90 })
+      .response();
+
+    if (!result.ok) return null;
+
+    const converted = new Uint8Array(await result.arrayBuffer());
+    // A conversion that returns nothing is a failure that didn't say so.
+    return converted.length ? converted : null;
+  } catch (err) {
+    console.error('heic conversion failed', err?.message || err);
+    return null;
+  }
 }
 
 export async function deleteReceipt(env, key) {
