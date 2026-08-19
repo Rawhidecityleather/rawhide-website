@@ -765,7 +765,11 @@ async function handleReceiptUpload(request, env) {
   const record = buildExpense(stored);
   await putExpense(env, record);
 
-  return json({ ok: true, record });
+  // `why` rides alongside rather than into the record: it describes this one
+  // reading, not the receipt, and the upload line is the only place it belongs.
+  // Without it a row that came back empty gave the shop no idea whether the
+  // file was unreadable, the model was down, or it simply had no text.
+  return json({ ok: true, record, why: stored.draft?.why || '' });
 }
 
 async function handleExpenseSave(request, env) {

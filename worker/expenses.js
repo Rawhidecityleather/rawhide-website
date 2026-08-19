@@ -884,7 +884,9 @@ async function send(files) {
       }
 
       line.className = 'ok';
-      state.textContent = data.record.read ? 'Read — check it' : 'Stored — fill it in';
+      state.textContent = data.record.read
+        ? 'Read — check it'
+        : 'Stored — fill it in' + (data.why ? ' (' + data.why + ')' : '');
       addRow(data.record);
       retotal();
     } catch (err) {

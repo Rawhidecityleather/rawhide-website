@@ -259,8 +259,17 @@ export default async function run() {
   check('a date years ahead is dropped', cleanDate('2031-01-01', NOW) === '');
   check('tomorrow is allowed, for a receipt bought tonight',
     cleanDate('2026-08-19', NOW) === '2026-08-19');
-  check('a US-formatted date is dropped rather than guessed',
-    cleanDate('03/04/2026', NOW) === '');
+  // Receipts are printed this way and the model hands it straight back. These
+  // used to be dropped, which meant retyping the date on nearly every receipt.
+  check('a US-printed date is read month-first', cleanDate('03/04/2026', NOW) === '2026-03-04');
+  check('single-digit month and day work', cleanDate('3/4/2026', NOW) === '2026-03-04');
+  check('a day above 12 decides the reading on its own',
+    cleanDate('25/03/2026', NOW) === '2026-03-25');
+  check('dots and dashes are read the same way', cleanDate('03.04.2026', NOW) === '2026-03-04');
+  check('a slashed date still obeys the year floor', cleanDate('03/04/1999', NOW) === '');
+  check('an impossible month is refused', cleanDate('2026-13-01', NOW) === '');
+  check('an impossible day is refused', cleanDate('2026-02-30', NOW) === '');
+  check('a two-digit year is still refused', cleanDate('03/04/26', NOW) === '');
   check('a long vendor string is clipped', cleanVendor('x'.repeat(200)).length === 60);
   check('newlines in a vendor are flattened', cleanVendor('Tandy\nLeather') === 'Tandy Leather');
 
@@ -294,6 +303,36 @@ export default async function run() {
   }, bytes, 'jpg');
   check('a good read comes back marked read', answered.read === true);
   check('a good read carries the vendor', answered.vendor === 'Uline');
+
+  // The shape the live endpoint actually returns. Asked for JSON, the runtime
+  // parses it and `response` is an object — which a `typeof === 'string'` check
+  // silently discarded, so every correctly-read receipt came back empty. This
+  // is copied from a real reply, not imagined.
+  const asObject = await extract({
+    AI: {
+      async run() {
+        return {
+          response: {
+            vendor: 'THE HOME DEPOT', date: '08/14/2026', total: 60.48,
+            tax: 4.37, category: 'supplies', summary: 'contact cement, blades',
+          },
+          tool_calls: [],
+          usage: { total_tokens: 3444 },
+        };
+      },
+    },
+  }, bytes, 'jpg');
+  check('an already-parsed object reply is used, not discarded', asObject.read === true);
+  check('the vendor survives it', asObject.vendor === 'THE HOME DEPOT');
+  check('the total survives it', asObject.amount === 60.48);
+  check('the tax survives it', asObject.tax === 4.37);
+  check('the printed US date is normalised, not dropped', asObject.date === '2026-08-14');
+
+  const arrayReply = await extract({
+    AI: { async run() { return { response: ['not', 'an', 'object'] }; } },
+  }, bytes, 'jpg');
+  check('an array reply is not mistaken for the answer', arrayReply.read === false);
+
 
   const exploded = await extract({
     AI: { async run() { throw new Error('model overloaded'); } },

@@ -153,6 +153,21 @@ function replyText(result) {
   return '';
 }
 
+/**
+ * The object the model meant to send, however it chose to send it.
+ *
+ * When the reply is valid JSON the runtime parses it for us and `response` is
+ * an object, not a string — asking a model for JSON and getting JSON is the
+ * normal case, not the exceptional one. This cost a full round of "the reader
+ * is broken": every field was read correctly and then dropped on the floor by
+ * a `typeof === 'string'` check one layer up.
+ */
+function replyJson(result) {
+  const direct = result && typeof result === 'object' ? result.response : null;
+  if (direct && typeof direct === 'object' && !Array.isArray(direct)) return direct;
+  return parseExtraction(replyText(result));
+}
+
 const MONEY_CEILING = 100000;
 
 /** A number the model may have written as "$1,240.50" or handed over as a string. */
@@ -172,11 +187,36 @@ function toAmount(value) {
  * (a phone number, an expiry date, a loyalty barcode) and is dropped rather
  * than filed under a year that would quietly land in the wrong tax return.
  */
+/**
+ * Receipts are printed 08/14/2026 and models hand that straight back however
+ * firmly the prompt asks for ISO, so the slashed form is normalised rather than
+ * thrown away — dropping it meant retyping the date on nearly every receipt.
+ *
+ * Read as month-first. This is a Florida shop buying from US suppliers, and
+ * that is what the paper says. The one case where the reading is decidable is
+ * handled: a first number above 12 cannot be a month, so it is the day. The
+ * rest — 05/06/2026 — are genuinely ambiguous on their face, and the shop is
+ * looking at the row and the photograph side by side before it counts.
+ */
+function toIsoDate(text) {
+  const slashed = text.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/);
+  if (!slashed) return text;
+
+  let [, a, b, year] = slashed;
+  let month = Number(a);
+  let day = Number(b);
+  if (month > 12 && day <= 12) [month, day] = [day, month];
+
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
 export function cleanDate(value, now = new Date()) {
-  const text = String(value || '').trim();
+  const text = toIsoDate(String(value || '').trim());
   if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return '';
 
+  // Rejects 2026-13-45: Date rolls overflow forward, so a round trip catches it.
   const parsed = new Date(text + 'T00:00:00Z');
+  if (!isNaN(parsed) && parsed.toISOString().slice(0, 10) !== text) return '';
   if (isNaN(parsed)) return '';
   if (parsed.getUTCFullYear() < 2024) return '';
   if (parsed.getTime() > now.getTime() + 86400000) return '';
@@ -304,8 +344,18 @@ async function readDocument(env, bytes) {
 }
 
 function finish(result, failureReason) {
-  const parsed = parseExtraction(replyText(result));
-  if (!parsed) return unread(failureReason);
+  const parsed = replyJson(result);
+
+  if (!parsed) {
+    // The one failure that used to leave no trace: the model answered, the
+    // answer was unusable, and the row just came back empty with nothing in the
+    // logs to say why. Truncated, because a receipt's whole text is not worth
+    // keeping in a log line.
+    console.error('receipt reply not understood',
+      JSON.stringify(result === undefined ? null : result).slice(0, 300));
+    return unread(failureReason);
+  }
+
   return { ...draftFromExtraction(parsed), read: true, why: '' };
 }
 
