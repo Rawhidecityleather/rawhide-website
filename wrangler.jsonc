@@ -42,16 +42,32 @@
   //            minted for it. This is what stops the hourly cron from mailing
   //            the same person every hour for a week. Created 2026-08-17 with
   //             wrangler kv namespace create RECOVERY
+  // EXPENSES — the receipt ledger: one record per receipt, with the row's
+  //            summary in the key's metadata so a year lists in one call.
+  //            Created 2026-08-18 with
+  //             wrangler kv namespace create EXPENSES
   "kv_namespaces": [
     { "binding": "QUOTES", "id": "272cd3400d3e4eae945bfbe2b16ab43f" },
-    { "binding": "RECOVERY", "id": "be611b5493984061803449b43657eec4" }
+    { "binding": "RECOVERY", "id": "be611b5493984061803449b43657eec4" },
+    { "binding": "EXPENSES", "id": "ccebdcbdddf74b93ab4c528138271837" }
   ],
-  // Customer artwork for custom stamp work. Create the bucket once with
-  //   wrangler r2 bucket create rawhide-logo-uploads
-  // Nothing here is public: /logo/<key> is behind the dashboard login.
+  // LOGOS    — customer artwork for custom stamp work. Created with
+  //             wrangler r2 bucket create rawhide-logo-uploads
+  // RECEIPTS — the shop's own receipt photos, behind the same login. Created
+  //            2026-08-18 with
+  //             wrangler r2 bucket create rawhide-receipts
+  // Nothing in either is public: /logo/<key> and /receipt/<key> both sit behind
+  // the dashboard login.
   "r2_buckets": [
-    { "binding": "LOGOS", "bucket_name": "rawhide-logo-uploads" }
+    { "binding": "LOGOS", "bucket_name": "rawhide-logo-uploads" },
+    { "binding": "RECEIPTS", "bucket_name": "rawhide-receipts" }
   ],
+  // Reads the vendor, date and total off a receipt photo so the row arrives
+  // mostly filled in. Every field it returns is a suggestion the shop confirms
+  // — see worker/receipts.js. Nothing breaks without it; rows just start empty.
+  "ai": {
+    "binding": "AI"
+  },
   "compatibility_flags": [
     "nodejs_compat"
   ]

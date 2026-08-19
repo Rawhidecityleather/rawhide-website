@@ -13,9 +13,16 @@
  *   POST /dashboard/api/ship-batch   paste Pirate Ship's list, ship them all
  *   POST /dashboard/api/quote        build a custom-job quote, get a link
  *   POST /dashboard/api/quote/void   kill a quote link
+ *   GET  /dashboard/expenses         the receipt ledger for one year
+ *   POST /dashboard/api/receipt      upload a receipt photo, get a draft row
+ *   POST /dashboard/api/expense      save one ledger row
+ *   POST /dashboard/api/expense/delete   drop a row and its photo
+ *   GET  /dashboard/expenses.csv     the year's receipts as a spreadsheet
+ *   GET  /dashboard/expenses/report  the printable year-end packet
  *   POST /dashboard/hooks/snipcart   webhook: tracking -> Shipped, paid -> quote
  *   GET  /packing-slip?token=…       printable slip / build sheet
  *   GET  /logo/<key>                 customer artwork for a custom stamp
+ *   GET  /receipt/<key>              a stored receipt photo
  *   POST /api/logo-upload            PUBLIC. Artwork upload from a product page.
  *   POST /api/inquiry                PUBLIC. Contact-form inquiry, emailed to the shop.
  *   GET  /quote/…                    PUBLIC. The crew's quote page.
@@ -36,7 +43,11 @@
  * Bindings:
  *   QUOTES   — KV namespace holding custom-job quotes. See the README.
  *   RECOVERY — KV namespace recording which carts have had a recovery email.
+ *   EXPENSES — KV namespace holding the receipt ledger. See the README.
  *   LOGOS    — R2 bucket holding customer artwork uploads. See the README.
+ *   RECEIPTS — R2 bucket holding receipt photos.
+ *   AI       — Workers AI, used to read a receipt photo. Optional: without it
+ *              uploads still store and the row gets filled in by hand.
  */
 
 import { esc, json, notice, page } from './lib.js';
@@ -56,6 +67,13 @@ import {
   buildQuote, putQuote, getQuote, listQuotes, voidQuote, markQuotePaid,
   renderQuotePage, quoteStatus, isQuoteId, QuoteError, QUOTE_ITEM_PREFIX,
 } from './quote.js';
+import { storeUpload, handleReceiptFetch, deleteReceipt } from './receipts.js';
+import {
+  buildExpense, applyEdit, putExpense, getExpense, deleteExpense, listExpenses,
+  forYear, totals, yearsPresent, expensesCsv, isExpenseId, ExpenseError,
+  renderExpensesPage, renderExpenseReport, EXPENSE_STYLES, REPORT_STYLES,
+  EXPENSES_SCRIPT,
+} from './expenses.js';
 
 export default {
   /**
@@ -172,6 +190,31 @@ export default {
       if (!authorized(request, env)) return unauthorized();
       try {
         return await handleLogoFetch(path, env);
+      } catch (err) {
+        return failure(err, request);
+      }
+    }
+
+    // The shop's own receipts. Same login as the ledger they belong to, and
+    // answered before guardConfigured for the same reason as artwork: reading
+    // a stored file never touches Snipcart.
+    if (path.startsWith('/receipt/')) {
+      if (!authorized(request, env)) return unauthorized();
+      try {
+        return await handleReceiptFetch(path, env);
+      } catch (err) {
+        return failure(err, request);
+      }
+    }
+
+    // The receipt ledger sits outside guardConfigured on purpose: it is the
+    // shop's own books and touches Snipcart nowhere except one optional line on
+    // the report. A store key that expired must not lock the shop out of its
+    // receipts — least of all in the week they're being sent to the accountant.
+    if (isExpensePath(path)) {
+      if (!authorized(request, env)) return unauthorized();
+      try {
+        return await routeExpenses(path, request, env, url);
       } catch (err) {
         return failure(err, request);
       }
@@ -330,15 +373,22 @@ async function handleDashboard(request, env, url) {
   if (request.method !== 'GET') return json({ error: 'Use GET.' }, 405);
 
   const range = url.searchParams.get('range') || DEFAULT_RANGE;
-  const [{ orders, truncated }, quotes] = await Promise.all([
+  const [{ orders, truncated }, quotes, receipts] = await Promise.all([
     getAllOrders(env),
     // A missing KV binding shouldn't take the whole dashboard down — the
     // quotes card just renders empty until it's wired up.
     env.QUOTES ? listQuotes(env).catch(() => []) : Promise.resolve([]),
+    // Only for the rail's badge, and only ever a count. One list call, run
+    // alongside the Snipcart fetch, so it costs the page nothing.
+    env.EXPENSES ? listExpenses(env).catch(() => []) : Promise.resolve([]),
   ]);
   const stats = analyze(orders, range);
 
-  return page('Dashboard', renderDashboard(stats, { truncated, quotes }), {
+  return page('Dashboard', renderDashboard(stats, {
+    truncated,
+    quotes,
+    toCheck: receipts.filter((r) => !r.checked).length,
+  }), {
     styles: DASHBOARD_STYLES,
     script: DASHBOARD_SCRIPT,
   });
@@ -603,6 +653,163 @@ async function handleQuotePaid(order, env) {
   } catch (err) {
     return json({ error: err.message }, 502);
   }
+}
+
+/* ---------------------------------------------------------------- expenses */
+
+const EXPENSE_PATHS = new Set([
+  '/dashboard/expenses',
+  '/dashboard/expenses.csv',
+  '/dashboard/expenses/report',
+  '/dashboard/api/receipt',
+  '/dashboard/api/expense',
+  '/dashboard/api/expense/delete',
+]);
+
+function isExpensePath(path) {
+  return EXPENSE_PATHS.has(path);
+}
+
+async function routeExpenses(path, request, env, url) {
+  const missing = guardLedger(env, request);
+  if (missing) return missing;
+
+  if (path === '/dashboard/expenses') return await handleExpensesPage(request, env, url);
+  if (path === '/dashboard/expenses.csv') return await handleExpensesCsv(request, env, url);
+  if (path === '/dashboard/expenses/report') return await handleExpenseReport(request, env, url);
+  if (path === '/dashboard/api/receipt') return await handleReceiptUpload(request, env);
+  if (path === '/dashboard/api/expense') return await handleExpenseSave(request, env);
+  if (path === '/dashboard/api/expense/delete') return await handleExpenseDelete(request, env);
+  return notFound();
+}
+
+function guardLedger(env, request) {
+  if (env.EXPENSES) return null;
+
+  const message = 'Receipt storage is not set up. Create the KV namespace and add ' +
+    'the EXPENSES binding to wrangler.jsonc — see the README.';
+
+  if (wantsJson(request)) return json({ error: message }, 500);
+  return page('Not configured', notice('Receipts are not set up yet.', esc(message)),
+    { styles: EXPENSE_STYLES, status: 500 });
+}
+
+/**
+ * Which year's book to open. Anything unparseable falls back to this one rather
+ * than erroring — a hand-edited URL should show a page, not a stack trace.
+ */
+function cleanYear(value, now = new Date()) {
+  const current = now.getUTCFullYear();
+  const asked = Number(String(value || '').trim());
+  if (!Number.isInteger(asked) || asked < 2024 || asked > current + 1) return String(current);
+  return String(asked);
+}
+
+async function handleExpensesPage(request, env, url) {
+  if (request.method !== 'GET') return json({ error: 'Use GET.' }, 405);
+
+  const year = cleanYear(url.searchParams.get('year'));
+  const records = await listExpenses(env);
+  const sums = totals(forYear(records, year));
+
+  return page('Receipts', renderExpensesPage(records, {
+    year,
+    years: yearsPresent(records),
+    sums,
+    railCounts: { toCheck: records.filter((r) => !r.checked).length },
+  }), { styles: EXPENSE_STYLES, script: EXPENSES_SCRIPT });
+}
+
+async function handleExpensesCsv(request, env, url) {
+  if (request.method !== 'GET') return json({ error: 'Use GET.' }, 405);
+
+  const year = cleanYear(url.searchParams.get('year'));
+  const records = await listExpenses(env);
+  const csv = expensesCsv(forYear(records, year));
+
+  return new Response(csv, {
+    headers: {
+      'content-type': 'text/csv; charset=utf-8',
+      'content-disposition': `attachment; filename="rawhide-expenses-${year}.csv"`,
+      'cache-control': 'no-store',
+    },
+  });
+}
+
+async function handleExpenseReport(request, env, url) {
+  if (request.method !== 'GET') return json({ error: 'Use GET.' }, 405);
+
+  const year = cleanYear(url.searchParams.get('year'));
+  const images = url.searchParams.get('images') === '1';
+  const records = await listExpenses(env);
+  const sums = totals(forYear(records, year));
+
+  // Deliberately touches nothing but KV.
+  //
+  // An earlier version put the year's sales on this page beside the spending,
+  // read from Snipcart. It cost a walk of the entire order history to render
+  // one row, and it made the one document with a deadline on it depend on the
+  // store API being up and the key being current — which is exactly the thing
+  // that will have quietly expired by the time anyone opens this in January.
+  // The packet is a receipt summary. Sales come off the store's own reports.
+  return page(`Expenses ${year}`, renderExpenseReport(records, { year, sums, images }),
+    { styles: REPORT_STYLES });
+}
+
+async function handleReceiptUpload(request, env) {
+  if (!fromDashboard(request)) return json({ error: 'Bad request.' }, 403);
+
+  const stored = await storeUpload(request, env);
+  if (stored.error) return json({ error: stored.error }, stored.status || 400);
+
+  const record = buildExpense(stored);
+  await putExpense(env, record);
+
+  return json({ ok: true, record });
+}
+
+async function handleExpenseSave(request, env) {
+  if (!fromDashboard(request)) return json({ error: 'Bad request.' }, 403);
+
+  const body = await request.json().catch(() => ({}));
+  const id = String(body.id || '');
+  if (!isExpenseId(id)) return json({ error: 'Bad receipt id.' }, 400);
+
+  const record = await getExpense(env, id);
+  if (!record) return json({ error: 'No receipt with that id.' }, 404);
+
+  let updated;
+  try {
+    updated = applyEdit(record, body);
+  } catch (err) {
+    // The shop's typo, not a server fault — 400 so the row shows the message.
+    if (err instanceof ExpenseError) return json({ error: err.message }, 400);
+    throw err;
+  }
+
+  await putExpense(env, updated);
+  return json({ ok: true, record: updated });
+}
+
+async function handleExpenseDelete(request, env) {
+  if (!fromDashboard(request)) return json({ error: 'Bad request.' }, 403);
+
+  const body = await request.json().catch(() => ({}));
+  const id = String(body.id || '');
+  if (!isExpenseId(id)) return json({ error: 'Bad receipt id.' }, 400);
+
+  const record = await deleteExpense(env, id);
+  if (!record) return json({ error: 'No receipt with that id.' }, 404);
+
+  // The row is already gone from KV. A photo left behind in R2 is untidy; a
+  // row pointing at a photo that isn't there is a broken page, so the file goes
+  // second and its failure doesn't undo the delete.
+  if (record.key) {
+    await deleteReceipt(env, record.key).catch((err) =>
+      console.error('receipt file not deleted', record.key, err?.message || err));
+  }
+
+  return json({ ok: true, id });
 }
 
 /* ------------------------------------------------------------ packing slip */

@@ -174,11 +174,16 @@ function topProducts(orders) {
 
 /* --------------------------------------------------------------- rendering */
 
-export function renderDashboard(stats, { truncated, quotes = [] } = {}) {
+export function renderDashboard(stats, { truncated, quotes = [], toCheck = 0 } = {}) {
   const rangeLabel = rangeInfo(stats.rangeKey).label;
 
   return `<div class="shell">
-  ${renderRail(stats, quotes)}
+  ${renderRail({
+    queueCount: stats.queue.length,
+    openQuotes: quotes.filter((q) => quoteStatus(q, stats.orders) === 'open').length,
+    toCheck,
+    active: 'orders',
+  })}
   <main class="main">
     ${renderTopbar(stats, rangeLabel)}
     <div class="pad">
@@ -198,13 +203,21 @@ export function renderDashboard(stats, { truncated, quotes = [] } = {}) {
 <div class="toast" id="toast" role="status" aria-live="polite"></div>`;
 }
 
-function renderRail(stats, quotes = []) {
-  const link = (href, label, badge) =>
-    `<a href="${href}">${esc(label)}${
+/**
+ * The nav, shared by every page behind the login. Exported because the receipts
+ * page draws the same one — two rails that drift apart is how a dashboard grows
+ * a page nobody can find their way back from.
+ *
+ * The order links are in-page anchors on the dashboard itself and full paths
+ * from anywhere else, so they work from both.
+ */
+export function renderRail({ queueCount = 0, openQuotes = 0, toCheck = 0, active = 'orders' } = {}) {
+  const link = (href, label, badge, key = 'orders') =>
+    `<a href="${href}"${key === active ? ' class="on" aria-current="page"' : ''}>${esc(label)}${
       badge ? `<span class="railbadge">${esc(String(badge))}</span>` : ''
     }</a>`;
 
-  const openQuotes = quotes.filter((q) => quoteStatus(q, stats.orders) === 'open').length;
+  const base = active === 'orders' ? '' : '/dashboard';
 
   return `<aside class="rail">
     <div class="railtop">
@@ -212,11 +225,12 @@ function renderRail(stats, quotes = []) {
       <p class="railname">Rawhide City<br>Leather</p>
     </div>
     <nav class="railnav">
-      ${link('#overview', 'Overview')}
-      ${link('#queue', 'Ship queue', stats.queue.length || null)}
-      ${link('#tracking', 'Add tracking')}
-      ${link('#quotes', 'Quotes', openQuotes || null)}
-      ${link('#orders', 'All orders')}
+      ${link(base + '#overview', 'Overview')}
+      ${link(base + '#queue', 'Ship queue', queueCount || null)}
+      ${link(base + '#tracking', 'Add tracking')}
+      ${link(base + '#quotes', 'Quotes', openQuotes || null)}
+      ${link(base + '#orders', 'All orders')}
+      ${link('/dashboard/expenses', 'Receipts', toCheck || null, 'expenses')}
     </nav>
     <div class="railfoot">
       <a href="${PIRATE_SHIP_URL}" target="_blank" rel="noopener noreferrer">Pirate Ship &nearr;</a>
@@ -1175,6 +1189,7 @@ a{color:inherit}
   font-family:var(--display);text-transform:uppercase;letter-spacing:.13em;font-size:11.5px;
   color:rgba(235,232,225,.72);text-decoration:none}
 .railnav a:hover{background:var(--ink-2);color:#fff}
+.railnav a.on{background:var(--ink-2);color:#fff;box-shadow:inset 2px 0 0 #EBE8E1}
 .railbadge{margin-left:auto;background:#EBE8E1;color:var(--ink);border-radius:9px;
   padding:1px 7px;font-size:10.5px;letter-spacing:.04em;font-weight:700}
 .railfoot{margin-top:auto;padding:16px 22px 20px;display:flex;flex-direction:column;gap:9px;

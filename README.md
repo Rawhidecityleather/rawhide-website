@@ -432,6 +432,93 @@ Aug 17 2026 and already wired into `wrangler.jsonc`. That record is what stops
 the hourly cron mailing the same person every hour for a week — if you ever
 recreate the namespace, every cart in the window looks new again.
 
+## Receipts and the year-end expense report
+
+`/dashboard/expenses` — photograph a receipt, it gets read, filed and totalled,
+and in January one page prints to PDF for the accountant.
+
+Each receipt is one row. The photo goes to R2, the row goes to KV, and a vision
+model reads the vendor, date, total and sales tax off the picture so the row
+arrives mostly filled in. **Nothing it reads is trusted.** Every row lands
+unchecked, in a tinted colour, and stays that way until you tick *Check* — which
+the page refuses to let you do until the row has a date, a vendor and an amount.
+The report says out loud how many are still unchecked, on the page you'd be
+handing over.
+
+### One-time setup
+
+Already done — both were created on 2026-08-18 and their ids are in
+`wrangler.jsonc`. Recorded here for the day it has to be rebuilt:
+
+```bash
+npx wrangler kv namespace create EXPENSES
+npx wrangler r2 bucket create rawhide-receipts
+```
+
+The `AI` binding needs nothing created. Without it — or if the model is down,
+or the file is a PDF — the upload still stores and the row comes back blank to
+type in. That is the designed fallback, not a failure.
+
+### What it accepts
+
+PNG, JPG, WEBP, GIF, HEIC and PDF, up to 10 MB, same first-bytes type check as
+the artwork uploads and the same reason SVG isn't on the list. Only PNG, JPG,
+WEBP and GIF get read by the model; HEIC and PDF are stored and left for you.
+
+Receipts are private the same way artwork is: `/receipt/<key>` sits behind the
+dashboard login, and the keys are random.
+
+### The buckets
+
+Fourteen of them — leather, hardware, tools, shipping, packaging, advertising,
+software, fees, shop supplies, vehicle, travel, meals, dues, and *Other — ask
+the CPA*. They are the shop's own buckets, picked because they match how the
+money actually leaves. **They are not tax categories.** Which Schedule C line
+each one belongs on is the accountant's call, and the report says so on its
+face. To add one, edit `CATEGORIES` in `worker/expenses.js`; the `match` pattern
+beside each is only used to guess from a vendor name when the model doesn't name
+one, so a rough pattern is fine.
+
+### What the accountant gets
+
+Two things, both off the year's chip at the top of the page:
+
+- **CPA report** — a printable page: totals by bucket with each one's share,
+  totals by month, then every receipt line by line. Print to PDF from the
+  browser and send it. `With receipt images` appends the photos themselves, so
+  the summary and the proof travel as one file — you have to be logged in for
+  those to load, which you are.
+- **CSV** — the same rows for a spreadsheet. Vendor names starting with `=`,
+  `+`, `-` or `@` are prefixed with an apostrophe, because Excel treats those as
+  formulas and this file gets opened on somebody else's machine.
+
+**The report is spending only.** It carries no sales figure and is not a profit
+and loss. An earlier version put the year's revenue on it, read from Snipcart —
+it cost a walk of the whole order history to draw one row, and it tied the one
+document with a deadline on it to the store API being up and the key being
+current. Sales come off the store's own reports. Don't wire it back.
+
+Nothing here is tax advice, and the page doesn't pretend otherwise. It gets the
+receipts in one place with the totals already done.
+
+### Undated receipts
+
+A receipt with no date belongs to no year, so it would vanish from every year
+page — which is the one thing that must never happen to a receipt nobody has
+finished. They ride along with whatever year you're looking at, sort to the top,
+and are counted separately so they can't be mistaken for filed spending.
+
+### Deleting one
+
+The `×` on a row drops the record and its photo together. There's no undo. To
+remove a stray file by hand:
+
+```bash
+npx wrangler r2 object delete "rawhide-receipts/<key>.jpg" --remote
+```
+
+`--remote` is not optional here either — see the artwork section above.
+
 ## Tests
 
 **Run these before deploying anything in `worker/`.**
@@ -451,6 +538,7 @@ node worker/tests/run.mjs slip
 |---|---|
 | `quote` | pricing and the gross-up, validation, tax exemption, certificate warnings, status, the page Snipcart's crawler reads, HTML escaping |
 | `slip` | packing slip rendering with and without a quote attached |
+| `expenses` | the ledger: categories, edits and what blocks checking a row off, KV round-trip, year and undated handling, totals, the CSV including Excel formula injection, both pages' HTML escaping, and every way reading a receipt can fail |
 | `worker` | routes through the real fetch handler — auth, the quote API, the public quote page, voiding, the webhook |
 
 `worker` swaps in a KV shim and a stub asset router, so it needs neither
