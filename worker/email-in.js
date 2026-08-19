@@ -257,7 +257,7 @@ async function fileBody(env, parsed, allowed) {
  * Everything on the wire, as a binary string. Returns null past the cap rather
  * than a truncated message — see MAX_EMAIL_BYTES.
  */
-async function readRaw(message, limit) {
+export async function readRaw(message, limit) {
   if (Number(message.rawSize) > limit) return null;
 
   const reader = message.raw.getReader();

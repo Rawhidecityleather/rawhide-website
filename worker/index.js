@@ -32,6 +32,8 @@
  * Email
  *   the private filing address — a forwarded receipt becomes a row on the
  *   expenses page. See worker/email-in.js.
+ *   TRACKING_INBOX — Pirate Ship's BCC on a tracking email ships the order it
+ *   belongs to. See worker/tracking-in.js.
  *
  * Cron
  *   hourly — abandoned cart recovery, step 3. See worker/recovery.js.
@@ -82,7 +84,8 @@ import {
   renderExpensesPage, renderExpenseReport, EXPENSE_STYLES, REPORT_STYLES,
   EXPENSES_SCRIPT,
 } from './expenses.js';
-import { handleEmail } from './email-in.js';
+import { handleEmail, readRaw, MAX_EMAIL_BYTES } from './email-in.js';
+import { isTrackingAddress, handleTrackingEmail } from './tracking-in.js';
 
 export default {
   /**
@@ -94,6 +97,31 @@ export default {
    * sender, and a receipt the shop forwarded is not something to bounce.
    */
   async email(message, env) {
+    // Two addresses arrive on one handler. The tracking inbox is Pirate Ship's
+    // BCC on every label it emails out, and it must not reach the receipt path
+    // — a tracking email filed as a receipt books postage the shop never paid.
+    if (isTrackingAddress(message, env)) {
+      let report = { shipped: false, why: 'crashed' };
+      try {
+        report = await handleTrackingEmail(message, env, readRaw, MAX_EMAIL_BYTES);
+      } catch (err) {
+        console.error('tracking email failed', err?.message || err);
+      }
+
+      // Forwarded whatever happened, so an unmatched shipment is still
+      // something the shop sees and can ship by hand from the paste box.
+      if (env.RECEIPT_FORWARD_TO) {
+        try {
+          await message.forward(env.RECEIPT_FORWARD_TO);
+        } catch (err) {
+          console.error('tracking email not forwarded', err?.message || err);
+        }
+      }
+
+      console.log('tracking email', JSON.stringify(report));
+      return;
+    }
+
     await handleEmail(message, env);
   },
 

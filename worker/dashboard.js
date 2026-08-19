@@ -15,7 +15,12 @@ import {
   isCancelled, isShipped, needsShipping, netRevenue, grandTotal,
   countsAsSale, refundState,
 } from './snipcart.js';
-import { orderWeightOunces, PIRATE_SHIP_URL } from './pirateship.js';
+import {
+  orderWeightOunces,
+  pirateShipAddressBlock,
+  PIRATE_SHIP_URL,
+  PIRATE_SHIP_SINGLE_URL,
+} from './pirateship.js';
 import {
   quoteStatus, quoteWarnings, findQuoteOrder, quotePayment, quoteGrandTotal, CHECKOUT_DISCOUNT,
 } from './quote.js';
@@ -428,6 +433,15 @@ function renderProducts(products, rangeLabel) {
   </section>`;
 }
 
+/**
+ * An attribute value that carries line breaks — the Pirate Ship address block.
+ * esc() leaves a newline raw, which the parser does keep, but only as a
+ * courtesy; the entity is what actually says "this is a line break".
+ */
+function attr(value) {
+  return esc(value).replace(/\r?\n/g, '&#10;');
+}
+
 function renderQueue(queue) {
   if (!queue.length) {
     return `<section id="queue" class="card">
@@ -442,7 +456,7 @@ function renderQueue(queue) {
       .map((i) => `${i.quantity || 1}&times; ${esc(i.name || '')}`)
       .join('<br>');
 
-    return `<tr data-token="${esc(order.token)}">
+    return `<tr data-token="${esc(order.token)}" data-address="${attr(pirateShipAddressBlock(order))}">
       <td class="pick"><input type="checkbox" class="sel" value="${esc(order.token)}"
         aria-label="Select order ${esc(order.invoiceNumber || order.token)}"></td>
       <td class="c-order"><a class="mono" href="/packing-slip?token=${esc(order.token)}">${esc(order.invoiceNumber || order.token)}</a></td>
@@ -454,6 +468,7 @@ function renderQueue(queue) {
       <td class="c-weight num soft nowrap" data-label="Weight">${esc(String(orderWeightOunces(order)))} oz</td>
       <td class="c-total num strong" data-label="Total">${esc(money(grandTotal(order), order.currency))}</td>
       <td class="shipcell">
+        <button type="button" class="btn tiny label">Buy label &nearr;</button>
         <form class="shipform">
           <input type="text" name="tracking" placeholder="Tracking number"
             autocomplete="off" spellcheck="false" inputmode="numeric">
@@ -478,9 +493,15 @@ function renderQueue(queue) {
       <a class="btn ghost" href="${PIRATE_SHIP_URL}" target="_blank" rel="noopener noreferrer">Open Pirate Ship &nearr;</a>
     </div>
     <p class="hint">
-      Pick the orders, download the CSV, then upload it on Pirate Ship's spreadsheet
-      screen to batch the labels. Map the columns once on the first upload. Weights
-      are estimates &mdash; check them against a scale.
+      <strong>One order:</strong> hit <em>Buy label</em> on its row. That copies the
+      address and opens Pirate Ship &mdash; press Ctrl+V there and the Ship To block
+      fills itself in. Leave the customer's email on the label: that is what sends
+      the tracking number back here on its own.
+      <br>
+      <strong>A batch:</strong> tick the orders, download the CSV, and upload it on
+      Pirate Ship's spreadsheet screen. Map the columns once, on the first upload.
+      <br>
+      Weights are estimates &mdash; check them against a scale.
     </p>
 
     <div class="scroll">
@@ -523,6 +544,9 @@ function renderTrackingPanel() {
       Paste Pirate Ship's shipment list straight in &mdash; or type one order and
       tracking number per line. Each match gets its tracking number saved, flips to
       <strong>Shipped</strong>, and Snipcart sends the customer the tracking email.
+      <br>
+      With the tracking BCC set up, labels report themselves back and nothing needs
+      pasting here. This is the fallback for the ones that don't match.
     </p>
     <textarea id="pastebox" rows="6" spellcheck="false"
       placeholder="1042, 9400111899223197428374&#10;1043, 9400111899223197428381"></textarea>
@@ -927,6 +951,54 @@ export const DASHBOARD_SCRIPT = `
     }).then(function(){
       csvBtn.textContent = label;
       syncSelection();
+    });
+  });
+
+  /* ---- one order, straight to a Pirate Ship label ---- */
+
+  /*
+   * Pirate Ship takes no order in the URL, so the address rides the clipboard.
+   * Their single-label screen opens its paste field on Ctrl+V, so this is one
+   * click here and one paste there.
+   *
+   * The copy has to be fired and the tab opened in the same click, without an
+   * await in between, or the browser stops treating the open as user-initiated
+   * and blocks it as a popup.
+   */
+  function copyText(text){
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text);
+    }
+    return new Promise(function(resolve, reject){
+      var box = document.createElement('textarea');
+      box.value = text;
+      box.setAttribute('readonly', '');
+      box.style.position = 'fixed';
+      box.style.opacity = '0';
+      document.body.appendChild(box);
+      box.select();
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (err) { ok = false; }
+      box.remove();
+      ok ? resolve() : reject(new Error('Copy blocked'));
+    });
+  }
+
+  document.addEventListener('click', function(event){
+    var btn = event.target.closest('.btn.label');
+    if (!btn) return;
+
+    var row = btn.closest('tr');
+    var address = row && row.getAttribute('data-address');
+    if (!address) { toast('No shipping address on that order.', true); return; }
+
+    var copied = copyText(address);
+    window.open(${JSON.stringify(PIRATE_SHIP_SINGLE_URL)}, '_blank', 'noopener');
+
+    copied.then(function(){
+      toast('Address copied. Press Ctrl+V on Pirate Ship.');
+    }).catch(function(){
+      toast('Could not reach the clipboard — copy the address by hand.', true);
     });
   });
 
@@ -1502,6 +1574,7 @@ table.mini tr:last-child td{border-bottom:0}
 .allbox input{width:15px;height:15px;accent-color:#0F0F0F;cursor:pointer}
 .selcount{font-size:11.5px;color:var(--soft);font-variant-numeric:tabular-nums}
 .shipcell{min-width:13rem}
+.btn.label{width:100%;margin-bottom:6px;white-space:nowrap}
 .shipform{display:flex;gap:6px}
 .shipform input{flex:1;min-width:8rem;font-family:ui-monospace,'Consolas',monospace;font-size:12px;
   padding:6px 8px;border:1px solid var(--line-2);border-radius:2px;background:var(--paper);color:var(--ink)}

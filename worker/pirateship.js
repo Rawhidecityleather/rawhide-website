@@ -121,6 +121,21 @@ const TRACKING_PATTERNS = [
 ];
 
 /**
+ * The first carrier tracking number in a block of text, or ''.
+ *
+ * Shared by the paste box and by the tracking emails Pirate Ship BCCs back, so
+ * both agree on what counts as a tracking number in the first place.
+ */
+export function findTrackingNumber(text) {
+  const line = String(text || '');
+  for (const pattern of TRACKING_PATTERNS) {
+    const hit = line.match(pattern);
+    if (hit) return hit[1].toUpperCase();
+  }
+  return '';
+}
+
+/**
  * Pulls order/tracking pairs out of whatever got pasted in — Pirate Ship's
  * shipment CSV, a spreadsheet selection, or hand-typed "1042 9400..." lines.
  * Header rows fall out on their own because they hold no tracking number.
@@ -137,11 +152,7 @@ export function parseTrackingPaste(text, orders) {
     const line = rawLine.trim();
     if (!line) continue;
 
-    let trackingNumber = '';
-    for (const pattern of TRACKING_PATTERNS) {
-      const hit = line.match(pattern);
-      if (hit) { trackingNumber = hit[1].toUpperCase(); break; }
-    }
+    const trackingNumber = findTrackingNumber(line);
     if (!trackingNumber) continue;
 
     // Everything that isn't the tracking number is a candidate order reference.
@@ -193,4 +204,51 @@ function findOrder(text, orders) {
     const name = String(a.fullName || a.name || '').trim().toLowerCase();
     return name.length > 3 && haystack.includes(name);
   });
+}
+
+/* -------------------------------------------------------- single label handoff */
+
+/**
+ * Pirate Ship's "Create a Single Label" screen.
+ *
+ * There is no way to hand it an order in the URL — no API, no query parameters
+ * — so the address travels on the clipboard instead. The screen opens its paste
+ * field on Ctrl+V, so one paste fills the whole Ship To block.
+ */
+export const PIRATE_SHIP_SINGLE_URL = 'https://ship.pirateship.com/ship/single';
+
+/**
+ * One order as a block of text Pirate Ship's paste field can read.
+ *
+ * Line order is the ordinary way an address is written on an envelope, which
+ * is what their parser expects: name, company, street, street two, then the
+ * city/state/zip line. Country only appears when it isn't a domestic order —
+ * a "United States" line on a US address reads as a fourth street line to
+ * some parsers and pushes the zip out of place.
+ *
+ * The email is on the end and it is not decoration: Pirate Ship only sends its
+ * tracking email — the message the shop BCCs back to /dashboard to close the
+ * loop automatically — when the label carries the customer's address. A label
+ * bought without it ships fine and reports nothing back.
+ */
+export function pirateShipAddressBlock(order) {
+  const a = order.shippingAddress || order.billingAddress || {};
+  const country = String(a.country || 'US').toUpperCase();
+  const domestic = country === 'US' || country === 'USA';
+
+  const cityLine = [
+    [a.city, a.province].filter(Boolean).join(', '),
+    a.postalCode,
+  ].filter(Boolean).join(' ');
+
+  return [
+    a.fullName || a.name || '',
+    a.company || '',
+    a.address1 || '',
+    a.address2 || '',
+    cityLine,
+    domestic ? '' : country,
+    order.email || '',
+    a.phone || '',
+  ].map((line) => String(line).trim()).filter(Boolean).join('\n');
 }

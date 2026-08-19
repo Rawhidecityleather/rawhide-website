@@ -182,8 +182,24 @@ of last month, not against the tail end of it.
 
 ### Shipping through Pirate Ship
 
-Pirate Ship has no API and no Snipcart integration, so labels can't be bought
-from the dashboard. What it does take is an address spreadsheet:
+Pirate Ship has no API, and it takes nothing in a URL, so no link can hand it an
+order. Labels are always bought on their site. What the dashboard does is carry
+the order over, two ways.
+
+**One order — Buy label**
+
+Hit **Buy label** on the order's row in **Ship queue**. That copies the address
+and opens Pirate Ship's single-label screen in a new tab. Press **Ctrl+V** there
+(**Cmd+V** on a Mac) — their paste field opens on its own and fills the whole
+Ship To block. Check it, weigh the package, buy the label.
+
+**Leave the customer's email on the label.** That is the only reason tracking
+comes back here by itself — see below. The pasted block already carries it.
+
+If the browser blocks the clipboard, the dashboard says so and the address is
+still on the row to copy by hand.
+
+**A batch — the spreadsheet**
 
 1. In **Ship queue**, check the orders you're shipping
 2. **Download Pirate Ship CSV**
@@ -211,9 +227,12 @@ overpaying a few cents beats a postage-due package coming back at you.
 
 ### Getting tracking numbers back in
 
-Two ways, and both do the same three things: save the tracking number, flip the
-order to **Shipped**, and let Snipcart email the customer their tracking link.
+Three ways, and all of them do the same three things: save the tracking number,
+flip the order to **Shipped**, and let Snipcart email the customer their
+tracking link.
 
+- **By itself** — Pirate Ship BCCs its tracking email here and the order ships
+  on its own. Nothing to type. Setup is below.
 - **One order** — type the tracking number in its row in the ship queue, hit
   **Ship**.
 - **A whole batch** — paste Pirate Ship's shipment list into **Add tracking in
@@ -223,6 +242,54 @@ order to **Shipped**, and let Snipcart email the customer their tracking link.
 
 USPS and UPS numbers are told apart automatically, so the tracking link in the
 customer's email goes to the right carrier.
+
+#### Tracking that files itself (one time)
+
+Pirate Ship emails the customer a tracking number an hour after a label is
+bought, and that email can be BCC'd. Point the BCC at the Worker and every label
+reports itself back — no paste, no spreadsheet.
+
+It reads the customer's address off the BCC'd copy and matches it to their
+order, so **a label bought without the customer's email reports nothing**. The
+**Buy label** button puts the email in the pasted block for exactly this reason.
+
+Pick an address on the domain with something unguessable in it, the same way the
+receipts address is built — `tracking-<random>@rawhidecityleather.com`. **It is a
+secret, not a line in `wrangler.jsonc`**: this repo is public, and anything
+printed here is an address strangers can mail.
+
+In this order — the routing rule bounces mail if the Worker isn't ready for it:
+
+1. **Set it and deploy.**
+
+   ```
+   npx wrangler secret put TRACKING_INBOX
+   npx wrangler deploy
+   ```
+
+2. **Cloudflare** → Email → Email Routing → Routing rules → **Create address**
+   for that same address, action **Send to a Worker**, pick this Worker.
+
+3. **Pirate Ship** → Settings → Tracking Emails → **Edit Template** → put it in
+   the **BCC** field → save.
+
+Leave `TRACKING_INBOX` unset and the feature is simply off — mail to the Worker
+all goes down the receipts path, exactly as before.
+
+Three things have to hold before anything ships: the message has to be addressed
+to that inbox, it has to pass SPF/DKIM/DMARC **as pirateship.com** — a forged
+`From:` gets nowhere — and it has to name an address with an open order.
+Everything else is forwarded to the shop inbox and left alone. Repeat mail from
+the carrier's own scans is ignored, since the number is already on the order.
+
+**The customer gets two emails this way**: Pirate Ship's, and Snipcart's when
+the order flips to Shipped. Turn one off — either raise Pirate Ship's *Default
+Email Delay* out of the way under Settings → Tracking Emails, or switch off
+Snipcart's shipping notification. Pirate Ship's has to keep sending, or nothing
+gets BCC'd and the whole loop stops.
+
+If a tracking email can't be matched, it lands in the shop inbox and the paste
+box in the dashboard is still there. Nothing is lost, it just needs a hand.
 
 ### Register the webhook (one time)
 

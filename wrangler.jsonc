@@ -53,9 +53,25 @@
   // The inbound address itself is NOT configured here — there is no wrangler
   // setting for it. It is a routing rule in the Cloudflare dashboard:
   // Email > Email Routing > Routing rules > Send to a Worker.
+  //
+  // Tracking back from Pirate Ship. See worker/tracking-in.js.
+  //
+  // TRACKING_SENDERS — who may report a shipment. Defaults to @pirateship.com
+  //                    when unset; written out so it is visible in the repo.
+  //                    Not a secret: it is a public domain, not an address of
+  //                    ours, and knowing it gets you nothing — a message still
+  //                    has to pass DMARC as pirateship.com to ship anything.
+  //
+  // TRACKING_INBOX is deliberately NOT here. This repo is public, and that one
+  // is a private address of ours: printing it invites mail to a box that
+  // forwards everything to the shop inbox. It is a secret instead —
+  //   wrangler secret put TRACKING_INBOX
+  // — and, like the receipts address, it also needs a routing rule in the
+  // Cloudflare dashboard, which no wrangler setting can create.
   "vars": {
     "RECEIPT_SENDERS": "rawhidecityleather@gmail.com,rcon8919@gmail.com",
-    "RECEIPT_FORWARD_TO": "rawhidecityleather@gmail.com"
+    "RECEIPT_FORWARD_TO": "rawhidecityleather@gmail.com",
+    "TRACKING_SENDERS": "@pirateship.com"
   },
   // QUOTES  — custom-build quotes. Created 2026-08-06 with
   //             wrangler kv namespace create QUOTES
