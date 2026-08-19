@@ -12,7 +12,7 @@
 import { suite, check } from './harness.mjs';
 import {
   handleEmail, allowedSenders, senderAllowed, authPassed, pickAttachments,
-  senderVendor, withFallbacks, emailDate, MAX_EMAIL_BYTES,
+  senderVendor, withFallbacks, emailDate, looksForwarded, MAX_EMAIL_BYTES,
 } from '../email-in.js';
 
 const SHOP = 'rawhidecityleather@gmail.com';
@@ -244,6 +244,18 @@ export default async function run() {
   check('an attachment never takes the date off the email it rode in on',
     noDate.date === '');
 
+  check('a Fwd: subject is a forward', looksForwarded('Fwd: Order #952287 confirmed', ''));
+  check('so is Fw:', looksForwarded('Fw: Order #952287 confirmed', ''));
+  check('and FWD: shouted', looksForwarded('FWD: receipt', ''));
+  check('a forwarded-message separator in the body counts too',
+    looksForwarded('Order #952287 confirmed', 'x\n----- Forwarded Message -----\nFrom: LightBurn'));
+  check('so does the Apple Mail wording',
+    looksForwarded('receipt', 'Begin forwarded message:\nFrom: LightBurn'));
+  check('a reply is not a forward', looksForwarded('Re: your order', 'thanks') === false);
+  check('a vendor receipt is not a forward',
+    looksForwarded('Your Meta ads receipt', 'Amount billed $114.02') === false);
+  check('nothing at all is not a forward', looksForwarded('', '') === false);
+
   suite('receipts by email — filing a PDF invoice');
 
   const env = fakeEnv();
@@ -287,6 +299,55 @@ export default async function run() {
   check('the reader was given the flattened text, not the markup',
     htmlEnv.AI.calls[0].messages[1].content.includes('Amount billed $114.02'));
   check('this row too lands unchecked', htmlRow.checked === false);
+
+  // The first real receipt through this in production: a LightBurn order from
+  // May, forwarded on in May, forwarded again to the filing address in August.
+  // It filed under August. The send date belongs to the forward, not the
+  // purchase, and no fallback is better than a wrong month.
+  const forwardBody = (subject, separator) => wire(
+    `From: Rob <${SHOP}>\n` +
+    'To: receipts-k7f2q9@rawhidecityleather.com\n' +
+    `Subject: ${subject}\n` +
+    'Date: Wed, 19 Aug 2026 18:03:00 +0000\n' +
+    'Content-Type: text/html; charset="utf-8"\n' +
+    '\n' +
+    `<html><body>${separator}<p>From: "LightBurn Software"</p>` +
+    '<p>Sent: Mon, May 25, 2026 at 2:19 PM</p>' +
+    '<table><tr><td>Order summary</td></tr>' +
+    '<tr><td>Upgrade LightBurn Core to LightBurn Pro</td><td>$100.00</td></tr>' +
+    '<tr><td>Total</td><td>$100.00 USD</td></tr></table></body></html>'
+  );
+
+  const undatedEnv = fakeEnv({
+    AI: fakeAI('{"vendor":"LightBurn Software","total":100,"category":"software","summary":"LightBurn Core to LightBurn Pro upgrade"}'),
+  });
+  const undatedReport = await handleEmail(
+    fakeMessage(forwardBody('Fw: Order #952287 confirmed', ''), { headers: PASS }), undatedEnv);
+  const [undatedRow] = undatedEnv.EXPENSES.records();
+
+  check('a forwarded receipt still files', undatedReport.filed === 1);
+  check('with the vendor and total read off it',
+    undatedRow.vendor === 'LightBurn Software' && undatedRow.amount === 100);
+  check('but NOT the day it was forwarded', undatedRow.date === '');
+  check('so it sorts to the top of the ledger as unfinished',
+    undatedRow.date === '' && undatedRow.checked === false);
+
+  const separatorEnv = fakeEnv({
+    AI: fakeAI('{"vendor":"LightBurn Software","total":100,"category":"software"}'),
+  });
+  await handleEmail(fakeMessage(
+    forwardBody('Order #952287 confirmed', '----- Forwarded Message -----'),
+    { headers: PASS }), separatorEnv);
+  check('a forward with an ordinary subject is caught by the body separator',
+    separatorEnv.EXPENSES.records()[0].date === '');
+
+  const directEnv = fakeEnv({
+    AI: fakeAI('{"vendor":"LightBurn Software","total":100,"category":"software"}'),
+  });
+  await handleEmail(fakeMessage(
+    forwardBody('Order #952287 confirmed', ''), { headers: PASS }), directEnv);
+  check('a receipt that is not a forward still takes the send date',
+    directEnv.EXPENSES.records()[0].date === '2026-08-19');
 
   suite('receipts by email — what it refuses');
 

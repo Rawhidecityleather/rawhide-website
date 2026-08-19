@@ -157,12 +157,30 @@ export function senderVendor(parsed, allowed) {
 }
 
 /**
+ * Whether this message is a forward rather than the receipt's own delivery.
+ *
+ * The distinction decides whether the send date can stand in for a purchase
+ * date. A vendor billing this address sent the receipt the day it was written;
+ * a forward was sent whenever the shop got round to it, which may be months
+ * later. The first real receipt through here was a LightBurn order from May,
+ * forwarded in August, and it filed under August — the trap this closes.
+ */
+export function looksForwarded(subject, text) {
+  if (/^\s*(fwd?|tr|wg|rv)\s*:/i.test(String(subject || ''))) return true;
+  return /-{2,}\s*forwarded message|begin forwarded message/i.test(String(text || ''));
+}
+
+/**
  * Fills the gaps the reader left, from what the email itself says.
  *
- * `useDate` is only true for a receipt that *is* the email. On an attachment
- * the date is printed on the document, and the day it was forwarded says
- * nothing about when the thing was bought — a receipt forwarded out of a
- * three-week-old thread would file into the wrong month, quietly.
+ * `useDate` is only true for a receipt that arrived under its own steam and
+ * has no date the reader could find. On an attachment, or on anything
+ * forwarded, the date is printed on the document instead, and the day the
+ * message was sent says nothing about when the thing was bought.
+ *
+ * Left blank rather than guessed. An undated row sorts to the top of the
+ * ledger and stays there until somebody fills it in, which is the whole point
+ * — a blank waiting to be filled beats a wrong date that looks finished.
  */
 export function withFallbacks(draft, parsed, { allowed = [], useDate = false } = {}) {
   const next = { ...draft };
@@ -223,7 +241,10 @@ async function fileBody(env, parsed, allowed) {
   const record = buildExpense({
     key: stored.key,
     file: stored.file,
-    draft: withFallbacks(draft, parsed, { allowed, useDate: true }),
+    draft: withFallbacks(draft, parsed, {
+      allowed,
+      useDate: !looksForwarded(parsed.subject, text),
+    }),
   });
 
   await putExpense(env, record);

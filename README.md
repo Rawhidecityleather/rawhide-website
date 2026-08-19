@@ -512,10 +512,18 @@ Rows land unchecked exactly like uploads. A model reading a marketplace's HTML
 table is a suggestion, never a number in the year-end report.
 
 Two things the reader can't know are filled in from the message itself: with no
-vendor read, the sender's name or domain, and for a body-only receipt with no
-date read, the day it was sent. Neither is applied to an attachment's date —
-that is printed on the document, and a receipt forwarded out of a three-week-old
-thread would file into the wrong month.
+vendor read, the sender's name or domain, and with no date read, the day the
+message was sent.
+
+**The date fallback only applies to a receipt that arrived under its own steam.**
+Not to an attachment — the date is printed on the document — and not to anything
+that looks forwarded, meaning a `Fw:`/`Fwd:` subject or a forwarded-message
+separator in the body. The first real receipt through this was a LightBurn order
+from May, forwarded on in May, forwarded again to the filing address in August,
+and it filed under August. Now that date is left blank instead. An undated row
+sorts to the top of the ledger and stays there until somebody fills it in, which
+is the point: a blank waiting to be filled beats a wrong date that looks
+finished.
 
 An emailed body shows an `EMAIL` badge in the ledger where a photo would show a
 thumbnail; the printed packet lists those rows alongside the PDFs rather than
