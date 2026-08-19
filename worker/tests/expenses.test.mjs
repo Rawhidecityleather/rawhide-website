@@ -306,12 +306,86 @@ export default async function run() {
   }, bytes, 'jpg');
   check('an unreadable receipt is not a crash', rambled.read === false);
 
-  const pdf = await extract({ AI: { async run() { throw new Error('never called'); } } }, bytes, 'pdf');
-  check('a PDF is stored without being sent to the model', pdf.read === false);
-  check('a PDF says why', pdf.why.includes('pdf'));
+  const heic = await extract({ AI: { async run() { throw new Error('never called'); } } }, bytes, 'heic');
+  check('a HEIC is stored without being sent to the model', heic.read === false);
+  check('a HEIC says why', heic.why.includes('heic'));
 
   const noBinding = await extract({}, bytes, 'jpg');
   check('no AI binding is a blank row, not an error', noBinding.read === false);
+
+  /* ------------------------------------------------------------ PDF invoices */
+  suite('receipts — PDF invoices');
+
+  // Ads, hosting and software all bill this shop as a PDF with a real text
+  // layer. Those used to come back blank because the vision endpoint cannot
+  // decode a PDF at all — they get their text pulled out and read as text.
+  function pdfEnv({ markdown, reply, onRun } = {}) {
+    return {
+      AI: {
+        async toMarkdown(doc) {
+          if (!doc || !doc.blob) throw new Error('expected a blob');
+          return markdown;
+        },
+        async run(model, input) {
+          if (onRun) onRun(input);
+          return { response: reply };
+        },
+      },
+    };
+  }
+
+  const invoice = await extract(pdfEnv({
+    markdown: { format: 'markdown', data: `Meta Platforms, Inc.
+Invoice date 2026-08-01
+Amount billed $114.27` },
+    reply: '{"vendor":"Meta Platforms","date":"2026-08-01","total":114.27,"category":"advertising"}',
+  }), bytes, 'pdf');
+  check('a PDF invoice is read now, not skipped', invoice.read === true);
+  check('the vendor comes off the invoice', invoice.vendor === 'Meta Platforms');
+  check('the total comes off the invoice', invoice.amount === 114.27);
+  check('the ad invoice lands in advertising', invoice.category === 'advertising');
+
+  let sentText = '';
+  await extract(pdfEnv({
+    markdown: { format: 'markdown', data: 'x'.repeat(40000) },
+    reply: '{"vendor":"Long"}',
+    onRun: (input) => { sentText = input.messages[input.messages.length - 1].content; },
+  }), bytes, 'pdf');
+  check('a long invoice is trimmed before it is sent', sentText.length < 12000);
+  check('no image is attached on the PDF path', !/image/.test(Object.keys({}).join()));
+
+  const scanned = await extract(pdfEnv({
+    markdown: { format: 'markdown', data: '   ' },
+    reply: '{"vendor":"nope"}',
+  }), bytes, 'pdf');
+  check('a scanned PDF with no text layer is a clean miss', scanned.read === false);
+  check('and it says to type that one in', scanned.why.includes('type it in'));
+
+  const brokenPdf = await extract(pdfEnv({
+    markdown: { format: 'error', error: 'could not parse' },
+    reply: '{}',
+  }), bytes, 'pdf');
+  check('a PDF the converter rejects does not throw', brokenPdf.read === false);
+
+  const listResult = await extract(pdfEnv({
+    markdown: [{ format: 'markdown', data: `Uline Shipping Supplies
+Order 4471902
+Total $88.00` }],
+    reply: '{"vendor":"Uline","total":88}',
+  }), bytes, 'pdf');
+  check('an array answer from the converter is handled too', listResult.vendor === 'Uline');
+
+  const oldBinding = await extract({ AI: { async run() { return { response: '{}' }; } } }, bytes, 'pdf');
+  check('an AI binding with no toMarkdown degrades instead of crashing',
+    oldBinding.read === false);
+
+  const convertExploded = await extract({
+    AI: {
+      async toMarkdown() { throw new Error('converter down'); },
+      async run() { return { response: '{}' }; },
+    },
+  }, bytes, 'pdf');
+  check('a converter outage is caught like any other', convertExploded.read === false);
 
   suite('receipts — keys');
   check('a real key is accepted', isReceiptKey('a'.repeat(32) + '.jpg'));

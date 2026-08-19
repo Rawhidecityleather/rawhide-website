@@ -462,8 +462,14 @@ type in. That is the designed fallback, not a failure.
 ### What it accepts
 
 PNG, JPG, WEBP, GIF, HEIC and PDF, up to 10 MB, same first-bytes type check as
-the artwork uploads and the same reason SVG isn't on the list. Only PNG, JPG,
-WEBP and GIF get read by the model; HEIC and PDF are stored and left for you.
+the artwork uploads and the same reason SVG isn't on the list.
+
+There are two ways in. A **photo** goes to the vision model as an image. A
+**PDF** has its text layer pulled out with `AI.toMarkdown()` and is read as
+text — the ad platforms, hosting and software all invoice that way, and reading
+the real text beats reading a picture of it. A scanned PDF has no text layer, so
+nothing comes back; photograph that page instead and it goes down the image path,
+which does work. **HEIC is stored but never read** — nothing here decodes it.
 
 Receipts are private the same way artwork is: `/receipt/<key>` sits behind the
 dashboard login, and the keys are random.

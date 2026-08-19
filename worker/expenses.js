@@ -450,9 +450,10 @@ function renderUpload() {
       <h2>Add receipts</h2>
       <span class="cardnote">JPG, PNG, WEBP, GIF, HEIC or PDF &middot; up to 10 MB each</span>
     </div>
-    <p class="hint">Photograph the receipt and drop it here. The reader fills in the
-      vendor, date and total where it can — check every one of them before it counts.
-      HEIC and PDF files get stored but not read; type those in.</p>
+    <p class="hint">Photograph the receipt and drop it here, or drop in a PDF invoice.
+      The reader fills in the vendor, date and total where it can — check every one of
+      them before it counts. A scanned PDF with no text in it, and any HEIC, gets stored
+      but not read; type those in.</p>
     <label class="drop" id="drop">
       <input type="file" id="files" accept="image/*,application/pdf" multiple capture="environment" hidden>
       <span class="dropmain">Choose files or drag them here</span>

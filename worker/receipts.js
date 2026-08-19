@@ -1,8 +1,10 @@
 /**
  * Receipt capture — the file half of the expense ledger.
  *
- * The shop photographs a receipt on a phone, it lands in R2, and a vision model
- * reads the vendor, date and total off it so the row arrives mostly filled in.
+ * The shop photographs a receipt on a phone, it lands in R2, and a model reads
+ * the vendor, date and total off it so the row arrives mostly filled in. Two
+ * ways in: a photo goes to the vision model as an image, while a PDF invoice
+ * has its text layer pulled out first and is read as text.
  * Nothing here is trusted: every extracted field is a suggestion the shop
  * confirms on the expenses page before the row counts as reviewed. A model that
  * misreads a crumpled thermal receipt costs a correction, never a wrong number
@@ -29,12 +31,16 @@ import { CATEGORIES, guessCategory, isCategory } from './expenses.js';
 /** A phone photo of a receipt, with room for a multi-page PDF invoice. */
 export const MAX_BYTES = 10 * 1024 * 1024;
 
+/** Photographs. These go to the vision model as an image. */
+const READABLE_IMAGES = new Set(['png', 'jpg', 'webp', 'gif']);
+
 /**
- * Only these reach the model. PDF and HEIC are stored and listed like anything
- * else, they just arrive with empty fields — the vision endpoint takes an
- * image, and neither of those is one it can decode.
+ * Documents. A PDF is not a picture of a receipt, it is a receipt with the text
+ * already in it — the ad platforms, the software subscriptions and the tanneries
+ * all invoice this way — so it gets its text pulled out and read as text. Much
+ * more accurate than photographing a screen, when the text layer is there.
  */
-const EXTRACTABLE = new Set(['png', 'jpg', 'webp', 'gif']);
+const READABLE_DOCS = new Set(['pdf']);
 
 /**
  * Past this the base64 payload is bigger than the model will take, and a
@@ -44,14 +50,23 @@ const EXTRACTABLE = new Set(['png', 'jpg', 'webp', 'gif']);
 const EXTRACT_MAX_BYTES = 6 * 1024 * 1024;
 
 /**
- * Vision model doing the reading. Swappable — everything downstream treats the
- * output as untrusted text and re-validates it, so a different model id here
- * changes accuracy and nothing else.
+ * Enough of an invoice to hold the header, the total and the tax line. Past
+ * this is line items, terms and boilerplate, and the numbers we want have
+ * already gone by.
+ */
+const MAX_DOC_CHARS = 8000;
+
+/**
+ * The reader. Swappable — everything downstream treats the output as untrusted
+ * text and re-validates it, so a different model id here changes accuracy and
+ * nothing else.
+ *
+ * One id for both jobs: the same model answers with or without an image
+ * attached, so the PDF path is the identical prompt over extracted text.
  */
 export const MODEL = '@cf/meta/llama-3.2-11b-vision-instruct';
 
-const PROMPT = `You are reading a purchase receipt for a small leather goods shop.
-Return ONLY a JSON object, no explanation, no markdown fence, with these keys:
+const FIELDS = `Return ONLY a JSON object, no explanation, no markdown fence, with these keys:
 "vendor": the store or supplier name as printed, or ""
 "date": the purchase date as YYYY-MM-DD, or ""
 "total": the grand total actually paid, as a number, or null
@@ -59,6 +74,21 @@ Return ONLY a JSON object, no explanation, no markdown fence, with these keys:
 "category": one of ${CATEGORIES.map((c) => c.key).join(', ')}
 "summary": at most 8 words on what was bought
 Use the total paid, not the subtotal. Do not guess a date that is not printed.`;
+
+const PROMPT = `You are reading a purchase receipt for a small leather goods shop.
+${FIELDS}`;
+
+const DOC_PROMPT = `Below is the text of a purchase receipt or invoice for a small
+leather goods shop. ${FIELDS}
+
+The text may be an invoice from an advertising platform, a software subscription
+or a supplier. The vendor is the company charging, not the shop being charged —
+Rawhide City Leather is the customer on every one of these, never the vendor.
+
+RECEIPT TEXT:
+`;
+
+const SYSTEM = 'You extract structured data from receipts. You reply with JSON only.';
 
 export function isReceiptKey(key) {
   return /^[0-9a-f]{32}\.(png|jpg|gif|pdf|webp|heic)$/.test(String(key || ''));
@@ -185,6 +215,12 @@ export function draftFromExtraction(raw) {
   return draft;
 }
 
+const BLANK = { vendor: '', date: '', amount: null, tax: null, category: 'other', summary: '' };
+
+function unread(why) {
+  return { ...BLANK, read: false, why };
+}
+
 /**
  * Reads one receipt. Never throws: extraction is a convenience on top of a
  * stored file, and losing it must not lose the upload.
@@ -193,37 +229,83 @@ export function draftFromExtraction(raw) {
  * numbers were suggested or are waiting to be typed.
  */
 export async function extract(env, bytes, ext) {
-  const blank = { vendor: '', date: '', amount: null, tax: null, category: 'other', summary: '' };
-
-  if (!env.AI) return { ...blank, read: false, why: 'no AI binding' };
-  if (!EXTRACTABLE.has(ext)) return { ...blank, read: false, why: `cannot read a ${ext}` };
-  if (bytes.length > EXTRACT_MAX_BYTES) return { ...blank, read: false, why: 'file too big to read' };
-
-  const mime = ext === 'jpg' ? 'image/jpeg' : `image/${ext}`;
+  if (!env.AI) return unread('no AI binding');
+  if (bytes.length > EXTRACT_MAX_BYTES) return unread('file too big to read');
 
   try {
-    const result = await env.AI.run(MODEL, {
-      messages: [
-        { role: 'system', content: 'You extract structured data from receipt photos. You reply with JSON only.' },
-        { role: 'user', content: PROMPT },
-      ],
-      image: `data:${mime};base64,${toBase64(bytes)}`,
-      // Enough for the object and no room to start narrating.
-      max_tokens: 300,
-      // The number on the receipt is not a creative choice.
-      temperature: 0.1,
-    });
-
-    const parsed = parseExtraction(replyText(result));
-    if (!parsed) return { ...blank, read: false, why: 'could not read the receipt' };
-
-    return { ...draftFromExtraction(parsed), read: true, why: '' };
+    if (READABLE_IMAGES.has(ext)) return await readImage(env, bytes, ext);
+    if (READABLE_DOCS.has(ext)) return await readDocument(env, bytes);
+    return unread(`cannot read a ${ext}`);
   } catch (err) {
     // Model outage, rate limit, oversized payload — all the same to the shop:
     // the file is saved, the fields are empty, type them in.
     console.error('receipt extraction failed', err?.message || err);
-    return { ...blank, read: false, why: 'reader unavailable' };
+    return unread('reader unavailable');
   }
+}
+
+/** A photograph of a receipt, straight to the vision model. */
+async function readImage(env, bytes, ext) {
+  const mime = ext === 'jpg' ? 'image/jpeg' : `image/${ext}`;
+
+  const result = await env.AI.run(MODEL, {
+    messages: [
+      { role: 'system', content: SYSTEM },
+      { role: 'user', content: PROMPT },
+    ],
+    image: `data:${mime};base64,${toBase64(bytes)}`,
+    // Enough for the object and no room to start narrating.
+    max_tokens: 300,
+    // The number on the receipt is not a creative choice.
+    temperature: 0.1,
+  });
+
+  return finish(result, 'could not read the receipt');
+}
+
+/**
+ * A PDF invoice: pull its text out, then read the text.
+ *
+ * Two steps rather than one because a PDF is not an image — the vision endpoint
+ * can't decode it at all, which is why these used to come back blank. The
+ * platforms that bill this shop monthly (ads, hosting, software) all invoice as
+ * a PDF with a real text layer, and reading that text beats reading a photo of
+ * it.
+ *
+ * A scanned paper invoice has no text layer and nothing comes back. That is a
+ * clean miss with a message saying so, not a wrong number — and photographing
+ * that same page instead puts it back on the image path, which does work.
+ */
+async function readDocument(env, bytes) {
+  if (typeof env.AI.toMarkdown !== 'function') return unread('this account cannot read PDFs');
+
+  const converted = await env.AI.toMarkdown({
+    name: 'receipt.pdf',
+    blob: new Blob([bytes], { type: 'application/pdf' }),
+  });
+
+  // Documented as taking one document or many, and answering in kind.
+  const doc = Array.isArray(converted) ? converted[0] : converted;
+  const text = doc && doc.format !== 'error' ? String(doc.data || '') : '';
+
+  if (text.trim().length < 20) return unread('no text in that PDF — type it in');
+
+  const result = await env.AI.run(MODEL, {
+    messages: [
+      { role: 'system', content: SYSTEM },
+      { role: 'user', content: DOC_PROMPT + text.slice(0, MAX_DOC_CHARS) },
+    ],
+    max_tokens: 300,
+    temperature: 0.1,
+  });
+
+  return finish(result, 'could not read that PDF');
+}
+
+function finish(result, failureReason) {
+  const parsed = parseExtraction(replyText(result));
+  if (!parsed) return unread(failureReason);
+  return { ...draftFromExtraction(parsed), read: true, why: '' };
 }
 
 /* ------------------------------------------------------------------ upload */
