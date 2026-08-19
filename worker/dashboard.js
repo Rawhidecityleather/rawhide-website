@@ -16,7 +16,9 @@ import {
   countsAsSale, refundState,
 } from './snipcart.js';
 import { orderWeightOunces, PIRATE_SHIP_URL } from './pirateship.js';
-import { quoteStatus, quoteWarnings, findQuoteOrder, CHECKOUT_DISCOUNT } from './quote.js';
+import {
+  quoteStatus, quoteWarnings, findQuoteOrder, quotePayment, quoteGrandTotal, CHECKOUT_DISCOUNT,
+} from './quote.js';
 
 const RANGES = [
   { key: '30d', label: 'Last 30 days', compare: 'vs prior 30 days' },
@@ -545,6 +547,7 @@ function renderQuotes(quotes, orders) {
     const status = quoteStatus(quote, orders);
     const order = findQuoteOrder(quote.itemId, orders);
     const warnings = quoteWarnings(quote);
+    const cash = quotePayment(quote) === 'cash';
 
     const who = `${esc(quote.customer)}${
       quote.department ? `<span class="soft block">${esc(quote.department)}</span>` : ''
@@ -558,24 +561,33 @@ function renderQuotes(quotes, orders) {
     // Nothing here sends mail on its own — "Email it" opens your own mail
     // client with the link already in the body, so the message comes from you
     // and lands in your sent folder like every other note to a crew.
+    const print = `<a class="btn tiny ghost" href="/dashboard/quote-print?id=${esc(quote.id)}"
+        target="_blank" rel="noopener noreferrer">Print</a>`;
+
     const actions = status === 'open'
-      ? `${quote.email ? `<button type="button" class="btn tiny qmail"
-             data-id="${esc(quote.id)}" data-email="${esc(quote.email)}"
-             data-who="${esc(quote.customer)}" data-what="${esc(quote.title)}"
-           >Email it</button>` : ''}
-         <button type="button" class="btn tiny ghost qcopy" data-id="${esc(quote.id)}">Copy link</button>
+      ? `${cash
+             ? `<button type="button" class="btn tiny qpaid"
+                  data-id="${esc(quote.id)}" data-what="${esc(quote.title)}"
+                >Mark paid</button>`
+             : quote.email ? `<button type="button" class="btn tiny qmail"
+                  data-id="${esc(quote.id)}" data-email="${esc(quote.email)}"
+                  data-who="${esc(quote.customer)}" data-what="${esc(quote.title)}"
+                >Email it</button>` : ''}
+         ${print}
+         ${cash ? '' : `<button type="button" class="btn tiny ghost qcopy" data-id="${esc(quote.id)}">Copy link</button>`}
          <button type="button" class="btn tiny ghost qvoid" data-id="${esc(quote.id)}">Void</button>`
-      : '<span class="soft">&mdash;</span>';
+      : print;
 
     return `<tr data-quote="${esc(quote.id)}">
       <td>${link}</td>
       <td>${esc(quote.title)}
+        ${cash ? '<span class="pill cash">Cash</span>' : ''}
         ${quote.taxExempt ? '<span class="pill exempt">Tax exempt</span>' : ''}
         ${warnings.map((w) => `<span class="pill bad" title="${esc(w)}">Cert</span>`).join('')}</td>
       <td>${who}</td>
       <td class="nowrap">${esc(tinyDate(quote.createdAt))}</td>
       <td class="nowrap">${esc(tinyDate(quote.expiresAt))}</td>
-      <td class="num strong">${esc(money(quote.total, 'usd'))}</td>
+      <td class="num strong">${esc(money(quoteGrandTotal(quote), 'usd'))}</td>
       <td><span class="pill ${QUOTE_TONE[status]}">${status === 'void' ? 'Voided' : esc(status[0].toUpperCase() + status.slice(1))}</span></td>
       <td class="qactions">${actions}</td>
     </tr>`;
@@ -593,6 +605,11 @@ function renderQuotes(quotes, orders) {
       Build the quote, send the crew the link. They pay through the normal
       checkout, so it lands as an ordinary order &mdash; ship queue, packing slip
       and tracking all work from there. Links die after the expiry you set.
+    </p>
+    <p class="hint">
+      Set it to cash and there's no checkout: print the invoice off the row
+      below, hand it over, and mark it paid when the money's in. Nothing lands
+      in Snipcart, so the printed sheet is the record &mdash; keep a copy.
     </p>
 
     ${CHECKOUT_DISCOUNT ? `<p class="banner">
@@ -634,6 +651,30 @@ function renderQuotes(quotes, orders) {
             <option value="90">90 days</option>
           </select>
         </label>
+      </div>
+
+      <div class="qpay">
+        <span class="qpaylabel">How they pay</span>
+        <div class="qpayopts">
+          <label class="qradio">
+            <input type="radio" name="payment" value="card" checked>
+            <span><b>Card</b> &mdash; send the link, they pay online</span>
+          </label>
+          <label class="qradio">
+            <input type="radio" name="payment" value="cash">
+            <span><b>Cash or check</b> &mdash; settled in person, print the invoice</span>
+          </label>
+        </div>
+        <div class="qgrid qcashfields" id="qcashfields" hidden>
+          <label class="qfield qnarrow">
+            <span>Sales tax <em>(percent &mdash; blank for none)</em></span>
+            <input type="number" name="taxRatePercent" min="0" max="15" step="0.001" placeholder="7">
+          </label>
+        </div>
+        <p class="hint qcashhint" id="qcashhint" hidden>
+          Checkout works the tax out on a card order. Nothing does that for cash
+          &mdash; what goes in here is what prints on the invoice and what you collect.
+        </p>
       </div>
 
       <div class="qlines" id="qlines">
@@ -995,6 +1036,18 @@ export const DASHBOARD_SCRIPT = `
     }).filter(function(l){ return l.description || l.unitPrice; });
   }
 
+  function cashPicked(){
+    var picked = document.querySelector('input[name=payment]:checked');
+    return !!picked && picked.value === 'cash';
+  }
+
+  function taxRate(){
+    if (!cashPicked() || document.getElementById('qexempt').checked) return 0;
+    var field = document.querySelector('input[name=taxRatePercent]');
+    var pct = Number(field && field.value);
+    return isFinite(pct) && pct > 0 ? pct : 0;
+  }
+
   function syncTotal(){
     var lines = lineData();
     var total = lines.reduce(function(sum, l){
@@ -1002,9 +1055,23 @@ export const DASHBOARD_SCRIPT = `
     }, 0);
     var note = document.getElementById('qtotal');
     if (!note) return;
+    var rate = taxRate();
+    var tax = Math.round(total * rate) / 100;
     note.textContent = lines.length
-      ? 'Customer pays ' + money(total)
+      ? (cashPicked() ? 'They hand over ' : 'Customer pays ') + money(total + tax) +
+        (tax ? ' (' + money(total) + ' + ' + money(tax) + ' tax)' : '')
       : 'No lines yet';
+  }
+
+  // Tax is a cash-only field, and an exempt sale has none either way — so the
+  // one place that decides whether it's on screen is also the one place that
+  // decides whether it counts.
+  function syncPayment(){
+    var cash = cashPicked();
+    var exempt = document.getElementById('qexempt').checked;
+    document.getElementById('qcashfields').hidden = !cash || exempt;
+    document.getElementById('qcashhint').hidden = !cash || exempt;
+    syncTotal();
   }
 
   if (qLines) {
@@ -1031,7 +1098,15 @@ export const DASHBOARD_SCRIPT = `
     fields.querySelectorAll('input').forEach(function(input){
       if (input.name !== 'exemptExpires') input.required = exemptBox.checked;
     });
+    syncPayment();
   });
+
+  [].slice.call(document.querySelectorAll('input[name=payment]')).forEach(function(radio){
+    radio.addEventListener('change', syncPayment);
+  });
+  var taxField = document.querySelector('input[name=taxRatePercent]');
+  if (taxField) taxField.addEventListener('input', syncTotal);
+  if (qForm) syncPayment();
 
   if (qForm) qForm.addEventListener('submit', function(event){
     event.preventDefault();
@@ -1050,20 +1125,26 @@ export const DASHBOARD_SCRIPT = `
       email: data.get('email'),
       notes: data.get('notes'),
       expiryDays: data.get('expiryDays'),
+      payment: data.get('payment'),
+      taxRatePercent: data.get('taxRatePercent'),
       taxExempt: !!data.get('taxExempt'),
       exemptEntity: data.get('exemptEntity'),
       exemptCertNumber: data.get('exemptCertNumber'),
       exemptExpires: data.get('exemptExpires'),
       lines: lineData()
     }).then(function(res){
-      out.innerHTML = '<p class="ok">Quote ready. Send them this link:</p>' +
-        '<div class="qlink"><input type="text" readonly value="' + res.url + '">' +
-        '<button type="button" class="btn tiny" id="qcopynew">Copy</button></div>';
-      document.getElementById('qcopynew').addEventListener('click', function(){
-        copy(res.url);
-      });
-      toast('Quote created for ' + money(res.total) + '.');
-      setTimeout(function(){ location.reload(); }, 4000);
+      out.innerHTML = res.payment === 'cash'
+        ? '<p class="ok">Invoice ready. Print it and hand it over:</p>' +
+          '<div class="qlink"><a class="btn tiny" target="_blank" rel="noopener noreferrer" ' +
+          'href="/dashboard/quote-print?id=' + res.id + '">Print invoice</a></div>'
+        : '<p class="ok">Quote ready. Send them this link:</p>' +
+          '<div class="qlink"><input type="text" readonly value="' + res.url + '">' +
+          '<button type="button" class="btn tiny" id="qcopynew">Copy</button></div>';
+      var copyNew = document.getElementById('qcopynew');
+      if (copyNew) copyNew.addEventListener('click', function(){ copy(res.url); });
+      toast((res.payment === 'cash' ? 'Invoice' : 'Quote') + ' created for ' + money(res.grandTotal) + '.');
+      // Long enough to hit Print before the table below refreshes under it.
+      setTimeout(function(){ location.reload(); }, res.payment === 'cash' ? 12000 : 4000);
     }).catch(function(err){
       out.innerHTML = '<p class="err">' + err.message + '</p>';
       toast(err.message, true);
@@ -1104,6 +1185,27 @@ export const DASHBOARD_SCRIPT = `
       window.location.href = 'mailto:' + encodeURIComponent(mailBtn.getAttribute('data-email')) +
         '?subject=' + encodeURIComponent('Quote — ' + mailBtn.getAttribute('data-what')) +
         '&body=' + encodeURIComponent(body);
+      return;
+    }
+
+    var paidBtn = event.target.closest('.qpaid');
+    if (paidBtn) {
+      var how = window.prompt(
+        'Mark "' + paidBtn.getAttribute('data-what') + '" paid. Type cash or check:', 'cash');
+      if (how === null) return;
+      how = how.trim().toLowerCase();
+      if (how !== 'cash' && how !== 'check') { toast('Type cash or check.', true); return; }
+
+      paidBtn.disabled = true;
+      post('/dashboard/api/quote/paid', { id: paidBtn.getAttribute('data-id'), method: how })
+        .then(function(){
+          toast('Marked paid.');
+          setTimeout(function(){ location.reload(); }, 900);
+        })
+        .catch(function(err){
+          paidBtn.disabled = false;
+          toast(err.message, true);
+        });
       return;
     }
 
@@ -1314,11 +1416,18 @@ table.mini tr:last-child td{border-bottom:0}
   box-shadow:inset 0 0 0 1px currentColor}
 .pill.exempt{margin-left:6px;background:none;color:var(--soft);
   box-shadow:inset 0 0 0 1px var(--line-2)}
+/* Filled, unlike the exempt pill — how the money arrives changes what you do
+   with the row, so it's worth seeing from across the table. */
+.pill.cash{margin-left:6px;background:rgba(15,15,15,.09);color:var(--ink)}
 
 /* ---------------------------------------------------------------- quotes */
 .qform{border:1px solid var(--line);border-radius:3px;padding:16px 16px 14px;
   margin-bottom:18px;background:#FBFAF7}
 .qgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
+/* display:grid outranks the browser's own [hidden] rule, so a field block
+   hidden from script stayed on screen — the exemption fields have always shown
+   whether or not the box was ticked. Both these blocks toggle on hidden. */
+.qgrid[hidden]{display:none}
 .qfield{display:flex;flex-direction:column;gap:5px;min-width:0}
 .qfield>span{font-family:var(--display);text-transform:uppercase;letter-spacing:.15em;
   font-size:9.5px;color:var(--soft)}
@@ -1347,6 +1456,15 @@ table.mini tr:last-child td{border-bottom:0}
   padding:4px 6px;border-radius:2px}
 .qdrop:hover{background:var(--bad-bg);color:var(--bad)}
 
+.qpay{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+.qpaylabel{display:block;font-family:var(--display);text-transform:uppercase;
+  letter-spacing:.15em;font-size:9.5px;color:var(--soft);margin-bottom:8px}
+.qpayopts{display:flex;flex-wrap:wrap;gap:8px 22px}
+.qradio{display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px}
+.qradio input{width:15px;height:15px;accent-color:#0F0F0F;cursor:pointer;flex:0 0 auto}
+.qcashfields{margin-top:12px}
+.qcashhint{margin:8px 0 0}
+
 .qexempt{margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}
 .qcheck{display:inline-flex;align-items:center;gap:8px;cursor:pointer;
   font-family:var(--display);text-transform:uppercase;letter-spacing:.13em;font-size:10.5px}
@@ -1355,11 +1473,12 @@ table.mini tr:last-child td{border-bottom:0}
 .qexemptfields{margin-top:12px}
 
 .qlink{display:flex;gap:8px;margin-top:8px;align-items:center}
+.qlink .btn{text-decoration:none}
 .qlink input{font-family:ui-monospace,'Cascadia Mono',Consolas,monospace;font-size:12px;
   padding:8px 10px;border:1px solid var(--line-2);border-radius:2px;flex:1;min-width:0;
   background:var(--paper);color:var(--ink)}
 .qactions{white-space:nowrap}
-.qactions .btn{margin-right:5px}
+.qactions .btn{margin-right:5px;text-decoration:none}
 .qtable{margin-top:4px}
 @media (max-width:640px){
   .qlinehead{display:none}

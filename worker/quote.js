@@ -44,7 +44,7 @@ export const QUOTE_ITEM_PREFIX = 'quote-';
 export const CHECKOUT_DISCOUNT = 0;
 
 /** Orders at or above this ship free; below it, $8.50 flat. Matches /shipping. */
-const FREE_SHIPPING_OVER = 85;
+export const FREE_SHIPPING_OVER = 85;
 
 /** Quotes stop working after this many days. */
 const DEFAULT_EXPIRY_DAYS = 30;
@@ -54,6 +54,13 @@ const MAX_LINES = 25;
 
 /** Snipcart's own ceiling is higher, but nothing here is a five-figure job. */
 const MAX_TOTAL = 100000;
+
+/**
+ * A card quote carries no tax rate — checkout works it out from the address it
+ * collects. A cash sale never gets to checkout, so the shop types the rate in,
+ * and this is the ceiling that catches a decimal in the wrong place.
+ */
+const MAX_TAX_RATE_PERCENT = 15;
 
 /**
  * No i, l or o — these ids get read off a phone screen and typed back, and
@@ -99,6 +106,17 @@ function optionalText(value, max = 200) {
   return String(value ?? '').trim().slice(0, max);
 }
 
+/** Blank is 0, not an error — most crew jobs this gets used on are exempt. */
+function readTaxRate(value) {
+  const text = String(value ?? '').trim();
+  if (!text) return 0;
+  const pct = Number(text);
+  if (!isFinite(pct) || pct < 0 || pct > MAX_TAX_RATE_PERCENT) {
+    throw new QuoteError(`Sales tax has to be 0 to ${MAX_TAX_RATE_PERCENT}%.`);
+  }
+  return Math.round(pct * 1000) / 1000;
+}
+
 /**
  * Turns the dashboard form into a stored quote. Throws QuoteError with
  * something worth showing the shop, never a bare validation code.
@@ -140,6 +158,17 @@ export function buildQuote(input, { now = Date.now() } = {}) {
     expires: optionalText(input.exemptExpires, 40),
   } : null;
 
+  // Card is the default and the path everything downstream was built for. Cash
+  // is the crew that hands over a check at the station: no checkout, no
+  // Snipcart order, so the printed sheet is the whole transaction record.
+  const payment = input.payment === 'cash' ? 'cash' : 'card';
+
+  // Only a cash sale carries a rate. On a card quote Snipcart charges the tax
+  // itself, and a second number here would double it on the sheet.
+  const taxRatePercent = payment === 'cash' && !taxExempt ? readTaxRate(input.taxRatePercent) : 0;
+  const taxAmount = round2(total * taxRatePercent / 100);
+  const grandTotal = round2(total + taxAmount);
+
   const days = Math.min(Math.max(Math.floor(Number(input.expiryDays)) || DEFAULT_EXPIRY_DAYS, 1), 180);
   const id = newId();
 
@@ -153,6 +182,12 @@ export function buildQuote(input, { now = Date.now() } = {}) {
     notes: optionalText(input.notes, 2000),
     lines,
     total,
+    payment,
+    taxRatePercent,
+    taxAmount,
+    // What's actually collected. Same as `total` on every card quote, and on
+    // any cash quote that isn't charged tax.
+    grandTotal,
     // Frozen at creation. If the sale ends mid-quote the stored rate is what
     // the page was built against, and the expiry is what keeps it honest.
     discountRate: CHECKOUT_DISCOUNT,
@@ -164,6 +199,8 @@ export function buildQuote(input, { now = Date.now() } = {}) {
     voidedAt: null,
     paidAt: null,
     paidOrder: null,
+    // 'cash' or 'check' once the shop marks a cash quote collected.
+    paidMethod: null,
   };
 }
 
@@ -187,12 +224,15 @@ function summarize(quote) {
     department: quote.department.slice(0, 80),
     email: quote.email.slice(0, 120),
     total: quote.total,
+    payment: quotePayment(quote),
+    grandTotal: quoteGrandTotal(quote),
     taxExempt: quote.taxExempt,
     exemptExpires: quote.exemption?.expires || '',
     createdAt: quote.createdAt,
     expiresAt: quote.expiresAt,
     voidedAt: quote.voidedAt,
     paidAt: quote.paidAt,
+    paidMethod: quote.paidMethod || null,
   };
 }
 
@@ -245,6 +285,25 @@ export async function markQuotePaid(env, itemId, order) {
   return putQuote(env, quote);
 }
 
+/**
+ * Stamps a cash quote collected. Nothing else can do it: a cash sale never
+ * reaches Snipcart, so there is no order and no webhook — without this the
+ * quote would sit open until it expired on a job that was paid for weeks ago.
+ */
+export async function markQuoteCashPaid(env, id, { method = 'cash', now = Date.now() } = {}) {
+  const quote = await getQuote(env, id);
+  if (!quote) return null;
+  if (quotePayment(quote) !== 'cash') {
+    throw new QuoteError('That quote is set up for card checkout — it marks itself paid when the order lands.');
+  }
+  if (quote.paidAt) throw new QuoteError('That quote is already marked paid.');
+  if (quote.voidedAt) throw new QuoteError('That quote was voided.');
+
+  quote.paidAt = new Date(now).toISOString();
+  quote.paidMethod = method === 'check' ? 'check' : 'cash';
+  return putQuote(env, quote);
+}
+
 export function isQuoteId(id) {
   return typeof id === 'string' && /^[a-z0-9]{10,32}$/.test(id);
 }
@@ -257,10 +316,26 @@ export function isQuoteId(id) {
  * quote's item id, which beats anything stored locally.
  */
 export function quoteStatus(summary, orders = []) {
-  if (summary.paidAt || findQuoteOrder(summary.itemId, orders)) return 'paid';
+  // A cash quote has no order to match against — the shop's stamp is all there
+  // is, which is why marking it paid is a button on the dashboard.
+  if (summary.paidAt) return 'paid';
+  if (quotePayment(summary) === 'card' && findQuoteOrder(summary.itemId, orders)) return 'paid';
   if (summary.voidedAt) return 'void';
   if (Date.parse(summary.expiresAt) < Date.now()) return 'expired';
   return 'open';
+}
+
+/**
+ * How the quote gets paid. Reads through a missing field on purpose: every
+ * quote written before cash existed is a card quote, and they're still in KV.
+ */
+export function quotePayment(quote) {
+  return quote?.payment === 'cash' ? 'cash' : 'card';
+}
+
+/** What's collected, tax included. Falls back for those same older records. */
+export function quoteGrandTotal(quote) {
+  return typeof quote?.grandTotal === 'number' ? quote.grandTotal : Number(quote?.total) || 0;
 }
 
 export function findQuoteOrder(itemId, orders = []) {
@@ -295,6 +370,8 @@ const SNIPCART_VERSION = 'v3.7.1';
 
 export function renderQuotePage(quote, { status }) {
   const closed = status !== 'open';
+  const cash = quotePayment(quote) === 'cash';
+  const grandTotal = quoteGrandTotal(quote);
 
   const rows = quote.lines.map((line) => `<tr>
     <td>${esc(line.description)}</td>
@@ -307,9 +384,13 @@ export function renderQuotePage(quote, { status }) {
   // sale can land the total on the quote, but showing that here puts a subtotal
   // on the page that doesn't match the lines above it — which reads as an
   // arithmetic mistake, not a discount. The checkout note below covers it.
-  const taxRow = quote.taxExempt
+  const taxRows = quote.taxExempt
     ? '<tr><td>Sales tax</td><td class="q-num">Exempt</td></tr>'
-    : '';
+    : quote.taxAmount
+      ? `<tr><td>Subtotal</td><td class="q-num">${esc(money(quote.total, 'usd'))}</td></tr>
+         <tr><td>Sales tax (${esc(String(quote.taxRatePercent))}%)</td>
+           <td class="q-num">${esc(money(quote.taxAmount, 'usd'))}</td></tr>`
+      : '';
 
   const exemptBlock = quote.taxExempt ? `<div class="q-exempt">
     <p class="q-exempt-head">Tax exempt</p>
@@ -330,8 +411,19 @@ export function renderQuotePage(quote, { status }) {
     void: ['Withdrawn', 'This quote has been withdrawn. Get in touch and we&rsquo;ll send a fresh one.'],
   }[status] || ['Closed', 'This quote is no longer open. Get in touch and we&rsquo;ll send a fresh one.'];
 
+  // Cash is settled at the bench, so this page has nothing to click. It's the
+  // crew's copy of what they agreed to and what to bring — the shop's copy is
+  // the printed sheet off the dashboard.
+  const cashPanel = `<div class="q-cash">
+    <p class="q-cash-head">Due on pickup</p>
+    <p class="q-cash-amount">${esc(money(grandTotal, 'usd'))}</p>
+    <p>Cash or check, made out to Rawhide City Leather. Nothing to pay online.
+      We start once the order is confirmed.</p>
+  </div>`;
+
   const action = closed
     ? `<div class="q-closed"><p class="q-closed-head">${closedNote[0]}</p><p>${closedNote[1]}</p></div>`
+    : cash ? cashPanel
     : `<button type="button" class="btn btn-primary btn-full snipcart-add-item"
         data-item-id="${esc(quote.itemId)}"
         data-item-price="${esc(quote.listPrice.toFixed(2))}"
@@ -365,9 +457,9 @@ export function renderQuotePage(quote, { status }) {
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
 <title>Quote ${esc(quote.title)} · Rawhide City Leather</title>
-<link rel="preconnect" href="https://app.snipcart.com">
+${cash ? '' : `<link rel="preconnect" href="https://app.snipcart.com">
 <link rel="preconnect" href="https://cdn.snipcart.com">
-<link rel="stylesheet" href="https://cdn.snipcart.com/themes/${SNIPCART_VERSION}/default/snipcart.css">
+<link rel="stylesheet" href="https://cdn.snipcart.com/themes/${SNIPCART_VERSION}/default/snipcart.css">`}
 <link rel="stylesheet" href="/assets/css/style.css">
 <style>${QUOTE_STYLES}</style>
 </head>
@@ -400,13 +492,13 @@ export function renderQuotePage(quote, { status }) {
 
     <table class="q-totals">
       <tbody>
-        ${taxRow}
+        ${taxRows}
         <tr class="q-grand">
-          <td>Total</td><td class="q-num">${esc(money(quote.total, 'usd'))}</td>
+          <td>Total</td><td class="q-num">${esc(money(grandTotal, 'usd'))}</td>
         </tr>
       </tbody>
     </table>
-    ${quote.taxExempt ? '' : `<p class="q-taxnote">Florida sales tax is added at
+    ${quote.taxExempt || cash ? '' : `<p class="q-taxnote">Florida sales tax is added at
       checkout on orders delivered in Florida.</p>`}
 
     ${exemptBlock}
@@ -424,8 +516,8 @@ export function renderQuotePage(quote, { status }) {
       not NFPA certified.</p>
   </footer>
 </main>
-<div hidden id="snipcart" data-api-key="${SNIPCART_KEY}" data-config-modal-style="side"></div>
-<script src="https://cdn.snipcart.com/themes/${SNIPCART_VERSION}/default/snipcart.js"></script>
+${cash ? '' : `<div hidden id="snipcart" data-api-key="${SNIPCART_KEY}" data-config-modal-style="side"></div>
+<script src="https://cdn.snipcart.com/themes/${SNIPCART_VERSION}/default/snipcart.js"></script>`}
 </body>
 </html>`;
 }
@@ -481,10 +573,26 @@ const QUOTE_STYLES = `
   font-size:.8rem;margin:0 0 8px}
 .q-closed p:last-child{margin:0;color:var(--c-text-soft);font-size:.92rem}
 
+.q-cash{text-align:center;padding:22px 20px;background:var(--c-bg);border:2px solid var(--c-text)}
+.q-cash-head{font-family:var(--font-display);text-transform:uppercase;letter-spacing:.18em;
+  font-size:.75rem;margin:0}
+.q-cash-amount{font-family:var(--font-display);font-size:2.2rem;line-height:1;margin:.35em 0 .5em;
+  font-variant-numeric:tabular-nums}
+.q-cash p:last-child{margin:0;color:var(--c-text-soft);font-size:.9rem}
+
 .q-foot{margin-top:28px;text-align:center;font-size:.88rem}
 .q-foot p{margin:0 0 8px}
 @media(max-width:520px){
   .q-card{padding:24px 18px}
   .q-lines{font-size:.88rem}
+}
+
+/* The crew prints their copy off this page. The shop's copy comes off the
+   dashboard sheet, which is laid out for paper from the start. */
+@media print{
+  @page{size:letter;margin:.5in}
+  .q-wrap{max-width:none;padding:0}
+  .q-card{border:0;padding:0}
+  .q-action{page-break-inside:avoid;break-inside:avoid}
 }
 `;

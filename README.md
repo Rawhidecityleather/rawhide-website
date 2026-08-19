@@ -266,6 +266,10 @@ You build the quote, they get a link, they pay through the normal checkout. The
 order lands like any other, so the ship queue, packing slip, Pirate Ship export
 and tracking all work with nothing extra to do.
 
+Or they hand you cash. Set the quote to **cash or check** and there's no
+checkout at all — you print the invoice, they pay at the bench, and you mark it
+paid. See [Cash jobs](#cash-jobs) below.
+
 ### One-time setup
 
 Quotes are stored in a Cloudflare KV namespace. Create it once:
@@ -281,16 +285,48 @@ shows up empty and creating one gives you an error saying exactly this.
 ### Sending one
 
 1. **Dashboard → Quotes**, fill in what it is, who it's for, and the lines
-2. **Create quote**, then **Copy** the link and send it to them
-3. They open it, hit **Accept & Pay**, and it becomes a normal order
+2. Leave **How they pay** on **Card**
+3. **Create quote**, then **Copy** the link and send it to them
+4. They open it, hit **Accept & Pay**, and it becomes a normal order
 
 Links expire on the schedule you pick — 30 days by default. **Void** kills one
 early if you got a price wrong. A quote that's been paid can't be voided.
+
+**Print** on any row gives you the sheet on paper — the lines, the total, and
+the pay link written out. Handy for handing a quote over at a station rather
+than emailing it.
 
 The link is public and unguessable. It has to be public: before Snipcart takes
 the money it fetches the quote page to check the price against the cart, and it
 can't get past a login prompt. Treat the link like a payment link — anyone who
 has it can pay it, and nobody who doesn't can find it.
+
+### Cash jobs
+
+Pick **Cash or check** under *How they pay* and the quote stops being a payment
+link. Nothing goes to Snipcart, so there is no order, no packing slip and no
+tracking email behind it — **the printed sheet is the record. Keep a copy.**
+
+1. Build it the same way, set *How they pay* to **Cash or check**
+2. Fill in **Sales tax** if the job is taxable — see below
+3. **Create quote**, then **Print invoice**
+4. Hand it over, take the money, write the sign-off block at the bottom
+5. Back on the dashboard, **Mark paid** on that row, and say cash or check
+
+The sheet reprints as a **receipt** once it's marked paid, so the customer's
+copy and your copy are the same document at two points in its life. The crew's
+online link still works — it shows what they owe and says to pay in person.
+
+**Sales tax is on you.** On a card quote Snipcart works the tax out from the
+address it collects. A cash sale never reaches checkout, so whatever percent
+you type in is what prints on the invoice and what you collect — and if you
+leave it blank, no tax is charged. Tick **Tax exempt** instead when the
+department has a certificate on file; the exemption then prints on the face of
+the invoice the same way it does on a packing slip.
+
+Because a cash job has no order behind it, **Mark paid** is the only thing that
+closes it out. Leave it and the quote sits open until it expires on work that
+was paid for weeks ago.
 
 ## Custom stamp artwork
 
@@ -649,12 +685,12 @@ node worker/tests/run.mjs slip
 
 | Suite | Covers |
 |---|---|
-| `quote` | pricing and the gross-up, validation, tax exemption, certificate warnings, status, the page Snipcart's crawler reads, HTML escaping |
+| `quote` | pricing and the gross-up, validation, tax exemption, certificate warnings, status, the page Snipcart's crawler reads, cash jobs and their tax, the printable invoice and receipt, HTML escaping |
 | `slip` | packing slip rendering with and without a quote attached |
 | `expenses` | the ledger: categories, edits and what blocks checking a row off, KV round-trip, year and undated handling, totals, the CSV including Excel formula injection, both pages' HTML escaping, and every way reading a receipt can fail |
 | `mime` | the hand-written email parser: folded headers, encoded subjects and filenames, base64 and quoted-printable, nested and prefix-clashing boundaries, a message forwarded as an attachment, HTML flattened to text |
 | `email-in` | receipts by email: who may file and every way a message is refused, picking the real attachment out of the letterhead, the fallbacks from sender and subject, and the promises that must hold on a bad day — always forwarded, never bounced, an unreadable receipt still becomes a row |
-| `worker` | routes through the real fetch handler — auth, the quote API, the public quote page, voiding, the webhook |
+| `worker` | routes through the real fetch handler — auth, the quote API, the public quote page, voiding, the printable sheet, marking a cash job paid, the webhook |
 
 `worker` swaps in a KV shim and a stub asset router, so it needs neither
 Cloudflare nor a Snipcart key. Anything that calls Snipcart directly — the
@@ -662,7 +698,8 @@ dashboard, the packing-slip route — can't be reached that way, which is why
 `slip` drives `renderSlip` from a fixture instead. **If you touch a render
 function, add a fixture case.** On 2026-08-06 a one-word slip change went out
 untested and broke every packing slip in production; `renderSlip` and
-`renderQuotePage` are exported specifically so that's a two-line test.
+`renderQuotePage` are exported specifically so that's a two-line test, and
+`renderQuoteSheet` is exported for the same reason.
 
 What the suites can't tell you: whether Snipcart accepts a real quote order.
 That's a live checkout, and nothing here mocks it.

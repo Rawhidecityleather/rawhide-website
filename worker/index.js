@@ -13,6 +13,8 @@
  *   POST /dashboard/api/ship-batch   paste Pirate Ship's list, ship them all
  *   POST /dashboard/api/quote        build a custom-job quote, get a link
  *   POST /dashboard/api/quote/void   kill a quote link
+ *   POST /dashboard/api/quote/paid   stamp a cash quote collected
+ *   GET  /dashboard/quote-print?id=… printable quote / cash invoice
  *   GET  /dashboard/expenses         the receipt ledger for one year
  *   POST /dashboard/api/receipt      upload a receipt photo, get a draft row
  *   POST /dashboard/api/expense      save one ledger row
@@ -60,6 +62,7 @@ import {
   isCancelled, isShipped, trackingUrlFor,
 } from './snipcart.js';
 import { renderSlip, SLIP_STYLES } from './slip.js';
+import { renderQuoteSheet, QUOTE_SHEET_STYLES } from './quote-sheet.js';
 import {
   analyze, renderDashboard, DEFAULT_RANGE, DASHBOARD_STYLES, DASHBOARD_SCRIPT,
 } from './dashboard.js';
@@ -70,6 +73,7 @@ import { handleInquiry } from './inquiry.js';
 import {
   buildQuote, putQuote, getQuote, listQuotes, voidQuote, markQuotePaid,
   renderQuotePage, quoteStatus, isQuoteId, QuoteError, QUOTE_ITEM_PREFIX,
+  markQuoteCashPaid,
 } from './quote.js';
 import { storeUpload, handleReceiptFetch, deleteReceipt } from './receipts.js';
 import {
@@ -257,6 +261,8 @@ async function route(path, request, env, url) {
     if (path === '/dashboard/api/ship-batch') return await handleShipBatch(request, env);
     if (path === '/dashboard/api/quote') return await handleQuoteCreate(request, env);
     if (path === '/dashboard/api/quote/void') return await handleQuoteVoid(request, env);
+    if (path === '/dashboard/api/quote/paid') return await handleQuoteCashPaid(request, env);
+    if (path === '/dashboard/quote-print') return await handleQuotePrint(env, url);
     if (path === '/packing-slip') return await handleSlip(request, env, url);
     return notFound();
   } catch (err) {
@@ -444,6 +450,8 @@ async function handleQuoteCreate(request, env) {
     ok: true,
     id: quote.id,
     total: quote.total,
+    grandTotal: quote.grandTotal,
+    payment: quote.payment,
     listPrice: quote.listPrice,
     url: new URL('/quote/' + quote.id, request.url).toString(),
   });
@@ -466,6 +474,54 @@ async function handleQuoteVoid(request, env) {
     if (err instanceof QuoteError) return json({ error: err.message }, 409);
     throw err;
   }
+}
+
+/**
+ * Stamps a cash quote collected. Card quotes are refused here on purpose —
+ * those get stamped by the webhook when the order lands, and a hand stamp on
+ * one would say paid with nothing in the till to back it.
+ */
+async function handleQuoteCashPaid(request, env) {
+  if (!fromDashboard(request)) return json({ error: 'Bad request.' }, 403);
+  const missing = guardQuotes(env);
+  if (missing) return missing;
+
+  const body = await request.json().catch(() => ({}));
+  const id = String(body.id || '');
+  if (!isQuoteId(id)) return json({ error: 'Bad quote id.' }, 400);
+
+  try {
+    const quote = await markQuoteCashPaid(env, id, { method: body.method });
+    if (!quote) return json({ error: 'No quote with that id.' }, 404);
+    return json({ ok: true, id, paidAt: quote.paidAt, paidMethod: quote.paidMethod });
+  } catch (err) {
+    if (err instanceof QuoteError) return json({ error: err.message }, 409);
+    throw err;
+  }
+}
+
+/**
+ * The paper copy — the invoice for a cash job, or a quote to hand over instead
+ * of email. Behind the dashboard login: this is the shop's own sheet, and the
+ * customer's copy is the /quote/ link.
+ *
+ * Status comes off the stored record alone, without pulling the order list.
+ * That's a page of Snipcart's API for one printout, and the only thing it
+ * would add is catching a card quote whose paid webhook never fired.
+ */
+async function handleQuotePrint(env, url) {
+  if (!env.QUOTES) return notFound();
+
+  const id = url.searchParams.get('id') || '';
+  if (!isQuoteId(id)) return notFound();
+
+  const quote = await getQuote(env, id);
+  if (!quote) return notFound();
+
+  return page(`Quote ${quote.id}`, renderQuoteSheet(quote, {
+    status: quoteStatus(quote),
+    origin: url.origin,
+  }), { styles: SLIP_STYLES + QUOTE_SHEET_STYLES });
 }
 
 /**

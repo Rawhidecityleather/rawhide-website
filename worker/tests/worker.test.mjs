@@ -174,6 +174,70 @@ export default async function run() {
       lines: [{ description: 'd', quantity: 1, unitPrice: 5 }],
     }, DASH)).status === 400);
 
+  suite('worker — a cash job, end to end');
+
+  const cashRes = await post('/dashboard/api/quote', {
+    title: '12 Memorial Radio Straps', customer: 'Lt. Dana Reyes',
+    payment: 'cash', taxRatePercent: '7',
+    lines: [{ description: 'Fully custom radio strap', quantity: 12, unitPrice: 150 }],
+  }, DASH);
+  const cash = await cashRes.json();
+
+  check('cash quote is created', cashRes.status === 200 && cash.payment === 'cash');
+  check('the response carries what gets collected', cash.grandTotal === 1926, `grand=${cash.grandTotal}`);
+
+  const cashPage = await (await get('/quote/' + cash.id)).text();
+  check('the crew page has nothing to click', !cashPage.includes('snipcart-add-item'));
+  check('and does not load a cart at all', !/snipcart/i.test(cashPage));
+
+  suite('worker — the printable sheet');
+
+  check('the sheet demands a login', (await get('/dashboard/quote-print?id=' + cash.id)).status === 401);
+
+  const sheetRes = await get('/dashboard/quote-print?id=' + cash.id, { Authorization: AUTH });
+  const sheetHtml = await sheetRes.text();
+  check('the sheet prints', sheetRes.status === 200);
+  check('a cash job prints as an invoice', sheetHtml.includes('<h1>Invoice</h1>'));
+  check('with the figure to collect', sheetHtml.includes('$1,926.00'));
+  check('a made-up id is a 404',
+    (await get('/dashboard/quote-print?id=notarealquoteid', { Authorization: AUTH })).status === 404);
+  check('an id with junk in it is a 404',
+    (await get('/dashboard/quote-print?id=NOT-valid!', { Authorization: AUTH })).status === 404);
+  check('no id at all is a 404',
+    (await get('/dashboard/quote-print', { Authorization: AUTH })).status === 404);
+
+  suite('worker — marking a cash job paid');
+
+  check('the stamp demands a login',
+    (await post('/dashboard/api/quote/paid', { id: cash.id })).status === 401);
+  check('and the dashboard header, like every other write',
+    (await post('/dashboard/api/quote/paid', { id: cash.id }, { Authorization: AUTH })).status === 403);
+
+  const stamped = await post('/dashboard/api/quote/paid', { id: cash.id, method: 'check' }, DASH);
+  check('the stamp lands', stamped.status === 200);
+  check('it records what the money came in as',
+    (await stamped.json()).paidMethod === 'check');
+
+  const paidSheet = await (await get('/dashboard/quote-print?id=' + cash.id, { Authorization: AUTH })).text();
+  check('the sheet becomes a receipt', paidSheet.includes('<h1>Receipt</h1>'));
+
+  const paidPage = await get('/quote/' + cash.id);
+  check('the crew page says it is settled', (await paidPage.text()).includes('has been paid'));
+
+  check('stamping it twice is refused',
+    (await post('/dashboard/api/quote/paid', { id: cash.id }, DASH)).status === 409);
+  check('stamping an unknown quote is a 404',
+    (await post('/dashboard/api/quote/paid', { id: 'zzzzzzzzzzzz' }, DASH)).status === 404);
+
+  // A card quote gets stamped by the webhook when the order lands. A hand
+  // stamp on one would mark it paid with nothing in the till behind it.
+  const cardJob = await (await post('/dashboard/api/quote', {
+    title: 'Card job', customer: 'Cpt. Vance',
+    lines: [{ description: 'Strap', quantity: 1, unitPrice: 165 }],
+  }, DASH)).json();
+  check('a card quote cannot be stamped by hand',
+    (await post('/dashboard/api/quote/paid', { id: cardJob.id }, DASH)).status === 409);
+
   suite('worker — www to apex');
 
   const WWW = 'https://www.rawhidecityleather.com';

@@ -9,8 +9,9 @@ import { suite, check } from './harness.mjs';
 import { money } from '../lib.js';
 import {
   buildQuote, listPriceFor, renderQuotePage, quoteStatus, quoteWarnings,
-  isQuoteId, QuoteError, CHECKOUT_DISCOUNT,
+  isQuoteId, QuoteError, CHECKOUT_DISCOUNT, quotePayment, quoteGrandTotal,
 } from '../quote.js';
+import { renderQuoteSheet } from '../quote-sheet.js';
 
 const base = {
   title: '12 Memorial Radio Straps — Station 4',
@@ -142,6 +143,85 @@ export default function run() {
   check('an unknown status still renders rather than throwing',
     () => renderQuotePage(quote, { status: 'nonsense' }).length > 0);
 
+  suite('quote — cash jobs');
+
+  const cash = buildQuote({ ...base, payment: 'cash', taxRatePercent: '7' });
+
+  check('the method is recorded', cash.payment === 'cash' && quotePayment(cash) === 'cash');
+  check('tax is worked out on the subtotal', cash.taxAmount === 126, `tax=${cash.taxAmount}`);
+  check('the total collected includes it', cash.grandTotal === 1926, `grand=${cash.grandTotal}`);
+  check('a card quote carries no rate of its own',
+    quote.taxRatePercent === 0 && quote.grandTotal === quote.total);
+  check('a card quote ignores a rate typed in anyway',
+    buildQuote({ ...base, payment: 'card', taxRatePercent: '7' }).taxAmount === 0);
+  check('an exempt cash job is charged none either way',
+    buildQuote({
+      ...base, payment: 'cash', taxRatePercent: '7', taxExempt: true,
+      exemptEntity: 'City of Lakeland', exemptCertNumber: '85-8012345678C-9',
+    }).grandTotal === 1800);
+  check('a blank rate is not an error', buildQuote({ ...base, payment: 'cash' }).grandTotal === 1800);
+  check('an anything-else method is treated as card',
+    quotePayment(buildQuote({ ...base, payment: 'venmo' })) === 'card');
+
+  rejects('a tax rate past the ceiling', { payment: 'cash', taxRatePercent: '70' });
+  rejects('a negative tax rate', { payment: 'cash', taxRatePercent: '-1' });
+  rejects('a tax rate that is not a number', { payment: 'cash', taxRatePercent: 'seven' });
+
+  // Quotes written before cash existed are still in KV and have neither field.
+  const legacy = { total: 500, lines: [], taxExempt: false };
+  check('an older stored quote reads as card', quotePayment(legacy) === 'card');
+  check('an older stored quote falls back to its total', quoteGrandTotal(legacy) === 500);
+
+  suite('quote — the cash page');
+
+  const cashPage = renderQuotePage(cash, { status: 'open' });
+
+  check('no buy button on a cash job', !cashPage.includes('snipcart-add-item'));
+  // Nothing on the page can be paid, so loading a cart would only be weight.
+  check('the cart is not loaded at all', !/snipcart/i.test(cashPage));
+  check('it says what to bring', cashPage.includes('$1,926.00'));
+  check('the tax is shown as its own line', cashPage.includes('Sales tax (7%)'));
+  check('the checkout tax note is dropped', !cashPage.includes('Florida sales tax is added at'));
+  check('a card quote still gets its button',
+    renderQuotePage(quote, { status: 'open' }).includes('snipcart-add-item'));
+
+  suite('quote — the printable sheet');
+
+  const cashSheet = renderQuoteSheet(cash, { status: 'open', origin: 'https://rawhidecityleather.com' });
+
+  check('a cash job prints as an invoice', cashSheet.includes('<h1>Invoice</h1>'));
+  check('the amount to collect is on it', cashSheet.includes('$1,926.00'));
+  check('there is a line for who took the money', cashSheet.includes('Received by'));
+  check('and for what it came in as', cashSheet.includes('Check no.'));
+  check('no pay link on a cash sheet', !cashSheet.includes('/quote/' + cash.id));
+
+  const paidSheet = renderQuoteSheet(
+    { ...cash, paidAt: '2026-08-19T12:00:00.000Z', paidMethod: 'check' }, { status: 'paid' });
+
+  check('once paid it prints as a receipt', paidSheet.includes('<h1>Receipt</h1>'));
+  check('it names how the money arrived', paidSheet.includes('by check'));
+  // "Received by check on ..." contains those two words, so match the block.
+  check('the sign-off block is gone', !paidSheet.includes('qs-sign'));
+
+  const cardSheet = renderQuoteSheet(quote, { status: 'open', origin: 'https://rawhidecityleather.com' });
+
+  check('a card job prints as a quote', cardSheet.includes('<h1>Quote</h1>'));
+  check('it carries the link to pay',
+    cardSheet.includes('https://rawhidecityleather.com/quote/' + quote.id));
+  // The sheet cannot know either figure — checkout works both out from the
+  // address. Printing a total that then grows is worse than saying so.
+  check('tax is left to checkout', cardSheet.includes('Added at checkout'));
+  check('shipping is named rather than left off', cardSheet.includes('Free'));
+  check('under the free-shipping line it says what gets added',
+    renderQuoteSheet(buildQuote({
+      ...base, lines: [{ description: 'Glove strap', quantity: 1, unitPrice: 30 }],
+    }), { status: 'open' }).includes('$8.50 at checkout'));
+
+  check('an expired sheet still prints for the file',
+    () => renderQuoteSheet(quote, { status: 'expired' }).includes('past its date'));
+  check('an unknown status still renders rather than throwing',
+    () => renderQuoteSheet(quote, { status: 'nonsense' }).length > 0);
+
   suite('quote — escaping');
 
   const nasty = buildQuote({
@@ -152,7 +232,12 @@ export default function run() {
   });
   const nastyPage = renderQuotePage(nasty, { status: 'open' });
 
+  const nastySheet = renderQuoteSheet(nasty, { status: 'open' });
+
   check('script tags are escaped', !nastyPage.includes('<script>alert(1)</script>'));
+  check('the printed sheet escapes them too',
+    !nastySheet.includes('<script>alert(1)</script>') &&
+    !nastySheet.includes('<img src=x onerror'));
   check('image handlers are escaped', !nastyPage.includes('<img src=x onerror'));
   check('ampersands and quotes survive as entities',
     nastyPage.includes('Reyes &amp; &quot;Co&quot;'));
