@@ -56,11 +56,19 @@
   //
   // Tracking back from Pirate Ship. See worker/tracking-in.js.
   //
-  // TRACKING_SENDERS — who may report a shipment. Defaults to @pirateship.com
-  //                    when unset; written out so it is visible in the repo.
-  //                    Not a secret: it is a public domain, not an address of
-  //                    ours, and knowing it gets you nothing — a message still
-  //                    has to pass DMARC as pirateship.com to ship anything.
+  // TRACKING_SENDERS — who may report a shipment, matched against the From:
+  //                    HEADER of the message. Not a secret, and knowing it gets
+  //                    you nothing: a message still has to pass DMARC as that
+  //                    domain before anything ships.
+  //
+  //                    It is orders@rawhidecitylthr.com — the OLD domain — and
+  //                    that is deliberate on both ends. Pirate Ship sends a
+  //                    tracking email as the Sender Email on its template, and
+  //                    that template still uses the lthr address because that
+  //                    zone holds the working DKIM key; rawhidecityleather.com
+  //                    has none, and DMARC p=reject there would silently kill
+  //                    every tracking email. Change the sender on the Pirate
+  //                    Ship template and this has to change with it.
   //
   // TRACKING_INBOX is deliberately NOT here. This repo is public, and that one
   // is a private address of ours: printing it invites mail to a box that
@@ -71,7 +79,7 @@
   "vars": {
     "RECEIPT_SENDERS": "rawhidecityleather@gmail.com,rcon8919@gmail.com",
     "RECEIPT_FORWARD_TO": "rawhidecityleather@gmail.com",
-    "TRACKING_SENDERS": "@pirateship.com"
+    "TRACKING_SENDERS": "orders@rawhidecitylthr.com,@pirateship.com"
   },
   // QUOTES  — custom-build quotes. Created 2026-08-06 with
   //             wrangler kv namespace create QUOTES

@@ -26,6 +26,19 @@ const INBOX = 'tracking-test@example.com';
 const CUSTOMER = 'jane@example.com';
 const USPS = '9400111899223197428490';
 
+/**
+ * What Pirate Ship actually sends as — the Sender Email on the template, not
+ * anything @pirateship.com. The old domain, because that zone holds the DKIM
+ * key. See TRACKING_SENDERS in wrangler.jsonc.
+ */
+const SENDER = 'orders@rawhidecitylthr.com';
+
+/**
+ * The envelope sender on the same message: a Postmark bounce address, which is
+ * why the allowlist reads the From: header and not this.
+ */
+const ENVELOPE = 'pm_bounces@pm.mtasv.net';
+
 function order(over = {}) {
   return {
     token: 'tok-aaaaaaaa',
@@ -50,7 +63,7 @@ function fakeEnv(over = {}) {
   return {
     SNIPCART_SECRET: 'test-key-never-used',
     TRACKING_INBOX: INBOX,
-    TRACKING_SENDERS: '@pirateship.com',
+    TRACKING_SENDERS: 'orders@rawhidecitylthr.com,@pirateship.com',
     ...over,
   };
 }
@@ -82,9 +95,9 @@ async function withFetch(fake, run) {
 }
 
 /** A tracking email as Pirate Ship sends it, BCC'd to the shop. */
-function trackingMail({ to = CUSTOMER, tracking = USPS } = {}) {
+function trackingMail({ to = CUSTOMER, tracking = USPS, from = SENDER } = {}) {
   return [
-    'From: Pirate Ship <notifications@pirateship.com>',
+    'From: Rawhide City Leather <' + from + '>',
     'To: ' + to,
     'Subject: Your order has shipped!',
     'Content-Type: text/plain; charset=utf-8',
@@ -98,7 +111,7 @@ function trackingMail({ to = CUSTOMER, tracking = USPS } = {}) {
 /** What Email Routing writes on a message that checked out at the edge. */
 const PASS = { 'authentication-results': 'mx.cloudflare.net; dmarc=pass; spf=pass; dkim=pass' };
 
-function fakeMessage(raw, { from = 'notifications@pirateship.com', to = INBOX, headers = PASS } = {}) {
+function fakeMessage(raw, { from = ENVELOPE, to = INBOX, headers = PASS } = {}) {
   const bytes = new TextEncoder().encode(raw);
   return {
     from,
@@ -172,12 +185,18 @@ export default async function run() {
 
   suite('tracking in — who may report a shipment');
 
-  check('Pirate Ship may',
+  check('the address the template actually sends as may',
+    senderAllowed(SENDER, trackingSenders(fakeEnv())));
+  check('Pirate Ship&apos;s own domain may too, for a template that uses it',
     senderAllowed('notifications@pirateship.com', trackingSenders(fakeEnv())));
+  check('the Postmark envelope sender may NOT — it is not who the mail is from',
+    senderAllowed(ENVELOPE, trackingSenders(fakeEnv())) === false);
   check('a lookalike domain may not',
     senderAllowed('notifications@pirateship.com.evil.net', trackingSenders(fakeEnv())) === false);
-  check('the default is Pirate Ship, not everyone',
-    trackingSenders({}).join() === '@pirateship.com');
+  check('nor a lookalike of the shop&apos;s own sender',
+    senderAllowed('orders@rawhidecitylthr.com.evil.net', trackingSenders(fakeEnv())) === false);
+  check('the default covers the live sender, not everyone',
+    trackingSenders({}).includes(SENDER));
   check('an explicitly blank list allows nobody',
     senderAllowed('x@pirateship.com', []) === false);
 
@@ -243,9 +262,18 @@ export default async function run() {
   check('against the right order', puts[0]?.href.includes('tok-aaaaaaaa'));
 
   const stranger = await ship(fakeEnv(), orders,
-    fakeMessage(trackingMail(), { from: 'phish@notpirateship.net' }));
+    fakeMessage(trackingMail({ from: 'phish@notpirateship.net' })));
   check('a stranger reporting a shipment is refused',
     stranger.shipped === false && stranger.why === 'sender not on the list', stranger.why);
+
+  // The regression this whole check was rewritten for: the envelope sender is a
+  // Postmark bounce address on every real one of these, so an allowlist reading
+  // message.from would refuse every genuine tracking email.
+  const realShaped = await ship(fakeEnv(), orders, fakeMessage(trackingMail()));
+  check('a message whose envelope is Postmark still ships, because From: is the shop',
+    realShaped.shipped === true, realShaped.why);
+  check('and the sender reported is the header, not the envelope',
+    realShaped.from === SENDER, realShaped.from);
 
   const noOrder = await ship(fakeEnv(), orders,
     fakeMessage(trackingMail({ to: 'someone-else@example.com' })));
@@ -265,12 +293,12 @@ export default async function run() {
     headers: { 'authentication-results': 'mx.cloudflare.net; dmarc=fail; spf=fail; dkim=fail' },
   }));
   check('a forged From that says Pirate Ship ships nothing',
-    forged.shipped === false && forged.why === 'could not prove it came from Pirate Ship',
+    forged.shipped === false && forged.why === 'could not prove who sent it',
     forged.why);
 
   const unsigned = await ship(fakeEnv(), orders, fakeMessage(trackingMail(), { headers: {} }));
   check('and neither does one with no verdict at all',
-    unsigned.shipped === false && unsigned.why === 'could not prove it came from Pirate Ship',
+    unsigned.shipped === false && unsigned.why === 'could not prove who sent it',
     unsigned.why);
 
   const huge = fakeMessage(trackingMail());

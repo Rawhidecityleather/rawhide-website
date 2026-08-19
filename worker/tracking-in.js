@@ -25,10 +25,17 @@
  *                        wrangler secret put TRACKING_INBOX
  *                      Unset means the feature is simply off — mail to the
  *                      Worker all goes down the receipts path, as before.
- *   TRACKING_SENDERS — who may report a shipment. Comma-separated; a bare
- *                      "@domain.com" allows the domain. Defaults to
- *                      @pirateship.com. A public domain, so it lives in
+ *   TRACKING_SENDERS — who may report a shipment, matched against the From:
+ *                      HEADER. Comma-separated; a bare "@domain.com" allows the
+ *                      domain. Nothing private in it, so it lives in
  *                      wrangler.jsonc.
+ *
+ *                      Note it is not @pirateship.com that shows up: Pirate Ship
+ *                      sends a tracking email as whatever Sender Email the
+ *                      template carries, which here is orders@rawhidecitylthr.com
+ *                      — the old domain, kept deliberately because that is the
+ *                      zone holding the working DKIM key. Change the sender on
+ *                      the template and this list has to change with it.
  */
 
 import { parseEmail, htmlToText } from './mime.js';
@@ -36,7 +43,7 @@ import { findTrackingNumber } from './pirateship.js';
 import { getAllOrders, putJson, trackingUrlFor, isShipped, isCancelled } from './snipcart.js';
 
 /** Pirate Ship's own mail. Overridable, because senders get renamed. */
-const DEFAULT_SENDERS = '@pirateship.com';
+const DEFAULT_SENDERS = 'orders@rawhidecitylthr.com,@pirateship.com';
 
 /**
  * Whether this message is a tracking report rather than a forwarded receipt.
@@ -135,14 +142,8 @@ export function matchOrder(email, orders) {
 export async function handleTrackingEmail(message, env, readRaw, limit) {
   const report = { from: String(message?.from || '').toLowerCase(), shipped: false, why: '' };
 
-  const allowed = trackingSenders(env);
-  if (!senderAllowed(message.from, allowed)) {
-    report.why = allowed.length ? 'sender not on the list' : 'TRACKING_SENDERS is not set';
-    return report;
-  }
-
   if (!authStrict(message)) {
-    report.why = 'could not prove it came from Pirate Ship';
+    report.why = 'could not prove who sent it';
     return report;
   }
 
@@ -153,6 +154,24 @@ export async function handleTrackingEmail(message, env, readRaw, limit) {
   }
 
   const parsed = parseEmail(raw);
+
+  /*
+   * The From: HEADER, not message.from.
+   *
+   * message.from is the envelope sender, and on this mail it is a Postmark
+   * bounce address — Pirate Ship sends through Postmark and the template's
+   * Return Path is unverified, so the envelope says nothing about the shop.
+   * The From: header is `orders@rawhidecitylthr.com`, and that is also the
+   * domain DKIM signs and DMARC aligns against, so it is the half the check
+   * above actually proved. Allowlisting the envelope while authenticating the
+   * header would be checking two different things and calling it one.
+   */
+  const allowed = trackingSenders(env);
+  report.from = parsed.from;
+  if (!senderAllowed(parsed.from, allowed)) {
+    report.why = allowed.length ? 'sender not on the list' : 'TRACKING_SENDERS is not set';
+    return report;
+  }
   const body = [parsed.text, htmlToText(parsed.html), parsed.subject]
     .filter(Boolean)
     .join('\n');
