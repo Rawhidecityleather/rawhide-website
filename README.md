@@ -487,6 +487,92 @@ refused. Conversions are billed per transformation and only ever run on a HEIC.
 Receipts are private the same way artwork is: `/receipt/<key>` sits behind the
 dashboard login, and the keys are random.
 
+### Receipts by email
+
+Half the shop's spending never arrives on paper to photograph. The ad platforms,
+the tanneries, the software and the marketplaces all email an invoice, so there
+is a second way in: **forward it to the shop's private filing address and it
+becomes a row.** Cloudflare Email Routing already holds MX for the domain, so
+that one address points at this Worker's `email` handler instead of forwarding
+to Gmail. Every other address on the domain still forwards to the inbox as
+before. See `worker/email-in.js`.
+
+What happens to one message:
+
+1. **It is forwarded to the shop inbox, whatever else goes right or wrong.**
+   Nothing in here is ever the only copy of a receipt.
+2. The sender is checked against `RECEIPT_SENDERS`. Anything else is forwarded
+   and dropped — this address writes rows into the shop's books.
+3. Real attachments — a PDF invoice, a photographed receipt — are stored and
+   read down the same path as an upload. One row each, up to five per message.
+4. With no attachment worth filing, **the body is the receipt**: it is stored as
+   HTML so the original is still on file, and read as text.
+
+Rows land unchecked exactly like uploads. A model reading a marketplace's HTML
+table is a suggestion, never a number in the year-end report.
+
+Two things the reader can't know are filled in from the message itself: with no
+vendor read, the sender's name or domain, and for a body-only receipt with no
+date read, the day it was sent. Neither is applied to an attachment's date —
+that is printed on the document, and a receipt forwarded out of a three-week-old
+thread would file into the wrong month.
+
+An emailed body shows an `EMAIL` badge in the ledger where a photo would show a
+thumbnail; the printed packet lists those rows alongside the PDFs rather than
+leaving holes in a page. Clicking either opens the original.
+
+#### Setting up the address
+
+The inbound address is **not** in `wrangler.jsonc` — there is no wrangler
+setting for it. It is a routing rule, made once in the dashboard:
+
+1. Cloudflare → the `rawhidecityleather.com` zone → **Email** → **Email
+   Routing** → **Routing rules**.
+2. **Create address**, something private — anyone who learns it and gets past
+   the allowlist is writing into the books.
+3. Action: **Send to a Worker** → `quiet-firefly-3711`.
+
+Then the two vars in `wrangler.jsonc`, both plain rather than secrets (they are
+addresses already printed on the live site):
+
+- `RECEIPT_SENDERS` — who may file. Comma-separated; a bare `@domain.com` entry
+  allows a whole domain, which is how a vendor gets to bill the address directly
+  instead of being forwarded by hand. **Empty means nobody** — an unset list
+  fails closed rather than filing whatever arrives.
+- `RECEIPT_FORWARD_TO` — where every message is forwarded. Must be a verified
+  Email Routing destination address.
+
+The From header is a claim anyone can write, so the allowlist alone is not the
+check: Email Routing verifies SPF, DKIM and DMARC at the edge, and the handler
+reads the verdict out of `Authentication-Results`. A message that fails all
+three is forwarded and dropped. A message carrying no such header is let
+through — the address is private, the row lands unchecked, and failing closed on
+a header that isn't there would mean the feature silently files nothing.
+
+#### What it won't do
+
+- **Nothing over 25 MB**, Email Routing's own ceiling — past that the message
+  was truncated on the way in and its last attachment is half a file. Forwarded,
+  not filed.
+- **Nothing small.** Under 6 KB an attachment is a letterhead, a social icon or
+  a tracking pixel, not a receipt. An inline image has to clear 40 KB before it
+  outranks a real attachment.
+- **Nothing it can't identify.** Same first-bytes check as everything else, so a
+  vendor labelling its invoice `application/octet-stream` still files, and a
+  `.pdf` that isn't one never gets stored as one.
+- **It never bounces.** A crash inside the handler would return the message to
+  whoever sent it, so every failure in here is a log line and a forwarded copy
+  instead.
+
+The MIME parsing is hand-written (`worker/mime.js`) rather than an npm package,
+to keep this repo's no-dependency, no-install-step property — `node
+worker/tests/run.mjs` is still the entire setup. The parse surface is small:
+walk the part tree, decode base64 and quoted-printable, hand back the text and
+the attachments. `worker/tests/mime.test.mjs` carries the weight a package's own
+test suite would have, built out of real message shapes — a Gmail forward with a
+PDF attached, a message forwarded *as* an attachment, an HTML-only receipt,
+folded headers, encoded subjects.
+
 ### The buckets
 
 Fourteen of them — leather, hardware, tools, shipping, packaging, advertising,
@@ -558,6 +644,8 @@ node worker/tests/run.mjs slip
 | `quote` | pricing and the gross-up, validation, tax exemption, certificate warnings, status, the page Snipcart's crawler reads, HTML escaping |
 | `slip` | packing slip rendering with and without a quote attached |
 | `expenses` | the ledger: categories, edits and what blocks checking a row off, KV round-trip, year and undated handling, totals, the CSV including Excel formula injection, both pages' HTML escaping, and every way reading a receipt can fail |
+| `mime` | the hand-written email parser: folded headers, encoded subjects and filenames, base64 and quoted-printable, nested and prefix-clashing boundaries, a message forwarded as an attachment, HTML flattened to text |
+| `email-in` | receipts by email: who may file and every way a message is refused, picking the real attachment out of the letterhead, the fallbacks from sender and subject, and the promises that must hold on a bad day — always forwarded, never bounced, an unreadable receipt still becomes a row |
 | `worker` | routes through the real fetch handler — auth, the quote API, the public quote page, voiding, the webhook |
 
 `worker` swaps in a KV shim and a stub asset router, so it needs neither

@@ -21,6 +21,7 @@
 
 import { esc, money, shortDate } from './lib.js';
 import { renderRail, DASHBOARD_STYLES } from './dashboard.js';
+import { isImageExt } from './uploads.js';
 
 const KEY_PREFIX = 'receipt:';
 
@@ -506,13 +507,23 @@ function categoryOptions(selected) {
   ).join('');
 }
 
+/** What goes on the badge where a thumbnail can't go. */
+function fileBadge(ext) {
+  // An emailed receipt with no attachment: the body is the receipt, and
+  // "HTML" would mean nothing to anybody looking at this page.
+  if (ext === 'html') return 'EMAIL';
+  return String(ext || '').toUpperCase() || '—';
+}
+
 function renderRow(r, { template = false } = {}) {
   const amount = r.amount === null || r.amount === undefined ? '' : Number(r.amount).toFixed(2);
   const tax = r.tax === null || r.tax === undefined ? '' : Number(r.tax).toFixed(2);
 
   const thumb = r.key
     ? `<a href="/receipt/${esc(r.key)}" target="_blank" rel="noopener" class="thumb">${
-      r.ext === 'pdf' ? '<span class="pdf">PDF</span>' : `<img src="/receipt/${esc(r.key)}" alt="" loading="lazy">`
+      isImageExt(r.ext)
+        ? `<img src="/receipt/${esc(r.key)}" alt="" loading="lazy">`
+        : `<span class="pdf">${esc(fileBadge(r.ext))}</span>`
     }</a>`
     // The template's link is built by the script; a placeholder here would be
     // left behind beside it.
@@ -655,11 +666,13 @@ function monthName(key) {
 /**
  * The images ride at the back of the same document on purpose: printed to PDF
  * from a logged-in browser, the summary and the proof travel as one file. A PDF
- * receipt has no thumbnail to print, so it is listed rather than shown.
+ * invoice or an emailed receipt has no thumbnail to print, so it is listed
+ * rather than shown — the row still says the original is on file, and the CPA
+ * can open it from the ledger.
  */
 function renderImageSheet(rows) {
-  const shown = rows.filter((r) => r.key && r.ext !== 'pdf');
-  const pdfs = rows.filter((r) => r.key && r.ext === 'pdf');
+  const shown = rows.filter((r) => r.key && isImageExt(r.ext));
+  const listed = rows.filter((r) => r.key && !isImageExt(r.ext));
 
   return `<section class="rbreak">
     <h2>The receipts</h2>
@@ -669,8 +682,9 @@ function renderImageSheet(rows) {
         r.amount ? esc(money(r.amount, 'usd')) : '—'
       }</figcaption>
     </figure>`).join('')}</div>
-    ${pdfs.length ? `<p class="rfine">${pdfs.length} receipt${pdfs.length === 1 ? ' is a PDF and is' : 's are PDFs and are'} not
-      shown here: ${pdfs.map((r) => esc(`${r.date} ${r.vendor || ''}`.trim())).join('; ')}.</p>` : ''}
+    ${listed.length ? `<p class="rfine">${listed.length} receipt${listed.length === 1 ? ' is' : 's are'} a PDF or an
+      emailed one and ${listed.length === 1 ? 'is' : 'are'} not shown here:
+      ${listed.map((r) => esc(`${r.date} ${r.vendor || ''}`.trim())).join('; ')}.</p>` : ''}
   </section>`;
 }
 
@@ -914,10 +928,13 @@ function addRow(record) {
     link.href = '/receipt/' + record.key;
     link.target = '_blank';
     link.rel = 'noopener';
-    if (record.file && record.file.ext === 'pdf') {
+    // Same rule as the server-rendered rows: only the drawable types get a
+    // thumbnail, everything else gets a badge saying what it is.
+    const ext = (record.file && record.file.ext) || '';
+    if (!['png', 'jpg', 'gif', 'webp', 'heic'].includes(ext)) {
       const tag = document.createElement('span');
       tag.className = 'pdf';
-      tag.textContent = 'PDF';
+      tag.textContent = ext === 'html' ? 'EMAIL' : (ext.toUpperCase() || '—');
       link.appendChild(tag);
     } else {
       const img = document.createElement('img');

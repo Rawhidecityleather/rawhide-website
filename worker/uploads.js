@@ -59,6 +59,18 @@ export function detect(head) {
 }
 
 /**
+ * Whether a stored file is something a browser will draw in an `<img>`.
+ *
+ * The ledger shows a thumbnail for these and a badge with the extension on it
+ * for everything else — a PDF invoice, or the HTML body of an emailed receipt.
+ * A badge is not a fallback for a broken image; it is the honest answer, and
+ * the printed CPA packet lists those rows instead of leaving holes in a page.
+ */
+export function isImageExt(ext) {
+  return ['png', 'jpg', 'gif', 'webp', 'heic'].includes(String(ext || '').toLowerCase());
+}
+
+/**
  * The customer's filename, kept only to show them and print on the slip. It
  * never becomes part of a path — the stored key is random — so this just has
  * to be safe to display.

@@ -36,6 +36,27 @@
   "triggers": {
     "crons": ["0 * * * *"]
   },
+  // Receipts by email. See worker/email-in.js and the README section.
+  //
+  // Not secrets: both are addresses already printed on the live site. They sit
+  // here rather than in `wrangler secret` so it is obvious from the repo who
+  // can file a row into the shop's books.
+  //
+  // RECEIPT_SENDERS    — only these may file. Comma-separated; a bare
+  //                      "@domain.com" entry allows a whole domain. Empty means
+  //                      nobody: an unset list fails closed rather than filing
+  //                      whatever arrives.
+  // RECEIPT_FORWARD_TO — every message is forwarded here whatever else happens,
+  //                      so the inbox is never missing a receipt this could not
+  //                      read. Must be a verified Email Routing destination.
+  //
+  // The inbound address itself is NOT configured here — there is no wrangler
+  // setting for it. It is a routing rule in the Cloudflare dashboard:
+  // Email > Email Routing > Routing rules > Send to a Worker.
+  "vars": {
+    "RECEIPT_SENDERS": "rawhidecityleather@gmail.com,rcon8919@gmail.com",
+    "RECEIPT_FORWARD_TO": "rawhidecityleather@gmail.com"
+  },
   // QUOTES  — custom-build quotes. Created 2026-08-06 with
   //             wrangler kv namespace create QUOTES
   // RECOVERY — one record per abandoned cart we have emailed, holding the code

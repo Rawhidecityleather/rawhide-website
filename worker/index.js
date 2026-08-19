@@ -27,6 +27,10 @@
  *   POST /api/inquiry                PUBLIC. Contact-form inquiry, emailed to the shop.
  *   GET  /quote/…                    PUBLIC. The crew's quote page.
  *
+ * Email
+ *   the private filing address — a forwarded receipt becomes a row on the
+ *   expenses page. See worker/email-in.js.
+ *
  * Cron
  *   hourly — abandoned cart recovery, step 3. See worker/recovery.js.
  *
@@ -74,8 +78,21 @@ import {
   renderExpensesPage, renderExpenseReport, EXPENSE_STYLES, REPORT_STYLES,
   EXPENSES_SCRIPT,
 } from './expenses.js';
+import { handleEmail } from './email-in.js';
 
 export default {
+  /**
+   * Receipts forwarded to the shop's private filing address. Cloudflare Email
+   * Routing points that one address here instead of at the inbox; every other
+   * address on the domain still forwards to Gmail untouched.
+   *
+   * handleEmail never throws — a thrown error bounces the message back to the
+   * sender, and a receipt the shop forwarded is not something to bounce.
+   */
+  async email(message, env) {
+    await handleEmail(message, env);
+  },
+
   /**
    * Abandoned cart recovery. Runs hourly rather than once a day so a cart
    * crossing the 72 hour line waits at most an hour, instead of landing at

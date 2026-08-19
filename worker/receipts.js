@@ -14,6 +14,12 @@
  * The ledger record itself lives in KV — see expenses.js. This module owns the
  * bytes and the reading of them.
  *
+ * A receipt does not have to be photographed to get here. One forwarded to the
+ * shop's filing address comes down the same path — `storeReceipt` for an
+ * attachment, `readText` and `storeBody` for a receipt that is the email
+ * itself. See email-in.js; everything below is shared with it deliberately, so
+ * there is one type check, one conversion and one reader, not two that drift.
+ *
  * Routes (wired in index.js, all behind the dashboard login)
  *   POST /dashboard/api/receipt   upload one file, get a draft row back
  *   GET  /receipt/<key>           the stored image
@@ -58,6 +64,13 @@ const EXTRACT_MAX_BYTES = 6 * 1024 * 1024;
 const MAX_DOC_CHARS = 8000;
 
 /**
+ * Below this there is nothing to read. A PDF with no text layer comes back
+ * near-empty, and an email whose whole body is "see attached" is not a receipt
+ * — both are worth saying so about rather than sending to the model.
+ */
+const MIN_TEXT_CHARS = 20;
+
+/**
  * The reader. Swappable — everything downstream treats the output as untrusted
  * text and re-validates it, so a different model id here changes accuracy and
  * nothing else.
@@ -91,8 +104,14 @@ RECEIPT TEXT:
 
 const SYSTEM = 'You extract structured data from receipts. You reply with JSON only.';
 
+/**
+ * `html` is the odd one out. It is not a file anybody uploaded — it is the body
+ * of an emailed receipt that arrived with no attachment (see email-in.js),
+ * stored so the row still has an original behind it when the CPA asks. It is
+ * served back under the same sandboxed, script-free headers as the rest.
+ */
 export function isReceiptKey(key) {
-  return /^[0-9a-f]{32}\.(png|jpg|gif|pdf|webp|heic)$/.test(String(key || ''));
+  return /^[0-9a-f]{32}\.(png|jpg|gif|pdf|webp|heic|html)$/.test(String(key || ''));
 }
 
 function newKey(ext) {
@@ -329,18 +348,42 @@ async function readDocument(env, bytes) {
   const doc = Array.isArray(converted) ? converted[0] : converted;
   const text = doc && doc.format !== 'error' ? String(doc.data || '') : '';
 
-  if (text.trim().length < 20) return unread('no text in that PDF — type it in');
+  if (text.trim().length < MIN_TEXT_CHARS) return unread('no text in that PDF — type it in');
 
-  const result = await env.AI.run(MODEL, {
-    messages: [
-      { role: 'system', content: SYSTEM },
-      { role: 'user', content: DOC_PROMPT + text.slice(0, MAX_DOC_CHARS) },
-    ],
-    max_tokens: 300,
-    temperature: 0.1,
-  });
+  return await readText(env, text, 'could not read that PDF');
+}
 
-  return finish(result, 'could not read that PDF');
+/**
+ * A receipt that is already text: a PDF's text layer, or the body of an
+ * emailed receipt that never had an attachment. Same prompt either way — the
+ * platforms that bill this shop send the identical document as a PDF to some
+ * customers and as an HTML email to others.
+ *
+ * Public because email-in.js reads bodies with it. Never throws, same contract
+ * as `extract`: a reading is a convenience, and losing it must not lose the
+ * receipt.
+ */
+export async function readText(env, text, failureReason = 'could not read that receipt') {
+  if (!env.AI) return unread('no AI binding');
+
+  const body = String(text || '').trim();
+  if (body.length < MIN_TEXT_CHARS) return unread('not enough text to read');
+
+  try {
+    const result = await env.AI.run(MODEL, {
+      messages: [
+        { role: 'system', content: SYSTEM },
+        { role: 'user', content: DOC_PROMPT + body.slice(0, MAX_DOC_CHARS) },
+      ],
+      max_tokens: 300,
+      temperature: 0.1,
+    });
+
+    return finish(result, failureReason);
+  } catch (err) {
+    console.error('receipt text extraction failed', err?.message || err);
+    return unread('reader unavailable');
+  }
 }
 
 function finish(result, failureReason) {
@@ -389,7 +432,27 @@ export async function storeUpload(request, env) {
 
   // Read once, into memory: the same bytes get stored and sent to the model,
   // and a stream can only be walked one time.
-  const original = new Uint8Array(await file.arrayBuffer());
+  return await storeReceipt(env, new Uint8Array(await file.arrayBuffer()), file.name);
+}
+
+/**
+ * Stores one receipt's bytes and reads them.
+ *
+ * The half of an upload that has nothing to do with HTTP, so an attachment
+ * pulled out of an emailed receipt takes the identical path — same type
+ * sniffing, same HEIC conversion, same reading — instead of a second
+ * almost-the-same one that drifts.
+ *
+ * The caller writes the ledger record, so that a stored object and its row are
+ * created in one place.
+ */
+export async function storeReceipt(env, original, rawName) {
+  if (!env.RECEIPTS) {
+    return { error: 'Receipt storage is not set up. Add the RECEIPTS R2 binding.', status: 500 };
+  }
+  if (!original || !original.length) return { error: 'That file is empty.', status: 400 };
+  if (original.length > MAX_BYTES) return { error: 'That file is too big.', status: 413 };
+
   const kind = detect(original.subarray(0, 16));
   if (!kind) {
     return {
@@ -416,7 +479,7 @@ export async function storeUpload(request, env) {
     }
   }
 
-  const name = safeName(file.name);
+  const name = safeName(rawName);
   const key = newKey(ext);
 
   await env.RECEIPTS.put(key, bytes, {
@@ -437,6 +500,48 @@ export async function storeUpload(request, env) {
     file: { name, ext, mime, size: bytes.length, converted },
     draft,
   };
+}
+
+/**
+ * Stores the body of an emailed receipt as the receipt itself.
+ *
+ * Plenty of receipts have no attachment — the ad platforms, the marketplaces,
+ * the subscriptions all put the whole thing in the email. Without this the row
+ * would carry numbers a model read off a message nobody kept, which is exactly
+ * the kind of entry an accountant asks for the original of. So the body goes in
+ * the bucket beside the photographs.
+ *
+ * Stored as HTML and served back from /receipt/<key>, which sits behind the
+ * dashboard login under `default-src 'none'; sandbox` — no scripts, no images,
+ * no requests out. A remote sender's markup can't do anything from there.
+ */
+export async function storeBody(env, { html = '', text = '', subject = '' } = {}) {
+  if (!env.RECEIPTS) {
+    return { error: 'Receipt storage is not set up. Add the RECEIPTS R2 binding.', status: 500 };
+  }
+
+  const document = html.trim() ? html : plainDocument(subject, text);
+  const bytes = new TextEncoder().encode(document);
+  if (!bytes.length) return { error: 'That email had no body.', status: 400 };
+  if (bytes.length > MAX_BYTES) return { error: 'That email is too big to file.', status: 413 };
+
+  const key = newKey('html');
+  const name = safeName(subject || 'emailed receipt');
+
+  await env.RECEIPTS.put(key, bytes, {
+    httpMetadata: { contentType: 'text/html; charset=utf-8' },
+    customMetadata: { originalName: name, uploaded: new Date().toISOString(), source: 'email' },
+  });
+
+  return { key, file: { name, ext: 'html', mime: 'text/html', size: bytes.length, converted: false } };
+}
+
+/** A text-only email, wrapped so the browser shows it the way it arrived. */
+function plainDocument(subject, text) {
+  const escape = (value) => String(value || '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return `<!doctype html><meta charset="utf-8"><title>${escape(subject) || 'Emailed receipt'}</title>
+<pre style="white-space:pre-wrap;font:14px/1.5 ui-monospace,monospace">${escape(text)}</pre>`;
 }
 
 /**

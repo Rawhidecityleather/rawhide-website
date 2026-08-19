@@ -10,9 +10,11 @@
 import { report } from './harness.mjs';
 
 const SUITES = [
+  ['email-in', () => import('./email-in.test.mjs')],
   ['expenses', () => import('./expenses.test.mjs')],
   ['inquiry', () => import('./inquiry.test.mjs')],
   ['lib', () => import('./lib.test.mjs')],
+  ['mime', () => import('./mime.test.mjs')],
   ['quote', () => import('./quote.test.mjs')],
   ['recovery', () => import('./recovery.test.mjs')],
   ['slip', () => import('./slip.test.mjs')],
