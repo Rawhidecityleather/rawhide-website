@@ -538,15 +538,20 @@ function renderTrackingPanel() {
   return `<section id="tracking" class="card">
     <div class="cardhead">
       <h2>Add tracking in bulk</h2>
-      <span class="cardnote">marks each order shipped and emails the customer</span>
+      <span class="cardnote">marks each order shipped</span>
     </div>
     <p class="hint">
       Paste Pirate Ship's shipment list straight in &mdash; or type one order and
       tracking number per line. Each match gets its tracking number saved, flips to
-      <strong>Shipped</strong>, and Snipcart sends the customer the tracking email.
+      <strong>Shipped</strong>. It does not email anyone: Snipcart only offers to send
+      a tracking email when you set the number by hand in <em>its own</em> dashboard,
+      and nothing typed here goes through that screen. The customer hears from Pirate
+      Ship, an hour after the label is bought.
       <br>
       With the tracking BCC set up, labels report themselves back and nothing needs
-      pasting here. This is the fallback for the ones that don't match.
+      pasting here. This is the fallback for the ones that don't match &mdash; and for
+      a package sent without a Pirate Ship label, where <strong>nobody emails the
+      customer at all</strong> unless you do it yourself.
     </p>
     <textarea id="pastebox" rows="6" spellcheck="false"
       placeholder="1042, 9400111899223197428374&#10;1043, 9400111899223197428381"></textarea>
@@ -1022,7 +1027,7 @@ export const DASHBOARD_SCRIPT = `
       .then(function(){
         row.classList.add('shipped');
         button.textContent = 'Shipped';
-        toast('Marked shipped. Snipcart is emailing the tracking number.');
+        toast('Marked shipped. Pirate Ship emails the customer, not Snipcart.');
         setTimeout(function(){ location.reload(); }, 1200);
       })
       .catch(function(err){

@@ -228,8 +228,16 @@ overpaying a few cents beats a postage-due package coming back at you.
 ### Getting tracking numbers back in
 
 Three ways, and all of them do the same three things: save the tracking number,
-flip the order to **Shipped**, and let Snipcart email the customer their
-tracking link.
+flip the order to **Shipped**. None of them email anybody.
+
+**Snipcart does not send a tracking email on its own.** It offers to, but only
+when you set the tracking number by hand in Snipcart's own order screen, which
+pops up a prompt. Everything here writes through the REST API instead, so that
+prompt never happens. The customer's tracking email comes from Pirate Ship.
+
+That matters for a package that goes out **without** a Pirate Ship label: mark it
+shipped here and the dashboard is right, the order is right, and the customer has
+been told nothing. Send that one yourself.
 
 - **By itself** — Pirate Ship BCCs its tracking email here and the order ships
   on its own. Nothing to type. Setup is below.
