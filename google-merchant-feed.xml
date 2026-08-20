@@ -200,5 +200,22 @@
       <g:max_handling_time>3</g:max_handling_time>
     </item>
 
+    <item>
+      <g:id>velcro-patch</g:id>
+      <g:title>3 Inch Leather Velcro Patch - Custom Logo, Backpack and Gym Bag</g:title>
+      <g:description>A 3 inch brown leather patch with hook-and-loop backing, cut and engraved with your own design. Sticks to the velcro panel on a backpack, gym bag, or gear bag and pulls off just as easy. Department crest, local number, company logo, or your own artwork - upload it with the order and we email a proof before anything gets cut. Built to order, 1-3 week lead time.</g:description>
+      <g:link>https://rawhidecityleather.com/product-velcro-patch</g:link>
+      <g:image_link>https://rawhidecityleather.com/assets/img/products/velcro-patch.jpg</g:image_link>
+      <g:price>7.00 USD</g:price>
+      <g:availability>in_stock</g:availability>
+      <g:condition>new</g:condition>
+      <g:brand>Rawhide City Leather</g:brand>
+      <g:identifier_exists>no</g:identifier_exists>
+      <g:product_type>Accessories</g:product_type>
+      <g:google_product_category>2047</g:google_product_category>
+      <g:min_handling_time>7</g:min_handling_time>
+      <g:max_handling_time>21</g:max_handling_time>
+    </item>
+
   </channel>
 </rss>
