@@ -298,6 +298,11 @@ p{margin:0 0 1em}
    to the stepper's height instead, and centred whether it sits beside the
    stepper or wraps under it on a narrow card. */
 .card-buy .card-buy-btn{flex:1 1 118px;display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 14px;font-size:.78rem;letter-spacing:.16em;white-space:nowrap}
+/* The crews patch box reuses .card-buy for its stepper row, but sits inside an
+   .order-form whose own 14px gap already spaces it. */
+.order-form .card-buy{margin-top:0}
+.crew-buy{margin:18px 0 0;padding-top:16px;border-top:1px solid var(--c-line-strong)}
+.crew-buy .card-buy-btn{flex:1 1 160px}
 
 /* Instagram feed */
 .insta-feed{padding:90px 0;background:var(--c-bg-2);border-top:1px solid var(--c-line);border-bottom:1px solid var(--c-line)}

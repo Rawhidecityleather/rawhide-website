@@ -126,20 +126,40 @@
     input.value=String(n);
     return n;
   }
+  // Opt-in via data-live-total. Only the crews page uses it: that box sells one
+  // thing at one price and the whole point is ordering twenty at once, so the
+  // running total belongs on the button. Product pages have option price
+  // modifiers, where a total on the button would be wrong the moment someone
+  // ticks the leather butter add-on.
+  function submitLabel(form){
+    if(!form||!form.hasAttribute('data-live-total'))return 'Add to Cart';
+    var price=parseFloat(form.getAttribute('data-snipcart-price')||'0')||0;
+    var total=price*readQty(form);
+    return 'Add to Cart — $'+(total%1?total.toFixed(2):total);
+  }
+  function refreshSubmit(form){
+    var btn=form?form.querySelector('button[type="submit"]'):null;
+    // Never while an upload holds the button: that text is a status, not a label.
+    if(!btn||Number(form.getAttribute('data-uploading')))return;
+    btn.textContent=submitLabel(form);
+  }
   function resetQty(form){
     var input=form?form.querySelector('[data-qty]'):null;
     if(!input)return;
     input.value='1';
     var minus=form.querySelector('[data-qty-step="-1"]');
     if(minus)minus.disabled=true;
+    refreshSubmit(form);
   }
   document.querySelectorAll('.qty-stepper').forEach(function(stepper){
     var input=stepper.querySelector('[data-qty]');
     if(!input)return;
     function sync(){
-      var n=readQty(stepper.closest('form'));
+      var form=stepper.closest('form');
+      var n=readQty(form);
       var minus=stepper.querySelector('[data-qty-step="-1"]');
       if(minus)minus.disabled=(n<=1);
+      refreshSubmit(form);
     }
     stepper.querySelectorAll('[data-qty-step]').forEach(function(btn){
       btn.addEventListener('click',function(){
@@ -254,17 +274,34 @@
         return;
       }
       btn.disabled=true;
-      // url points at the product page, not /shop. Snipcart validates the price
-      // by crawling that URL for a matching item id, and the definition only
-      // exists on the product page.
+
+      // The shop card has no fields; the crews patch box has two. Same rules as
+      // the product-page path: skip the submit button and type=hidden, but keep
+      // fields carrying the hidden *attribute* — that is where the uploaded
+      // artwork URL lives.
+      var customFields=[];
+      form.querySelectorAll('input,select,textarea').forEach(function(el){
+        if(!el.name||el.type==='submit'||el.type==='hidden')return;
+        var val=(el.value||'').trim();
+        if(val) customFields.push({name:el.getAttribute('data-label')||el.name,value:val});
+      });
+
+      // url points at the product page, not the page we are on. Snipcart
+      // validates the price by crawling that URL for a matching item id, and the
+      // definition only exists on the product page.
       window.Snipcart.api.cart.items.add({
         id:form.getAttribute('data-snipcart-id'),
         name:form.getAttribute('data-product')||'',
         price:parseFloat(form.getAttribute('data-snipcart-price')||'0'),
         url:form.getAttribute('data-snipcart-url'),
         image:form.getAttribute('data-snipcart-image')||'',
-        quantity:qty
+        quantity:qty,
+        customFields:customFields
       }).then(function(){
+        // reset() clears the artwork URL and the file picker, so the status line
+        // has to go too or it still claims a file is attached to an empty field.
+        form.reset();
+        form.querySelectorAll('[data-logo-status]').forEach(function(el){el.textContent=''});
         resetQty(form);
         window.Snipcart.api.theme.cart.open();
       }).catch(function(err){
@@ -291,7 +328,7 @@
     var submit = form.querySelector('button[type="submit"]');
     if(!submit)return;
     submit.disabled = n > 0;
-    submit.textContent = n > 0 ? 'Uploading artwork...' : 'Add to Cart';
+    submit.textContent = n > 0 ? 'Uploading artwork...' : submitLabel(form);
   }
 
   document.querySelectorAll('[data-logo-upload]').forEach(function(picker){
