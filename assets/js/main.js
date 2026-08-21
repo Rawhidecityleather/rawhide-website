@@ -77,6 +77,14 @@
       wrap.className='main-image-wrap';
       main.parentNode.insertBefore(wrap,main);
       wrap.appendChild(main);
+
+      // The frame follows the shape of whatever photo is showing, so none of them
+      // sit in a letterbox. The width/height attributes give the right shape before
+      // the file lands; load fires on every swap and corrects it from the real file.
+      var setRatio=function(w,h){if(w&&h)wrap.style.setProperty('--ar',(w/h).toFixed(4))};
+      setRatio(+main.getAttribute('width'),+main.getAttribute('height'));
+      main.addEventListener('load',function(){setRatio(main.naturalWidth,main.naturalHeight)});
+      if(main.complete)setRatio(main.naturalWidth,main.naturalHeight);
       var step=function(dir){
         var visible=thumbs.filter(function(t){return t.offsetParent!==null});
         if(visible.length<2)return;

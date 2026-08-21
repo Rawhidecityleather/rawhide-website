@@ -206,8 +206,12 @@ p{margin:0 0 1em}
 /* Product detail page */
 .product-page{padding:60px 0 110px}
 .product-page-grid{display:grid;grid-template-columns:1.1fr 1fr;gap:64px}
-.product-media{background:transparent}
-.product-media > img:first-child{width:100%;aspect-ratio:1/1;object-fit:contain;display:block;background:var(--c-bg-2);border:1px solid var(--c-line)}
+/* The photo frame takes each picture's own shape instead of a fixed square, so a
+   landscape shot no longer sits in a letterbox with dead background above and
+   below it. 100cqw is the width of the media column, so a tall photo still tops
+   out at the height it had inside the old square box and the page never grows. */
+.product-media{background:transparent;container-type:inline-size}
+.product-media > img:first-child{width:auto;height:auto;max-width:100%;max-height:100cqw;margin:0 auto;display:block;background:var(--c-bg-2);border:1px solid var(--c-line)}
 .product-info h1{margin-bottom:.3em}
 .product-price{font-family:var(--font-stamp);font-size:1.7rem;font-weight:700;color:var(--c-text);margin-bottom:1.8em}
 .product-description{padding-top:28px;border-top:1px solid var(--c-line);margin-top:28px;color:var(--c-text-soft)}
@@ -315,8 +319,11 @@ p{margin:0 0 1em}
 @media(max-width:480px){.insta-grid{grid-template-columns:repeat(2,1fr)}}
 
 /* Product image gallery (click-through thumbs under the main image) */
-.main-image-wrap{position:relative}
-.main-image-wrap > img{width:100%;aspect-ratio:1/1;object-fit:contain;display:block;background:var(--c-bg-2);border:1px solid var(--c-line)}
+/* --ar is the current photo's width/height, set by the gallery script on every
+   swap. The wrap matches it exactly, so contain never has anything to letterbox;
+   a tall photo gives up width rather than running past 100cqw of height. */
+.main-image-wrap{position:relative;width:100%;aspect-ratio:var(--ar,1.3333);max-width:calc(var(--ar,1.3333) * 100cqw);margin:0 auto}
+.main-image-wrap > img{width:100%;height:100%;object-fit:contain;display:block;background:var(--c-bg-2);border:1px solid var(--c-line)}
 .gallery-nav{position:absolute;top:50%;transform:translateY(-50%);width:42px;height:42px;display:flex;align-items:center;justify-content:center;background:rgba(15,15,15,.55);color:#EBE8E1;border:0;border-radius:var(--radius);cursor:pointer;padding:0;transition:background .2s;z-index:2}
 .gallery-nav:hover{background:rgba(15,15,15,.85)}
 .gallery-nav-prev{left:12px}
