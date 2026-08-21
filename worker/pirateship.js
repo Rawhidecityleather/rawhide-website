@@ -20,6 +20,7 @@
  */
 const ITEM_OUNCES = {
   'fully-custom-radio-strap': 14,
+  'smokey-radio-strap': 14,
   'basic-radio-strap': 11,
   'basket-weave-belt': 10,
   'heavy-duty-belt': 11,
