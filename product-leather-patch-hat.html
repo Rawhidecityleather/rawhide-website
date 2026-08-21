@@ -107,6 +107,14 @@ src="https://www.facebook.com/tr?id=1579558768885977&ev=PageView&noscript=1"/></
         <div class="form-row"><label for="hat-logo">Logo Style<span class="req">*</span></label><select id="hat-logo" name="logostyle" data-label="Logo style" data-options="FD Logo|Local Patch|Custom[+10.00]" required><option value="" disabled selected hidden>Select...</option><option value="FD Logo">FD Logo</option><option value="Local Patch">Local Patch</option><option value="Custom">Custom (+$10.00)</option></select></div>
         <div class="form-row" data-logo-slot="1" hidden><label for="hat-logo-art">Logo Artwork <span class="optional">(optional)</span></label><input type="file" id="hat-logo-art" accept=".png,.jpg,.jpeg,.webp,.gif,.heic,.pdf,image/*,application/pdf" data-logo-upload data-logo-target="hat-logo-art-url"><input type="text" hidden id="hat-logo-art-url" name="logo" data-label="Logo artwork" data-type="readonly"><p class="form-help" data-logo-status style="margin:6px 0 0">PNG, JPG, WEBP, GIF, HEIC, or PDF. Up to 8 MB. Highest resolution you have.</p></div>
         <div class="form-row"><label for="hat-details">Patch Details<span class="req">*</span></label><textarea id="hat-details" name="details" data-label="Patch details" required placeholder="Tell us what goes on the patch"></textarea></div>
+        <div class="form-row qty-row">
+          <label for="qty-leather-patch-hat">Quantity</label>
+          <div class="qty-stepper">
+            <button type="button" class="qty-btn" data-qty-step="-1" aria-label="One fewer">&minus;</button>
+            <input type="number" id="qty-leather-patch-hat" class="qty-input" data-qty value="1" min="1" max="99" step="1" inputmode="numeric" aria-label="Quantity">
+            <button type="button" class="qty-btn" data-qty-step="1" aria-label="One more">+</button>
+          </div>
+        </div>
         <button type="submit" class="btn btn-primary btn-full">Add to Cart</button>
         <p class="form-help" style="text-align:center">Adds to cart with all your details.</p>
       </form>

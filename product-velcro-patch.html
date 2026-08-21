@@ -61,6 +61,14 @@ src="https://www.facebook.com/tr?id=1579558768885977&ev=PageView&noscript=1"/></
       <form class="order-form" data-order-form data-product="3&quot; Leather Velcro Patch" data-snipcart-id="velcro-patch" data-snipcart-price="7.00" data-snipcart-image="/assets/img/products/velcro-patch.jpg">
         <div class="form-row" data-logo-slot="1"><label for="vp-logo-art">Logo Artwork <span class="optional">(optional)</span></label><input type="file" id="vp-logo-art" accept=".png,.jpg,.jpeg,.webp,.gif,.heic,.pdf,image/*,application/pdf" data-logo-upload data-logo-target="vp-logo-art-url"><input type="text" hidden id="vp-logo-art-url" name="logo" data-label="Logo artwork" data-type="readonly"><p class="form-help" data-logo-status style="margin:6px 0 0">PNG, JPG, WEBP, GIF, HEIC, or PDF. Up to 8 MB. Highest resolution you have.</p></div>
         <div class="form-row"><label for="vp-details">Patch Details<span class="req">*</span></label><textarea id="vp-details" name="details" data-label="Patch details" required placeholder="Your design, your logo — department, local number, company, or your own artwork"></textarea></div>
+        <div class="form-row qty-row">
+          <label for="qty-velcro-patch">Quantity</label>
+          <div class="qty-stepper">
+            <button type="button" class="qty-btn" data-qty-step="-1" aria-label="One fewer">&minus;</button>
+            <input type="number" id="qty-velcro-patch" class="qty-input" data-qty value="1" min="1" max="99" step="1" inputmode="numeric" aria-label="Quantity">
+            <button type="button" class="qty-btn" data-qty-step="1" aria-label="One more">+</button>
+          </div>
+        </div>
         <button type="submit" class="btn btn-primary btn-full">Add to Cart</button>
         <p class="form-help" style="text-align:center">Adds to cart with all your details.</p>
       </form>

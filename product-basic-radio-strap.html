@@ -74,6 +74,14 @@ src="https://www.facebook.com/tr?id=1579558768885977&ev=PageView&noscript=1"/></
         <div class="form-row"><label for="b-stamp">Text / Symbols to be Stamped<span class="req">*</span></label><input id="b-stamp" name="stamp" data-label="Text / symbols to be stamped" type="text" placeholder="For example: 39 Smith 12" required></div>
         <div class="form-row"><label for="b-butter">Add Leather Butter<span class="req">*</span></label><select id="b-butter" name="butter" data-label="Add leather butter" data-options="No|Yes[+8.00]" required><option value="No" selected>No</option><option value="Yes">Yes (+$8.00)</option></select></div>
         <div class="form-row"><label for="b-notes">Additional Notes</label><textarea id="b-notes" name="notes" data-label="Notes" placeholder="Custom color requests or anything else we should know"></textarea></div>
+        <div class="form-row qty-row">
+          <label for="qty-basic-radio-strap">Quantity</label>
+          <div class="qty-stepper">
+            <button type="button" class="qty-btn" data-qty-step="-1" aria-label="One fewer">&minus;</button>
+            <input type="number" id="qty-basic-radio-strap" class="qty-input" data-qty value="1" min="1" max="99" step="1" inputmode="numeric" aria-label="Quantity">
+            <button type="button" class="qty-btn" data-qty-step="1" aria-label="One more">+</button>
+          </div>
+        </div>
         <button type="submit" class="btn btn-primary btn-full">Add to Cart</button>
         <p class="form-help" style="text-align:center">Adds to cart with all your details. <a href="/measure#radio-strap" style="color:var(--c-accent)">How to measure</a></p>
       </form>

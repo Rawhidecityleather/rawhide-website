@@ -66,6 +66,14 @@ src="https://www.facebook.com/tr?id=1579558768885977&ev=PageView&noscript=1"/></
         <div class="form-row"><label for="bw-buckle">Buckle Finish<span class="req">*</span></label><select id="bw-buckle" name="buckle" data-label="Buckle finish" required><option value="" disabled selected hidden>Select...</option><option>Black</option><option>Brass</option><option>Nickel</option><option>Silver</option></select></div>
         <div class="form-row"><label for="bw-name">Text on Belt (Optional)</label><input id="bw-name" name="name" data-label="Text on belt" type="text" placeholder="Last name, initials, etc."></div>
         <div class="form-row"><label for="bw-notes">Additional Notes</label><textarea id="bw-notes" name="notes" data-label="Notes" placeholder="Anything else we should know?"></textarea></div>
+        <div class="form-row qty-row">
+          <label for="qty-basket-weave-belt">Quantity</label>
+          <div class="qty-stepper">
+            <button type="button" class="qty-btn" data-qty-step="-1" aria-label="One fewer">&minus;</button>
+            <input type="number" id="qty-basket-weave-belt" class="qty-input" data-qty value="1" min="1" max="99" step="1" inputmode="numeric" aria-label="Quantity">
+            <button type="button" class="qty-btn" data-qty-step="1" aria-label="One more">+</button>
+          </div>
+        </div>
         <button type="submit" class="btn btn-primary btn-full">Add to Cart</button>
         <p class="form-help" style="text-align:center">Adds to cart with all your details. <a href="/measure#belt" style="color:var(--c-accent)">How to measure</a></p>
       </form>

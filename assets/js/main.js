@@ -114,6 +114,45 @@
   document.addEventListener('snipcart.ready',setCheckoutLabels);
   setCheckoutLabels();
 
+  // Quantity stepper. The input carries no name attribute on purpose: the loops
+  // below turn every named field into a Snipcart custom field, and quantity is a
+  // property of the line item, not a customization to print on the work order.
+  function readQty(form){
+    var input=form?form.querySelector('[data-qty]'):null;
+    if(!input)return 1;
+    var n=Math.floor(Number(input.value));
+    if(!isFinite(n)||n<1)n=1;
+    if(n>99)n=99;
+    input.value=String(n);
+    return n;
+  }
+  function resetQty(form){
+    var input=form?form.querySelector('[data-qty]'):null;
+    if(!input)return;
+    input.value='1';
+    var minus=form.querySelector('[data-qty-step="-1"]');
+    if(minus)minus.disabled=true;
+  }
+  document.querySelectorAll('.qty-stepper').forEach(function(stepper){
+    var input=stepper.querySelector('[data-qty]');
+    if(!input)return;
+    function sync(){
+      var n=readQty(stepper.closest('form'));
+      var minus=stepper.querySelector('[data-qty-step="-1"]');
+      if(minus)minus.disabled=(n<=1);
+    }
+    stepper.querySelectorAll('[data-qty-step]').forEach(function(btn){
+      btn.addEventListener('click',function(){
+        input.value=String((Math.floor(Number(input.value))||1)+Number(btn.getAttribute('data-qty-step')));
+        sync();
+      });
+    });
+    // Typed input is only clamped on blur — clamping mid-keystroke would rewrite
+    // "10" to "1" the moment the 1 lands.
+    input.addEventListener('blur',sync);
+    sync();
+  });
+
   // Order forms: on submit, push the item + all customizations into the Snipcart cart.
   var forms=document.querySelectorAll('[data-order-form]');
   forms.forEach(function(form){
@@ -125,6 +164,7 @@
       var snipImage=form.getAttribute('data-snipcart-image')||'';
       var hiddenBtn=document.querySelector('.snipcart-add-item[data-item-id="'+snipId+'"]');
       var snipUrl=hiddenBtn?hiddenBtn.getAttribute('data-item-url'):location.pathname;
+      var qty=readQty(form);
 
       if(!snipId||!window.Snipcart){
         alert('Cart is still loading. Please wait a moment and try again.');
@@ -162,7 +202,9 @@
           var m=/^data-item-custom(\d+)-/.exec(attr.name);
           if(m&&Number(m[1])>idx)hiddenBtn.removeAttribute(attr.name);
         });
+        hiddenBtn.setAttribute('data-item-quantity',String(qty));
         hiddenBtn.click();
+        resetQty(form);
         setTimeout(function(){if(window.Snipcart)window.Snipcart.api.theme.cart.open();},1600);
         return;
       }
@@ -181,8 +223,10 @@
         price:snipPrice,
         url:snipUrl,
         image:snipImage,
+        quantity:qty,
         customFields:customFields
       }).then(function(){
+        resetQty(form);
         window.Snipcart.api.theme.cart.open();
       }).catch(function(err){
         console.error(err);

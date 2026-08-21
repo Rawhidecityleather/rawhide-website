@@ -90,6 +90,14 @@ src="https://www.facebook.com/tr?id=1579558768885977&ev=PageView&noscript=1"/></
         <div class="form-row" data-logo-slot="2" hidden><label for="fc-logo2">Logo 2 Artwork<span class="req">*</span></label><input type="file" id="fc-logo2" accept=".png,.jpg,.jpeg,.webp,.gif,.heic,.pdf,image/*,application/pdf" data-logo-upload data-logo-target="fc-logo2-url"><input type="text" hidden id="fc-logo2-url" name="logo2" data-label="Logo 2 artwork" data-type="readonly"><p class="form-help" data-logo-status style="margin:6px 0 0">PNG, JPG, WEBP, GIF, HEIC, or PDF. Up to 8 MB. Highest resolution you have.</p></div>
         <div class="form-row"><label for="fc-butter">Add Leather Butter<span class="req">*</span></label><select id="fc-butter" name="butter" data-label="Add leather butter" data-options="No|Yes[+8.00]" required><option value="No" selected>No</option><option value="Yes">Yes (+$8.00)</option></select></div>
         <div class="form-row"><label for="fc-notes">Message (Optional)</label><textarea id="fc-notes" name="notes" data-label="Message" placeholder="Custom color requests, sketches, references, memorial details, IAFF local, anything else"></textarea></div>
+        <div class="form-row qty-row">
+          <label for="qty-fully-custom-radio-strap">Quantity</label>
+          <div class="qty-stepper">
+            <button type="button" class="qty-btn" data-qty-step="-1" aria-label="One fewer">&minus;</button>
+            <input type="number" id="qty-fully-custom-radio-strap" class="qty-input" data-qty value="1" min="1" max="99" step="1" inputmode="numeric" aria-label="Quantity">
+            <button type="button" class="qty-btn" data-qty-step="1" aria-label="One more">+</button>
+          </div>
+        </div>
         <button type="submit" class="btn btn-primary btn-full">Add to Cart</button>
         <p class="form-help" style="text-align:center">Adds to cart with all your details. We'll follow up to finalize the design before cutting leather. <a href="/measure#radio-strap" style="color:var(--c-accent)">How to measure</a></p>
       </form>
