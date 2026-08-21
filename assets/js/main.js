@@ -235,6 +235,47 @@
     });
   });
 
+  // Shop cards can add straight to the cart, but only Leather Butter carries one:
+  // it is the single product with no required options, so there is nothing to
+  // configure first. Every other card still links to its product page, where the
+  // leather, size and hardware get picked — an order missing those is exactly
+  // what the order-options policy has to disclaim.
+  //
+  // Deliberately not [data-order-form]. pageProduct() reads that attribute to
+  // fire ViewContent, and reusing it here would report every shop visitor as
+  // having viewed Leather Butter.
+  document.querySelectorAll('[data-card-buy]').forEach(function(form){
+    form.addEventListener('submit',function(e){
+      e.preventDefault();
+      var qty=readQty(form);
+      var btn=form.querySelector('button[type="submit"]');
+      if(!window.Snipcart){
+        alert('Cart is still loading. Please wait a moment and try again.');
+        return;
+      }
+      btn.disabled=true;
+      // url points at the product page, not /shop. Snipcart validates the price
+      // by crawling that URL for a matching item id, and the definition only
+      // exists on the product page.
+      window.Snipcart.api.cart.items.add({
+        id:form.getAttribute('data-snipcart-id'),
+        name:form.getAttribute('data-product')||'',
+        price:parseFloat(form.getAttribute('data-snipcart-price')||'0'),
+        url:form.getAttribute('data-snipcart-url'),
+        image:form.getAttribute('data-snipcart-image')||'',
+        quantity:qty
+      }).then(function(){
+        resetQty(form);
+        window.Snipcart.api.theme.cart.open();
+      }).catch(function(err){
+        console.error(err);
+        alert('Sorry, something went wrong adding this to your cart. Please try again or email rawhidecityleather@gmail.com.');
+      }).then(function(){
+        btn.disabled=false;
+      });
+    });
+  });
+
   // Artwork uploads. Snipcart has no file-upload field type, so the file goes to
   // our own Worker first and the cart carries the URL it hands back, in an
   // ordinary readonly custom field. Everything here degrades to "email it to us":
