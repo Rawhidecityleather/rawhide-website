@@ -436,6 +436,7 @@ p{margin:0 0 1em}
    answer; hide the stock one in the cart only, leaving checkout alone. */
 .snipcart-cart__footer .snipcart-summary-fees.rc-ship-fixed .snipcart-summary-fees__notice{display:none}
 .rc-ship-note{color:#0F0F0F;font-size:.85rem;line-height:1.4;margin:2px 0 0}
+.rc-lead-note{color:#6B6358;font-size:.85rem;line-height:1.4;margin:2px 0 0}
 
 /* Mobile cart: keep Checkout on screen.
    A fully custom strap carries ten configuration options, and Snipcart relists

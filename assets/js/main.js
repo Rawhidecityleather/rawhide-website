@@ -676,6 +676,38 @@
       : '$8.50 shipping. Free at $85 and up. Taxes calculated at checkout.';
   }
 
+  // Lead time never appeared in the cart at all — the first a buyer heard of a
+  // six week build was after they had paid. Rank per product, from the lead
+  // times on the product pages, and show the longest in the cart: gear ships
+  // together, so the slowest item sets the date for the whole order.
+  var LEAD_RANK = {
+    'fully-custom-radio-strap':2, 'basic-radio-strap':2, 'smokey-radio-strap':2,
+    'basket-weave-belt':1, 'heavy-duty-belt':1, 'helmet-band':1,
+    'glove-strap':1, 'chin-strap':1, 'leather-patch-hat':1, 'velcro-patch':1,
+    'leather-butter':0
+  };
+  var LEAD_TEXT = [
+    'In stock. Ships in 1–3 business days.',
+    'Built to order. 1–3 weeks before it ships.',
+    'Built to order. About 6 weeks before it ships.'
+  ];
+
+  function leadNote(){
+    var state = Snipcart.store && Snipcart.store.getState();
+    var cart = state && state.cart;
+    if(!cart) return null;
+    var items = (cart.items && cart.items.items) || cart.items || [];
+    if(!items.length || !items.forEach) return null;
+    var worst = -1;
+    items.forEach(function(item){
+      var rank = LEAD_RANK[item.id];
+      // A product we do not recognise must not quietly claim the short build.
+      if(typeof rank !== 'number') rank = 2;
+      if(rank > worst) worst = rank;
+    });
+    return worst < 0 ? null : LEAD_TEXT[worst];
+  }
+
   function paintShippingNote(){
     var host = document.querySelector('.snipcart-cart__footer .snipcart-summary-fees');
     if(!host) return;
@@ -693,6 +725,19 @@
     }
     // Only write on change, so the observer below cannot feed itself.
     if(line.textContent !== text) line.textContent = text;
+
+    var lead = leadNote();
+    var leadLine = host.querySelector('.rc-lead-note');
+    if(lead){
+      if(!leadLine){
+        leadLine = document.createElement('p');
+        leadLine.className = 'rc-lead-note';
+        host.appendChild(leadLine);
+      }
+      if(leadLine.textContent !== lead) leadLine.textContent = lead;
+    } else if(leadLine){
+      leadLine.remove();
+    }
   }
 
   if(Snipcart.store && Snipcart.store.subscribe) Snipcart.store.subscribe(paintShippingNote);
