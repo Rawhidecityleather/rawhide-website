@@ -29,8 +29,8 @@
     // silently fall through to the 404 page — verified against production.
     "run_worker_first": ["/*", "!/assets/*"]
   },
-  // Abandoned cart recovery, step 3. Hourly, not daily: a cart crossing the
-  // 72 hour mark then waits at most an hour rather than until whatever time of
+  // Abandoned cart recovery, the last email. Hourly, not daily: a cart crossing
+  // the 24 hour mark then waits at most an hour rather than until whatever time of
   // day a daily run fires. Each run is cheap — one Snipcart list call, and
   // nothing else unless a cart is actually due. See worker/recovery.js.
   "triggers": {

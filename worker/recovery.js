@@ -1,20 +1,22 @@
 /**
- * Abandoned cart recovery, step 3: a unique 15% code per cart.
+ * Abandoned cart recovery, the last email: a unique 15% code per cart.
  *
- * Snipcart's own recovery campaign handles steps 1 and 2 (4h and 24h, no
- * discount). It cannot handle this one. Its discounts carry a single absolute
- * expiry date shared by every recipient, so "good for 7 days" would mean a full
- * week for an early abandoner and an afternoon for a late one. The only way to
- * give everyone the same seven days is to mint a code per cart, which means
- * sending this email ourselves.
+ * Snipcart's own recovery campaign handles the first one (6h, no discount). It
+ * cannot handle this one. Its discounts carry a single absolute expiry date
+ * shared by every recipient, so "good for 7 days" would mean a full week for an
+ * early abandoner and an afternoon for a late one. The only way to give
+ * everyone the same seven days is to mint a code per cart, which means sending
+ * this email ourselves.
  *
- * So: Snipcart's campaign must be TWO steps only. If step 3 is left on there,
- * every customer gets two last-call emails. See email/ABANDONED-CART-SETUP.md.
+ * So: Snipcart's campaign must be ONE step only. It used to carry a second at
+ * 24 hours, which is now the exact hour this one fires — both armed means two
+ * emails landing together. That step was deleted from the campaign 2026-08-25.
+ * See email/ABANDONED-CART-SETUP.md.
  *
  * The flow, once an hour on a cron trigger:
  *
  *   1. List carts abandoned in the last week.
- *   2. Keep the ones aged past 72 hours that we have not already emailed.
+ *   2. Keep the ones aged past 24 hours that we have not already emailed.
  *   3. Mint a single-use code and create the discount in Snipcart.
  *   4. Send the email ourselves.
  *   5. Write a KV marker so the next run leaves that cart alone.
@@ -23,8 +25,19 @@
 import { getJson, postJson } from './snipcart.js';
 import { sendMail, mailerConfigured, MailError, UNSUBSCRIBE_TO } from './mailer.js';
 
-/** 72 hours. The "3 days" in the brief, and the step-3 slot in the campaign. */
-export const SEND_AFTER_HOURS = 72;
+/**
+ * 24 hours. Cut from 72 on 2026-08-25.
+ *
+ * The first week at 72 hours recovered nothing — ten codes minted and sent,
+ * zero redeemed, $986 of carts reached and $0 back. Three days is long enough
+ * for a buyer to talk themselves out of it or find another shop, and by then
+ * the build they configured is no longer on their mind. A day is still long
+ * enough to be sure they are not simply mid-shop.
+ *
+ * This is also the hour Snipcart's second campaign step used to occupy, which
+ * is why that step had to come off. See the note at the top of this file.
+ */
+export const SEND_AFTER_HOURS = 24;
 
 /**
  * Carts older than this are left alone. Without it, the first run after deploy
@@ -48,6 +61,39 @@ export const DISCOUNT_RATE = 15;
 
 /** Give up on a cart after this many failed sends so it can't retry forever. */
 export const MAX_ATTEMPTS = 3;
+
+/**
+ * Carts to reach even though they are past MAX_AGE_HOURS. A hatch for one-offs,
+ * not a setting.
+ *
+ * Shortening the send to 24 hours pulled every cart from the last week into
+ * range on its own, so the ordinary backlog needs nothing here. A cart older
+ * than a week is a different problem: it is invisible twice over, once to the
+ * age guard above and once to the `LessThanAWeek` listing below.
+ *
+ * **This lives in a secret and must never be hardcoded here. This repo is
+ * public, and a cart token is not an opaque id — `cartUrl` below turns one into
+ * a link that restores that customer's cart, stamping and address and all.**
+ *
+ *   wrangler secret put RECOVERY_BACKFILL_TOKENS      # comma separated
+ *   wrangler secret delete RECOVERY_BACKFILL_TOKENS   # after ONE cron run
+ *
+ * Delete it once the run has fired. Leaving it set sends nothing extra — the KV
+ * marker stops the second run — but it keeps the wider `Anytime` listing paging
+ * through the whole store history every hour for no reason.
+ *
+ * Unset is the normal state, and costs nothing: no second listing, no extra
+ * pages. Used once, 2026-08-25, for a fully configured strap abandoned on the
+ * 10th that was already too old the day this system went live.
+ */
+export function backfillTokens(env) {
+  return new Set(
+    String(env?.RECOVERY_BACKFILL_TOKENS || '')
+      .split(',')
+      .map((token) => token.trim())
+      .filter(Boolean)
+  );
+}
 
 const KEY_PREFIX = 'recovery:';
 
@@ -93,16 +139,16 @@ export function makeCode(random = crypto.getRandomValues.bind(crypto)) {
  * Every cart abandoned in the last week, newest pages first.
  *
  * `timeRange` is an upper bound only — LessThanAWeek means "at most a week
- * old", not "between 3 and 7 days" — so the 72 hour floor is applied here in
- * code rather than by the API.
+ * old", not "between a day and a week" — so the 24 hour floor is applied here
+ * in code rather than by the API.
  */
-export async function listAbandonedCarts(env, limit = 50) {
+export async function listAbandonedCarts(env, limit = 50, timeRange = 'LessThanAWeek') {
   const carts = [];
   let continuationToken = null;
 
   // Bounded so a large account can't fan out into unlimited subrequests.
   for (let page = 0; page < 10; page++) {
-    const params = new URLSearchParams({ timeRange: 'LessThanAWeek', limit: String(limit) });
+    const params = new URLSearchParams({ timeRange, limit: String(limit) });
     if (continuationToken) params.set('continuationToken', continuationToken);
 
     const res = await getJson(env, '/carts/abandoned?' + params);
@@ -113,6 +159,28 @@ export async function listAbandonedCarts(env, limit = 50) {
   }
 
   return carts;
+}
+
+/**
+ * The allowlisted carts above, read from the full history instead of the last
+ * week.
+ *
+ * Its own call and its own try/catch on purpose. `Anytime` pages through
+ * everything the store has ever abandoned, and if that is rejected or times out
+ * the ordinary run still has to go out — a backfill is never worth losing an
+ * hour of real sends over.
+ */
+export async function listBackfillCarts(env) {
+  const tokens = backfillTokens(env);
+  if (!tokens.size) return [];
+
+  try {
+    const carts = await listAbandonedCarts(env, 50, 'Anytime');
+    return carts.filter((c) => tokens.has(c.token || c.id));
+  } catch (err) {
+    console.error('cart recovery: backfill listing failed', err?.message || err);
+    return [];
+  }
 }
 
 /**
@@ -192,13 +260,15 @@ export function cartShape(cart) {
  * Old enough to be worth an email, young enough that it isn't archaeology, and
  * addressed to a real person.
  */
-export function dueReason(cart, now) {
+export function dueReason(cart, now, { ignoreAge = false } = {}) {
   const at = abandonedAt(cart);
   if (!at) return 'no-date';
 
   const ageHours = (now - at) / HOUR;
+  // The 24 hour floor still applies to a backfilled cart. Only the ceiling is
+  // waived — that is the whole reason it needed listing by hand.
   if (ageHours < SEND_AFTER_HOURS) return 'too-recent';
-  if (ageHours > MAX_AGE_HOURS) return 'too-old';
+  if (!ignoreAge && ageHours > MAX_AGE_HOURS) return 'too-old';
 
   const email = String(cart.email || '').trim().toLowerCase();
   if (!email || !email.includes('@')) return 'no-email';
@@ -598,6 +668,20 @@ export async function runRecovery(env, now = Date.now()) {
         modificationDate: c?.modificationDate,
         creationDate: c?.creationDate,
       }));
+  }
+
+  // The one-off hatch, appended after the ordinary scan so a backfill can never
+  // crowd real work out of MAX_PER_RUN.
+  //
+  // Skipping by what is already queued, NOT by what the first listing returned:
+  // a cart can appear in both listings and still have been turned away by the
+  // age ceiling, which is the exact case this hatch exists to rescue.
+  const queued = new Set(due.map((c) => c.token || c.id));
+  for (const cart of await listBackfillCarts(env)) {
+    if (queued.has(cart.token || cart.id)) continue;
+    const reason = dueReason(cart, now, { ignoreAge: true });
+    reasons['backfill-' + reason] = (reasons['backfill-' + reason] || 0) + 1;
+    if (reason === 'due' && due.length < MAX_PER_RUN) due.push(cart);
   }
 
   ages.sort((a, b) => a - b);

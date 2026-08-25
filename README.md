@@ -544,7 +544,7 @@ existed. Safe to deploy before the Brevo key is set.
 ### Cron
 
 One trigger, hourly, defined in `wrangler.jsonc`: abandoned cart recovery. It
-mints a single-use 15% code per cart at the 72-hour mark and emails it, which is
+mints a single-use 15% code per cart at the 24-hour mark and emails it, which is
 the only thing in this repo that contacts customers unprompted. How it works and
 what the guardrails are: `email/ABANDONED-CART-SETUP.md`.
 

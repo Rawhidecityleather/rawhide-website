@@ -12,20 +12,31 @@ loaded and verified.
 Like `email/`'s other templates, the files in this folder stay in the repo and are never
 deployed to the live site (`email/` is listed in `.assetsignore`).
 
-**Steps 1 and 2 are Snipcart's. Step 3 is ours.** That split is the single most
-important thing on this page, and it is a real trap: if step 3 is left configured in
-the Snipcart campaign *and* the Worker cron is running, every customer gets two
-last-call emails.
+**Step 1 is Snipcart's. The coupon is ours.** That split is the single most important
+thing on this page, and it is a real trap: put a step in the Snipcart campaign at the
+same hour the Worker sends, and every customer gets two emails at once.
 
 | Step | Fires | Sent by | Source |
 |---|---|---|---|
-| 1 | ~4 hours | Snipcart campaign | `abandoned-cart-1-reminder.html` |
-| 2 | ~24 hours | Snipcart campaign | `abandoned-cart-2-help.html` |
-| 3 | 72 hours | **our Worker, hourly cron** | `worker/recovery.js` |
+| 1 | ~6 hours | Snipcart campaign | `abandoned-cart-1-reminder.html` |
+| 2 | **24 hours** | **our Worker, hourly cron** | `worker/recovery.js` |
 
-Two step-3 templates also live in this folder. **Neither is wired to anything** now
-that the Worker owns step 3 — they are kept as fallbacks if you ever want to go back to
-a Snipcart-only setup:
+**Shortened from 72 hours to 24 on 2026-08-25**, and Snipcart's own second step —
+the `abandoned-cart-2-help.html` "need a hand?" email, which fired at `> 1 day` —
+was **deleted from the campaign** in the same change. It occupied the exact hour the
+coupon now lands in. The campaign is a **one-step** campaign now; anything added back
+at 1 day collides.
+
+Why the change: the first week at 72 hours recovered nothing. Ten codes minted and
+sent, zero redeemed, $986 of carts reached and $0 back. Three days is long enough for
+a buyer to cool off or find another shop, and the build they configured is no longer
+on their mind by then.
+
+Both step-2 and step-3 templates still live in this folder. **None is wired to
+anything** now that the Worker owns everything after the 6 hour nudge — they are kept
+as fallbacks if you ever want to go back to a Snipcart-only setup:
+
+- `abandoned-cart-2-help.html` — the "need a hand?" email, unwired 2026-08-25
 
 - `abandoned-cart-3-lastcall.html` — no discount, the original
 - `abandoned-cart-3-lastcall-15off.html` — one shared code, the design the Worker's
@@ -35,24 +46,29 @@ Edit the Worker, not these files, to change what customers actually receive.
 
 ## The discount, and the argument against it
 
-Rob decided in Aug 2026 to run 15% off on step 3. Recording the counter-argument so
-the decision gets re-made on purpose rather than by drift:
+Rob decided in Aug 2026 to run 15% off on the coupon step. Recording the
+counter-argument so the decision gets re-made on purpose rather than by drift:
 
 **A recovery coupon teaches the wrong habit.** This is a small niche where buyers talk
 to each other. Train firefighters to abandon a cart and wait for a coupon, and they
 will. What actually stalls a $165 custom radio strap is usually not price — it is a
 buyer unsure they picked the right length, or one who hit the 6 week lead time and
-hesitated. That is what step 2 answers, and step 2 stays discount-free for that reason.
+hesitated.
 
-So: **only step 3 carries money.** Steps 1 and 2 sell the work. If recovery revenue
-climbs but full-price checkouts fall over the same stretch, that is the habit forming,
-and the discount comes back off.
+So: **only the Worker's email carries money.** Step 1 sells the work. If recovery
+revenue climbs but full-price checkouts fall over the same stretch, that is the habit
+forming, and the discount comes back off.
+
+Note this argument got weaker, not stronger, with the move to 24 hours: the help email
+that used to answer the unsure buyer at 1 day was removed to make room for the coupon.
+If the shortened timeline still recovers nothing, putting that email back at 6 hours
+and pushing the coupon out again is the obvious next thing to try.
 
 One flag worth checking on whatever you create: `combinable` defaults to **true** in
 Snipcart, meaning the recovery code can stack on top of any other live discount. Set
 it false unless you actually want stacking.
 
-## Why step 3 is ours and not Snipcart's
+## Why the coupon is ours and not Snipcart's
 
 Snipcart's discount expiry is **one absolute calendar date on the code**, shared by
 everyone who receives it. A single code expiring Aug 24 gives someone who abandoned on
@@ -66,7 +82,7 @@ email ourselves. That is `worker/recovery.js`.
 What it does, hourly:
 
 1. Lists carts abandoned in the last week.
-2. Keeps the ones past 72 hours it has not already emailed.
+2. Keeps the ones past 24 hours it has not already emailed.
 3. Mints a single-use code (`RCL` + 8 characters), 15%, expiring exactly 7 days out,
    `combinable: false` so it can never stack on a sitewide sale.
 4. Sends the email through Brevo.
@@ -76,11 +92,38 @@ What it does, hourly:
 
 | Guard | Value | Without it |
 |---|---|---|
-| `SEND_AFTER_HOURS` | 72 | — the 3 day mark itself |
+| `SEND_AFTER_HOURS` | 24 | — the one day mark itself |
 | `MAX_AGE_HOURS` | 168 | the first run after deploy mails everyone who ever abandoned a cart |
+| `RECOVERY_BACKFILL_TOKENS` | unset | no way to reach a cart older than the ceiling — see below |
 | `MAX_PER_RUN` | 25 | a backlog goes out as one blast instead of trickling |
 | `MAX_ATTEMPTS` | 3 | a permanently bad address is retried hourly forever |
 | KV record | 90 days | the same person gets the same coupon every hour for a week |
+
+### Reaching a cart older than the ceiling
+
+`MAX_AGE_HOURS` and the `LessThanAWeek` listing between them make a cart older than
+a week invisible. That is deliberate — without it the first run after any deploy would
+mail everyone who ever abandoned anything. The `RECOVERY_BACKFILL_TOKENS` secret is
+the hatch for the rare cart worth reaching anyway.
+
+```
+wrangler secret put RECOVERY_BACKFILL_TOKENS      # comma separated cart tokens
+# ...let ONE cron run fire, confirm it in the log or in KV...
+wrangler secret delete RECOVERY_BACKFILL_TOKENS
+```
+
+**A secret and not a constant in the source, deliberately. This repo is public, and a
+cart token is not an opaque id** — `cartUrl` turns one into a link that restores that
+customer's cart, with their stamping and address on it. The same goes for naming the
+customer in a commit message. Neither belongs in git history.
+
+It waives the age ceiling and nothing else: the 24 hour floor, the suppression list and
+the KV dedup all still apply. Leaving the secret set sends nothing extra — the KV marker
+stops the second run — but it keeps the wider `Anytime` listing paging through the
+whole store history every hour for no reason.
+
+Used once, 2026-08-25, for a fully configured $165 strap abandoned on the 10th — the
+system went live on the 18th, by which point that cart was already too old.
 
 The discount is created **before** the send and the code is stored immediately, so a
 failed send retries with the *same* code rather than minting a second one. And nothing
@@ -104,11 +147,11 @@ capital S in `Subject:` — that is what Snipcart's own default template uses, s
 templates here match it rather than risk a case-sensitive parser.
 
 If Snipcart only exposes one abandoned-cart template rather than one per step, load
-step 1 as the saved template and keep step 2 in this folder until you are ready to swap
-it in. Check what the campaign editor offers before assuming. Step 3 is not affected
-either way — the Worker builds its own email and never touches Snipcart's templates.
+step 1 as the saved template. Check what the campaign editor offers before assuming.
+The Worker is not affected either way — it builds its own email and never touches
+Snipcart's templates.
 
-### 2. Build the recovery campaign — TWO steps only
+### 2. Build the recovery campaign — ONE step only
 
 **Manage store → Recovery campaigns → new campaign.**
 
@@ -116,14 +159,13 @@ either way — the Worker builds its own email and never touches Snipcart's temp
 - Leave the minimum order value empty so it matches every cart. Snipcart always
   matches a cart to the *most specific* campaign, so if you later add a high-value
   campaign it will take precedence on its own.
-- Add **two** steps, with templates 1 and 2. **Snipcart's delays are fixed buckets** —
+- Add **one** step, with template 1. **Snipcart's delays are fixed buckets** —
   15 min, 1 hour, 6 hours, 1 day, 2 days, 3 days, 1 week — so there is no 4 hour
   option. Step 1 uses **> 6 hours**, the closest to the 4 the template was written
-  for; 1 hour reads as surveillance on a $165 considered purchase. Step 2 uses
-  **> 1 day**. Snipcart only offers later buckets on later steps, so the ordering
-  enforces itself.
-- **Do not add a third step, and do not attach a discount to anything.** The Worker
-  owns 72 hours. A third step here means two last-call emails per customer.
+  for; 1 hour reads as surveillance on a $165 considered purchase.
+- **Do not add a second step, and do not attach a discount to anything.** The Worker
+  owns everything from 24 hours on, and the earliest bucket Snipcart offers a second
+  step is `> 1 day` — the same hour. A second step here means two emails together.
 - Create no discount by hand either. Every recovery code is minted per cart by the
   Worker. Codes appear in **Manage store → Discounts** as they are issued, named
   `Cart recovery 15% - <customer email>`.
@@ -235,7 +277,7 @@ node worker/tests/run.mjs recovery
 
 49 checks covering the timing window, dedup, retry behaviour and the blast-radius caps.
 Then, for a real end-to-end: add something to a cart on the live site, enter your own
-email at checkout, close the tab, and wait out the 72 hours. `wrangler tail` shows each
+email at checkout, close the tab, and wait out the 24 hours. `wrangler tail` shows each
 run's counts.
 
 ### 5. Know what happens to the carts already sitting there
@@ -246,10 +288,12 @@ The two halves behave differently here, and the difference matters.
 matched. The first couple of days will look quiet even when everything is wired
 correctly. Nothing to do about it.
 
-**Step 3 (the Worker):** the opposite. It reads Snipcart's abandoned-cart API directly
-and does not care when the campaign was created, so **any existing cart in the 72 hour
-to 7 day window gets a coupon on the first cron run after deploy.** That is the backlog
-handled for you — but it also means deploying is the moment real mail starts going out.
+**The coupon (the Worker):** the opposite. It reads Snipcart's abandoned-cart API
+directly and does not care when the campaign was created, so **any existing cart in the
+24 hour to 7 day window gets a coupon on the first cron run after deploy.** That is the
+backlog handled for you — and it is how the shortening to 24 hours reached the carts
+already sitting in the list, with no migration to run. It also means deploying is the
+moment real mail starts going out.
 Look at **Manage store → Abandoned carts** and know what is in that window before you
 deploy.
 
@@ -270,8 +314,8 @@ that you still want to receive mail.
 
 ## Template variables (confirmed against Snipcart's docs)
 
-**Steps 1 and 2 only.** The Worker's step 3 email is built in JavaScript from the cart
-object and uses none of this.
+**Step 1 only.** The Worker's coupon email is built in JavaScript from the cart object
+and uses none of this.
 
 Snipcart email templates use a port of Handlebars, plus custom helpers.
 
@@ -307,8 +351,8 @@ no change is needed.
    it. The button is the whole ballgame.
 5. Delete the test cart from the dashboard afterward so it does not sit in the list.
 
-The same cart will get step 3 from the Worker 72 hours later, which is also the easiest
-real test of the coupon: check that the code in the email actually applies at checkout,
+The same cart will get the coupon from the Worker 24 hours later, which is also the
+easiest real test of it: check that the code in the email actually applies at checkout,
 takes 15% off, and stops working the second time you try it.
 
 ## A dashboard gotcha worth remembering

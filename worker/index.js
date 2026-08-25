@@ -48,6 +48,11 @@
  *   RECOVERY_FROM   — from address for recovery email, on the
  *                     rawhidecityleather.com domain authenticated in Brevo.
  *   RECOVERY_POSTAL_ADDRESS — footer mailing address. CAN-SPAM. A PO box is fine.
+ *   RECOVERY_BACKFILL_TOKENS — optional and normally UNSET. Comma-separated cart
+ *                     tokens to reach past the age ceiling, for one run. A
+ *                     secret and not a constant because this repo is public and
+ *                     a cart token restores that customer's cart. Delete it
+ *                     again once the run has fired. See worker/recovery.js.
  *
  * Bindings:
  *   QUOTES   — KV namespace holding custom-job quotes. See the README.
@@ -129,7 +134,7 @@ export default {
 
   /**
    * Abandoned cart recovery. Runs hourly rather than once a day so a cart
-   * crossing the 72 hour line waits at most an hour, instead of landing at
+   * crossing the 24 hour line waits at most an hour, instead of landing at
    * whatever time of day the daily run happens to fire.
    *
    * runRecovery never throws for a single bad cart — it reports per-cart

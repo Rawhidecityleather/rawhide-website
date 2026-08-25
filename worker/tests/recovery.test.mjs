@@ -11,6 +11,7 @@ import { suite, check } from './harness.mjs';
 import {
   makeCode, isDue, cartUrl, renderRecoveryEmail, runRecovery, recoverCart,
   SEND_AFTER_HOURS, MAX_AGE_HOURS, MAX_PER_RUN, DISCOUNT_RATE, CODE_TTL_DAYS,
+  dueReason, backfillTokens,
 } from '../recovery.js';
 
 const HOUR = 3600 * 1000;
@@ -299,6 +300,67 @@ export default async function run() {
     const { fetch, calls } = fakeFetch({ carts: old });
     await withFetch(fetch, () => runRecovery(env, NOW));
     check('a pile of months-old carts gets nothing', calls.mail.length === 0);
+  }
+
+  suite('recovery — the backfill hatch');
+
+  {
+    const ancient = cart({ token: 'ancient', modificationDate: new Date(NOW - 20 * 24 * HOUR).toISOString() });
+
+    check('a 20 day old cart is too old for the ordinary run',
+      dueReason(ancient, NOW) === 'too-old');
+    check('and reachable once it is listed by hand',
+      dueReason(ancient, NOW, { ignoreAge: true }) === 'due');
+
+    // The ceiling is the only guard the hatch waives. Waiving the floor too
+    // would mail somebody who walked away twenty minutes ago.
+    const fresh = cart({ token: 'fresh', modificationDate: new Date(NOW - HOUR).toISOString() });
+    check('but the 24 hour floor still holds for a backfilled cart',
+      dueReason(fresh, NOW, { ignoreAge: true }) === 'too-recent');
+
+    check('and the suppression list still holds',
+      dueReason(cart({ email: 'test@example.com' }), NOW, { ignoreAge: true }) === 'test-email');
+  }
+
+  {
+    // Unset is the resting state, and it must cost nothing: no second listing,
+    // no extra pages through the whole history every hour.
+    const ancient = cart({ token: 'ancient', modificationDate: new Date(NOW - 20 * 24 * HOUR).toISOString() });
+    const env = fakeEnv();
+    const { fetch, calls } = fakeFetch({ carts: [ancient] });
+    await withFetch(fetch, () => runRecovery(env, NOW));
+    check('with the secret unset an ancient cart gets nothing', calls.mail.length === 0);
+    check('and the history is never listed', calls.cartPages === 1);
+  }
+
+  {
+    // A secret that exists but is blank, or is nothing but separators, has to
+    // read as unset. Otherwise it opens the wide listing to match on ''.
+    check('a blank secret reads as unset', backfillTokens({ RECOVERY_BACKFILL_TOKENS: '' }).size === 0);
+    check('and so does one that is only commas and spaces',
+      backfillTokens({ RECOVERY_BACKFILL_TOKENS: ' , , ' }).size === 0);
+    check('a list is split and trimmed',
+      backfillTokens({ RECOVERY_BACKFILL_TOKENS: ' a , b ' }).size === 2);
+  }
+
+  {
+    const ancient = cart({ token: 'ancient', modificationDate: new Date(NOW - 20 * 24 * HOUR).toISOString() });
+    const env = fakeEnv({ RECOVERY_BACKFILL_TOKENS: ancient.token });
+    const { fetch, calls } = fakeFetch({ carts: [ancient] });
+    await withFetch(fetch, () => runRecovery(env, NOW));
+    check('a listed cart is reached despite its age', calls.mail.length === 1);
+    check('and gets a real single-use code like anyone else',
+      calls.discounts.length === 1 && calls.discounts[0].maxNumberOfUsages === 1);
+  }
+
+  {
+    // The listing runs twice when the hatch is open, and the same cart comes
+    // back in both. It must not be mailed twice.
+    const recent = cart({ token: 'recent' });
+    const env = fakeEnv({ RECOVERY_BACKFILL_TOKENS: recent.token });
+    const { fetch, calls } = fakeFetch({ carts: [recent] });
+    await withFetch(fetch, () => runRecovery(env, NOW));
+    check('a cart in both listings is mailed once, not twice', calls.mail.length === 1);
   }
 
   suite('recovery — one cart by hand');
