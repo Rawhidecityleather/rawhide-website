@@ -430,6 +430,25 @@ p{margin:0 0 1em}
     border-color: #d1d5db !important;
 }
 
+/* Mobile cart: keep Checkout on screen.
+   A fully custom strap carries ten configuration options, and Snipcart relists
+   every one of them in the cart. On a phone that pushed the total and the
+   Checkout button about 1.7 screens below the fold, so the only action on the
+   page was invisible until you scrolled past your own build. Pin the footer and
+   tighten the variant list. The values stay editable and fully visible. */
+@media (max-width:700px){
+  .snipcart-cart__footer{
+    position:sticky;bottom:0;z-index:3;
+    background:#EBE8E1;
+    border-top:1px solid rgba(15,15,15,0.14);
+    padding-bottom:8px
+  }
+  .snipcart-item-custom-fields{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
+  .snipcart-item-custom-fields__field{margin:0 0 6px;min-width:0}
+  .snipcart-item-line__variants .snipcart-input__input,
+  .snipcart-item-line__variants .snipcart-form__select{padding:4px 8px;font-size:.85rem}
+}
+
 /* Shop dropdown: static expanded list inside the mobile menu */
 @media (max-width:900px){
   .site-nav .dropdown{position:static;transform:none;display:block;min-width:0;background:transparent;border:0;box-shadow:none;padding:10px 0 0 16px}
