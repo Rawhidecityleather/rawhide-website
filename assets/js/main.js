@@ -641,52 +641,68 @@
       });
     });
 
-    // The cart's stock line reads "Shipping and taxes will be calculated at
-    // checkout" even on an order that has already earned free shipping. That is
-    // the last thing a buyer reads before deciding, and it quietly contradicts
-    // the banner promising free shipping over $85. Say which one they are
-    // getting instead. Snipcart owns its own notice node and re-renders it, so
-    // hide that in CSS and keep a line of our own alongside it.
-    var FREE_SHIPPING_AT = 85; // Snipcart's rule is "total above 84.99"
-
-    function shippingNote(){
-      var state = Snipcart.store && Snipcart.store.getState();
-      var cart = state && state.cart;
-      if(!cart) return null;
-      // In the cart view no shipping has been chosen yet, so total is the goods
-      // total after any discount — the same number Snipcart tests the threshold
-      // against. Fall back to subtotal on older shapes.
-      var amount = typeof cart.total === 'number' ? cart.total
-                 : typeof cart.subtotal === 'number' ? cart.subtotal : null;
-      if(amount === null) return null;
-      return amount >= FREE_SHIPPING_AT
-        ? 'Free shipping. Taxes calculated at checkout.'
-        : '$8.50 shipping. Free at $85 and up. Taxes calculated at checkout.';
-    }
-
-    function paintShippingNote(){
-      var host = document.querySelector('.snipcart-cart__footer .snipcart-summary-fees');
-      if(!host) return;
-      var text = shippingNote();
-      if(text === null) return;
-      var line = host.querySelector('.rc-ship-note');
-      if(!line){
-        line = document.createElement('p');
-        line.className = 'rc-ship-note';
-        host.appendChild(line);
-        // Only now is it safe to hide Snipcart's own notice. If this script is
-        // cached, blocked or broken, the class never lands and the buyer keeps
-        // the stock line instead of an empty space where shipping should be.
-        host.classList.add('rc-ship-fixed');
-      }
-      // Only write on change, so the observer below cannot feed itself.
-      if(line.textContent !== text) line.textContent = text;
-    }
-
-    if(Snipcart.store && Snipcart.store.subscribe) Snipcart.store.subscribe(paintShippingNote);
-    // Opening the cart re-renders the footer without always changing the store,
-    // so watch the container too and re-add the line if Vue drops it.
-    new MutationObserver(paintShippingNote).observe(document.getElementById('snipcart'), {childList:true, subtree:true});
-    paintShippingNote();
   });
+  // The cart's stock line reads "Shipping and taxes will be calculated at
+  // checkout" even on an order that has already earned free shipping. That is
+  // the last thing a buyer reads before deciding, and it quietly contradicts
+  // the banner promising free shipping over $85. Say which one they are
+  // getting instead. Snipcart owns its own notice node and re-renders it, so
+  // hide that in CSS and keep a line of our own alongside it.
+  var FREE_SHIPPING_AT = 85; // Snipcart's rule is "total above 84.99"
+
+  function shippingNote(){
+    var state = Snipcart.store && Snipcart.store.getState();
+    var cart = state && state.cart;
+    if(!cart) return null;
+    // In the cart view no shipping has been chosen yet, so total is the goods
+    // total after any discount — the same number Snipcart tests the threshold
+    // against. Fall back to subtotal on older shapes.
+    var amount = typeof cart.total === 'number' ? cart.total
+               : typeof cart.subtotal === 'number' ? cart.subtotal : null;
+    if(amount === null) return null;
+    return amount >= FREE_SHIPPING_AT
+      ? 'Free shipping. Taxes calculated at checkout.'
+      : '$8.50 shipping. Free at $85 and up. Taxes calculated at checkout.';
+  }
+
+  function paintShippingNote(){
+    var host = document.querySelector('.snipcart-cart__footer .snipcart-summary-fees');
+    if(!host) return;
+    var text = shippingNote();
+    if(text === null) return;
+    var line = host.querySelector('.rc-ship-note');
+    if(!line){
+      line = document.createElement('p');
+      line.className = 'rc-ship-note';
+      host.appendChild(line);
+      // Only now is it safe to hide Snipcart's own notice. If this script is
+      // cached, blocked or broken, the class never lands and the buyer keeps
+      // the stock line instead of an empty space where shipping should be.
+      host.classList.add('rc-ship-fixed');
+    }
+    // Only write on change, so the observer below cannot feed itself.
+    if(line.textContent !== text) line.textContent = text;
+  }
+
+  if(Snipcart.store && Snipcart.store.subscribe) Snipcart.store.subscribe(paintShippingNote);
+  // Opening the cart re-renders the footer without always changing the store,
+  // so watch the container too and re-add the line if Vue drops it.
+  new MutationObserver(paintShippingNote).observe(document.getElementById('snipcart'), {childList:true, subtree:true});
+
+  // snipcart.ready may already have fired by the time this deferred script
+  // runs — Snipcart boots from its own tag further down the page. Registering
+  // a listener alone is a race we lose on a warm cache, so run it both ways
+  // and let the guard swallow the second call.
+  var shipNoteReady = false;
+  function initShippingNote(){
+    if(shipNoteReady) return;
+    if(!window.Snipcart || !Snipcart.store) return;
+    shipNoteReady = true;
+    if(Snipcart.store.subscribe) Snipcart.store.subscribe(paintShippingNote);
+    var root = document.getElementById('snipcart');
+    if(root) new MutationObserver(paintShippingNote).observe(root, {childList:true, subtree:true});
+    paintShippingNote();
+  }
+  document.addEventListener('snipcart.ready', initShippingNote);
+  initShippingNote();
 })();
