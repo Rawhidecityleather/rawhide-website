@@ -576,8 +576,17 @@
   // Forward cart activity to both ad platforms so campaigns can optimize on
   // sales, not just visits. Each platform is guarded on its own: if one is
   // blocked or unconfigured, the other still reports.
-  document.addEventListener('snipcart.ready',function(){
+  // snipcart.ready is a race this deferred script can lose: Snipcart boots from
+  // its own tag further down the page and may dispatch ready before main.js
+  // attaches. Listening alone means the handlers below silently never bind and
+  // the conversion goes unrecorded. Register the listener and also call this
+  // directly; the flag guarantees the handlers bind exactly once either way, so
+  // nothing is double counted.
+  var cartTrackingAttached = false;
+  function attachCartTracking(){
+    if(cartTrackingAttached) return;
     if(!window.Snipcart||!Snipcart.events)return;
+    cartTrackingAttached = true;
     var meta=(typeof fbq==='function');
 
     Snipcart.events.on('item.added',function(item){
@@ -640,8 +649,10 @@
         transaction_id:orderId
       });
     });
+  }
+  document.addEventListener('snipcart.ready', attachCartTracking);
+  attachCartTracking();
 
-  });
   // The cart's stock line reads "Shipping and taxes will be calculated at
   // checkout" even on an order that has already earned free shipping. That is
   // the last thing a buyer reads before deciding, and it quietly contradicts
