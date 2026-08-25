@@ -576,6 +576,21 @@
   // Forward cart activity to both ad platforms so campaigns can optimize on
   // sales, not just visits. Each platform is guarded on its own: if one is
   // blocked or unconfigured, the other still reports.
+  // Getting a callback to run once Snipcart exists is harder than it looks.
+  // This script is deferred and Snipcart boots from its own tag further down
+  // the page, so snipcart.ready can fire before we ever listen — and on other
+  // loads we run first, the direct call finds no SDK, and the event never
+  // reaches us either. A listener alone drops it; a single direct call alone
+  // drops it. Do both, then keep trying briefly until the SDK is really there.
+  function whenSnipcartReady(init){
+    document.addEventListener('snipcart.ready', init);
+    if(init()) return;
+    var tries = 0;
+    var timer = setInterval(function(){
+      if(init() || ++tries > 120) clearInterval(timer);
+    }, 500);
+  }
+
   // snipcart.ready is a race this deferred script can lose: Snipcart boots from
   // its own tag further down the page and may dispatch ready before main.js
   // attaches. Listening alone means the handlers below silently never bind and
@@ -584,8 +599,8 @@
   // nothing is double counted.
   var cartTrackingAttached = false;
   function attachCartTracking(){
-    if(cartTrackingAttached) return;
-    if(!window.Snipcart||!Snipcart.events)return;
+    if(cartTrackingAttached) return true;
+    if(!window.Snipcart||!window.Snipcart.events) return false;
     cartTrackingAttached = true;
     var meta=(typeof fbq==='function');
 
@@ -649,9 +664,9 @@
         transaction_id:orderId
       });
     });
+    return true;
   }
-  document.addEventListener('snipcart.ready', attachCartTracking);
-  attachCartTracking();
+  whenSnipcartReady(attachCartTracking);
 
   // The cart's stock line reads "Shipping and taxes will be calculated at
   // checkout" even on an order that has already earned free shipping. That is
@@ -746,14 +761,14 @@
   // and let the guard swallow the second call.
   var shipNoteReady = false;
   function initShippingNote(){
-    if(shipNoteReady) return;
-    if(!window.Snipcart || !window.Snipcart.store) return;
+    if(shipNoteReady) return true;
+    if(!window.Snipcart || !window.Snipcart.store) return false;
     shipNoteReady = true;
     if(Snipcart.store.subscribe) Snipcart.store.subscribe(paintShippingNote);
     var root = document.getElementById('snipcart');
     if(root) new MutationObserver(paintShippingNote).observe(root, {childList:true, subtree:true});
     paintShippingNote();
+    return true;
   }
-  document.addEventListener('snipcart.ready', initShippingNote);
-  initShippingNote();
+  whenSnipcartReady(initShippingNote);
 })();
