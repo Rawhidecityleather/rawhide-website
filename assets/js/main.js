@@ -585,9 +585,19 @@
   function whenSnipcartReady(init){
     document.addEventListener('snipcart.ready', init);
     if(init()) return;
+    // Snipcart's script runs before this deferred one, but its store only
+    // appears once it has booted, so the first attempt above usually fails.
+    // Watch the DOM rather than lean on a timer: Snipcart cannot boot without
+    // touching it, and a background or hidden tab throttles intervals to a
+    // crawl while it leaves observers alone.
+    var watcher = new MutationObserver(function(){
+      if(init()) watcher.disconnect();
+    });
+    watcher.observe(document.documentElement, {childList:true, subtree:true});
+    // And a slow poll for the case where the DOM has already settled by now.
     var tries = 0;
     var timer = setInterval(function(){
-      if(init() || ++tries > 120) clearInterval(timer);
+      if(init() || ++tries > 120){ clearInterval(timer); watcher.disconnect(); }
     }, 500);
   }
 
