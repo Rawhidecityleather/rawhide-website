@@ -662,7 +662,7 @@
   var FREE_SHIPPING_AT = 85; // Snipcart's rule is "total above 84.99"
 
   function shippingNote(){
-    var state = Snipcart.store && Snipcart.store.getState();
+    var state = window.Snipcart && Snipcart.store && Snipcart.store.getState();
     var cart = state && state.cart;
     if(!cart) return null;
     // In the cart view no shipping has been chosen yet, so total is the goods
@@ -693,7 +693,7 @@
   ];
 
   function leadNote(){
-    var state = Snipcart.store && Snipcart.store.getState();
+    var state = window.Snipcart && Snipcart.store && Snipcart.store.getState();
     var cart = state && state.cart;
     if(!cart) return null;
     var items = (cart.items && cart.items.items) || cart.items || [];
@@ -740,11 +740,6 @@
     }
   }
 
-  if(Snipcart.store && Snipcart.store.subscribe) Snipcart.store.subscribe(paintShippingNote);
-  // Opening the cart re-renders the footer without always changing the store,
-  // so watch the container too and re-add the line if Vue drops it.
-  new MutationObserver(paintShippingNote).observe(document.getElementById('snipcart'), {childList:true, subtree:true});
-
   // snipcart.ready may already have fired by the time this deferred script
   // runs — Snipcart boots from its own tag further down the page. Registering
   // a listener alone is a race we lose on a warm cache, so run it both ways
@@ -752,7 +747,7 @@
   var shipNoteReady = false;
   function initShippingNote(){
     if(shipNoteReady) return;
-    if(!window.Snipcart || !Snipcart.store) return;
+    if(!window.Snipcart || !window.Snipcart.store) return;
     shipNoteReady = true;
     if(Snipcart.store.subscribe) Snipcart.store.subscribe(paintShippingNote);
     var root = document.getElementById('snipcart');
