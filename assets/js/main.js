@@ -774,9 +774,12 @@
     if(shipNoteReady) return true;
     if(!window.Snipcart || !window.Snipcart.store) return false;
     shipNoteReady = true;
-    if(Snipcart.store.subscribe) Snipcart.store.subscribe(paintShippingNote);
-    var root = document.getElementById('snipcart');
-    if(root) new MutationObserver(paintShippingNote).observe(root, {childList:true, subtree:true});
+    if(window.Snipcart.store.subscribe) Snipcart.store.subscribe(paintShippingNote);
+    // Watch the body, not #snipcart. Snipcart replaces its own container while
+    // it boots, so an observer bound to the node visible from here ends up
+    // holding a detached element that never changes again — which is exactly
+    // how the cart could render with neither line on it and nothing throwing.
+    new MutationObserver(paintShippingNote).observe(document.body, {childList:true, subtree:true});
     paintShippingNote();
     return true;
   }
