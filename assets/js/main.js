@@ -674,6 +674,10 @@
         line = document.createElement('p');
         line.className = 'rc-ship-note';
         host.appendChild(line);
+        // Only now is it safe to hide Snipcart's own notice. If this script is
+        // cached, blocked or broken, the class never lands and the buyer keeps
+        // the stock line instead of an empty space where shipping should be.
+        host.classList.add('rc-ship-fixed');
       }
       // Only write on change, so the observer below cannot feed itself.
       if(line.textContent !== text) line.textContent = text;

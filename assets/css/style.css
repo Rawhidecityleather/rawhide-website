@@ -434,7 +434,7 @@ p{margin:0 0 1em}
    at checkout" even once an order has earned free shipping, which is the last
    thing read before deciding. main.js writes .rc-ship-note with the actual
    answer; hide the stock one in the cart only, leaving checkout alone. */
-.snipcart-cart__footer .snipcart-summary-fees__notice{display:none}
+.snipcart-cart__footer .snipcart-summary-fees.rc-ship-fixed .snipcart-summary-fees__notice{display:none}
 .rc-ship-note{color:#0F0F0F;font-size:.85rem;line-height:1.4;margin:2px 0 0}
 
 /* Mobile cart: keep Checkout on screen.
