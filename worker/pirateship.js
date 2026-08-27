@@ -28,6 +28,7 @@ const ITEM_OUNCES = {
   'glove-strap': 2,
   'chin-strap': 3,
   'leather-patch-hat': 4,
+  'my-wife-beats-me-hat': 4,
   'leather-butter': 6,
 };
 

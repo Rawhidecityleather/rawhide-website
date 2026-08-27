@@ -123,7 +123,7 @@ function renderTotals(quote, grandTotal, cash) {
   // handed over at the bench, so there's nothing to say.
   if (!cash) {
     rows.push(['Shipping',
-      quote.total >= FREE_SHIPPING_OVER ? 'Free' : '$8.50 at checkout']);
+      quote.total >= FREE_SHIPPING_OVER ? 'Free' : '$10.00 at checkout']);
   }
 
   return `<section class="totals">

@@ -215,7 +215,7 @@ export default function run() {
   check('under the free-shipping line it says what gets added',
     renderQuoteSheet(buildQuote({
       ...base, lines: [{ description: 'Glove strap', quantity: 1, unitPrice: 30 }],
-    }), { status: 'open' }).includes('$8.50 at checkout'));
+    }), { status: 'open' }).includes('$10.00 at checkout'));
 
   check('an expired sheet still prints for the file',
     () => renderQuoteSheet(quote, { status: 'expired' }).includes('past its date'));

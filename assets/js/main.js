@@ -698,7 +698,7 @@
     if(amount === null) return null;
     return amount >= FREE_SHIPPING_AT
       ? 'Free shipping. Taxes calculated at checkout.'
-      : '$8.50 shipping. Free at $85 and up. Taxes calculated at checkout.';
+      : '$10.00 shipping. Free at $85 and up. Taxes calculated at checkout.';
   }
 
   // Lead time never appeared in the cart at all — the first a buyer heard of a
@@ -709,6 +709,7 @@
     'fully-custom-radio-strap':2, 'basic-radio-strap':2, 'smokey-radio-strap':2,
     'basket-weave-belt':1, 'heavy-duty-belt':1, 'helmet-band':1,
     'glove-strap':1, 'chin-strap':1, 'leather-patch-hat':1, 'velcro-patch':1,
+    'my-wife-beats-me-hat':1,
     'leather-butter':0
   };
   var LEAD_TEXT = [

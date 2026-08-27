@@ -5,7 +5,7 @@
     <link>https://rawhidecityleather.com/</link>
     <description>Handmade firefighter leather gear. Hand-cut, hand-stamped, and finished by hand in Lakeland, Florida.</description>
 
-    <!-- No <g:shipping> anywhere in this feed, on purpose. Shipping is $8.50 flat
+    <!-- No <g:shipping> anywhere in this feed, on purpose. Shipping is $10.00 flat
          to all 50 states and free over $85 (see /shipping), and that
          threshold cannot be expressed per item: nine hardcoded blocks got the
          rule wrong on every product except the one that clears $85 by itself.
@@ -142,13 +142,40 @@
       <g:condition>new</g:condition>
       <g:brand>Rawhide City Leather</g:brand>
       <g:identifier_exists>no</g:identifier_exists>
-      <g:product_type>Accessories &gt; Hats</g:product_type>
+      <g:product_type>Hats</g:product_type>
       <!-- Apparel & Accessories, so all four attributes below are required.
            Black matches the feed image; the page carries 26 colour options in
            total, which want splitting into variants under an item_group_id
            before this listing represents the range honestly. "One size" is the
            hat itself — both the waterproof shell and the Richardson 112 are
            adjustable snapbacks. -->
+      <g:google_product_category>173</g:google_product_category>
+      <g:color>Black</g:color>
+      <g:size>One size</g:size>
+      <g:age_group>adult</g:age_group>
+      <g:gender>unisex</g:gender>
+      <g:min_handling_time>7</g:min_handling_time>
+      <g:max_handling_time>21</g:max_handling_time>
+    </item>
+
+    <item>
+      <g:id>my-wife-beats-me-hat</g:id>
+      <g:title>My Wife Beats Me Leather Patch Hat - Richardson 112 or Waterproof Trucker</g:title>
+      <g:description>Leather patch hat reading "My Wife Beats Me." The patch is genuine leather, laser-cut and engraved so the lettering comes out sharp, then heat-pressed onto your choice of the classic Richardson 112 trucker or a performance waterproof hat. Black or grey and black. This is a set design - the wording and the patch do not change. Adjustable snapback, one size. Built to order, 1-3 week lead time.</g:description>
+      <g:link>https://rawhidecityleather.com/product-my-wife-beats-me-hat</g:link>
+      <g:image_link>https://rawhidecityleather.com/assets/img/products/my-wife-beats-me-hat.jpg</g:image_link>
+      <g:additional_image_link>https://rawhidecityleather.com/assets/img/products/my-wife-beats-me-hat-2.jpg</g:additional_image_link>
+      <g:price>20.00 USD</g:price>
+      <g:availability>in_stock</g:availability>
+      <g:condition>new</g:condition>
+      <g:brand>Rawhide City Leather</g:brand>
+      <g:identifier_exists>no</g:identifier_exists>
+      <g:product_type>Hats</g:product_type>
+      <!-- Apparel &amp; Accessories, so all four attributes below are required.
+           Black matches the feed image; the other colourway is grey and black,
+           which wants a variant under an item_group_id if the listing is ever
+           split. "One size" is the hat itself - both the waterproof shell and
+           the Richardson 112 are adjustable snapbacks. -->
       <g:google_product_category>173</g:google_product_category>
       <g:color>Black</g:color>
       <g:size>One size</g:size>
