@@ -317,6 +317,63 @@ export default async function run() {
   check('the bare /product-page 301s to /shop',
     noSlug.status === 301 && noSlug.headers.get('location') === ORIGIN + '/shop');
 
+  // Added 2026-08-28 alongside four more slugs from the Search Console 404
+  // list. The point of mapping them is that each lands on the product it
+  // actually sold rather than the /shop catch-all, so that is what is pinned.
+  for (const [slug, target] of [
+    ['basic-adjustable-radio-strap', '/product-basic-radio-strap'],
+    ['fully-custom-adjustable-radio-strap', '/product-fully-custom-radio-strap'],
+    ['adjustable-glovestrap', '/product-glove-strap'],
+    ['helmet-band', '/product-helmet-band'],
+  ]) {
+    const mapped = await get(`/product-page/${slug}`);
+    check(`/product-page/${slug} 301s to ${target}`,
+      mapped.status === 301 && mapped.headers.get('location') === ORIGIN + target,
+      `${mapped.status} → ${mapped.headers.get('location')}`);
+  }
+
+  // Discontinued products have no honest target, so they must keep falling
+  // through. If someone ever "fixes" these into a real product, this fails.
+  for (const slug of ['all-leather-adjustable-e-collar', 'helmet-morale-cards']) {
+    const dropped = await get(`/product-page/${slug}`);
+    check(`/product-page/${slug} still falls through to /shop`,
+      dropped.status === 301 && dropped.headers.get('location') === ORIGIN + '/shop',
+      `${dropped.status} → ${dropped.headers.get('location')}`);
+  }
+
+  suite('worker — legacy Wix non-product URLs');
+
+  for (const [from, to] of [
+    ['/category/all-products', '/shop'],
+    ['/category/custom-made-radio-straps', '/radio-straps'],
+    ['/category/untitled-k9', '/shop'],
+    ['/english-shipping-policy', '/shipping'],
+    ['/contact-8', '/contact'],
+  ]) {
+    const r = await get(from);
+    check(`${from} 301s to ${to}`,
+      r.status === 301 && r.headers.get('location') === ORIGIN + to,
+      `${r.status} → ${r.headers.get('location')}`);
+  }
+
+  const legacyPathCase = await get('/Category/All-Products');
+  check('non-product legacy matching ignores case',
+    legacyPathCase.headers.get('location') === ORIGIN + '/shop');
+
+  const legacyPathSlash = await get('/contact-8/');
+  check('a trailing slash on a legacy path still matches',
+    legacyPathSlash.headers.get('location') === ORIGIN + '/contact');
+
+  const legacyPathQuery = await get('/english-shipping-policy?utm_source=wix');
+  check("Wix's own query string is dropped",
+    legacyPathQuery.headers.get('location') === ORIGIN + '/shipping');
+
+  // The single most valuable of the five: it aims an old URL Google already
+  // knows at a page Google has never crawled.
+  const toRadioStraps = await get('/category/custom-made-radio-straps');
+  check('the old radio strap category lands on /radio-straps',
+    toRadioStraps.headers.get('location') === ORIGIN + '/radio-straps');
+
   // 301 is permanent and browsers cache it hard. If this ever fires on a live
   // product URL, that page becomes unreachable until the cache expires.
   const live = await get('/shop.html');

@@ -185,6 +185,14 @@ export default {
       canonical.search = '';
     }
 
+    // The Wix URLs that never lived under /product-page/. Same reasoning, same
+    // treatment: exact match, Wix's query string dropped.
+    const legacyPath = LEGACY_PATHS.get(path.toLowerCase());
+    if (legacyPath) {
+      canonical.pathname = legacyPath;
+      canonical.search = '';
+    }
+
     // 308 for POST: a 301 lets the browser downgrade the method to GET, which
     // would silently break a dashboard form submitted from the www host.
     if (canonical.href !== url.href) {
@@ -362,6 +370,16 @@ function notFound() {
  */
 const LEGACY_PRODUCT_URLS = new Map([
   ['custom-radio-strap', '/product-fully-custom-radio-strap'],
+  // Added 2026-08-28 from the Search Console 404 list, per the note above.
+  // Each slug was confirmed there, not guessed.
+  ['basic-adjustable-radio-strap', '/product-basic-radio-strap'],
+  ['fully-custom-adjustable-radio-strap', '/product-fully-custom-radio-strap'],
+  ['adjustable-glovestrap', '/product-glove-strap'],
+  ['helmet-band', '/product-helmet-band'],
+  // Deliberately NOT mapped, so they keep falling through to /shop:
+  // 'all-leather-adjustable-e-collar' and 'helmet-morale-cards' are products
+  // the shop no longer makes. There is no honest equivalent, and sending a
+  // customer to an unrelated product is worse than the shop page.
 ]);
 
 /**
@@ -373,6 +391,23 @@ function legacyProductTarget(path) {
   const slug = path.slice('/product-page/'.length).toLowerCase();
   return LEGACY_PRODUCT_URLS.get(slug) || '/shop';
 }
+
+/**
+ * The rest of the dead Wix URLs. These never lived under /product-page/, so
+ * they share no prefix and there is nothing to fall back to — each is matched
+ * exactly or not at all. All five were confirmed 404s in Search Console on
+ * 2026-08-28, still being crawled by Google as recently as July.
+ *
+ * /category/custom-made-radio-straps is the one that matters: it aims a URL
+ * Google already knows at /radio-straps, a page it has never crawled.
+ */
+const LEGACY_PATHS = new Map([
+  ['/category/all-products', '/shop'],
+  ['/category/custom-made-radio-straps', '/radio-straps'],
+  ['/category/untitled-k9', '/shop'],
+  ['/english-shipping-policy', '/shipping'],
+  ['/contact-8', '/contact'],
+]);
 
 /* ------------------------------------------------------------------- auth */
 
