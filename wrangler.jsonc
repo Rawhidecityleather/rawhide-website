@@ -61,14 +61,19 @@
   //                    you nothing: a message still has to pass DMARC as that
   //                    domain before anything ships.
   //
-  //                    It is orders@rawhidecitylthr.com — the OLD domain — and
-  //                    that is deliberate on both ends. Pirate Ship sends a
-  //                    tracking email as the Sender Email on its template, and
-  //                    that template still uses the lthr address because that
-  //                    zone holds the working DKIM key; rawhidecityleather.com
-  //                    has none, and DMARC p=reject there would silently kill
-  //                    every tracking email. Change the sender on the Pirate
-  //                    Ship template and this has to change with it.
+  //                    Pirate Ship sends a tracking email as the Sender Email
+  //                    on its template, so this list must name that address.
+  //                    Change the sender on the template and this has to change
+  //                    with it, or every shipment is refused and nothing ships.
+  //
+  //                    Three entries, all still live:
+  //                    shipping@rawhidecityleather.com is the current sender on
+  //                    the new Pirate Ship account (Aug 2026, verified in
+  //                    Postmark, DKIM on that zone). orders@rawhidecitylthr.com
+  //                    is the sender on the OLD account, kept until that account
+  //                    stops being used. @pirateship.com covers the fallback:
+  //                    an UNVERIFIED sender makes Postmark send as
+  //                    ship@pirateship.com with the real address as reply-to.
   //
   // TRACKING_INBOX is deliberately NOT here. This repo is public, and that one
   // is a private address of ours: printing it invites mail to a box that
@@ -79,7 +84,7 @@
   "vars": {
     "RECEIPT_SENDERS": "rawhidecityleather@gmail.com,rcon8919@gmail.com",
     "RECEIPT_FORWARD_TO": "rawhidecityleather@gmail.com",
-    "TRACKING_SENDERS": "orders@rawhidecitylthr.com,@pirateship.com"
+    "TRACKING_SENDERS": "shipping@rawhidecityleather.com,orders@rawhidecitylthr.com,@pirateship.com"
   },
   // QUOTES  — custom-build quotes. Created 2026-08-06 with
   //             wrangler kv namespace create QUOTES

@@ -28,10 +28,19 @@ const USPS = '9400111899223197428490';
 
 /**
  * What Pirate Ship actually sends as — the Sender Email on the template, not
- * anything @pirateship.com. The old domain, because that zone holds the DKIM
- * key. See TRACKING_SENDERS in wrangler.jsonc.
+ * anything @pirateship.com, once that address is verified in Postmark.
+ * See TRACKING_SENDERS in wrangler.jsonc.
  */
-const SENDER = 'orders@rawhidecitylthr.com';
+const SENDER = 'shipping@rawhidecityleather.com';
+
+/** The sender on the old Pirate Ship account, still allowed. */
+const OLD_SENDER = 'orders@rawhidecitylthr.com';
+
+/**
+ * What Postmark sends as while a Sender Email is still UNVERIFIED: the real
+ * address moves to reply-to, so only the domain entry can match it.
+ */
+const UNVERIFIED_SENDER = 'ship@pirateship.com';
 
 /**
  * The envelope sender on the same message: a Postmark bounce address, which is
@@ -63,7 +72,7 @@ function fakeEnv(over = {}) {
   return {
     SNIPCART_SECRET: 'test-key-never-used',
     TRACKING_INBOX: INBOX,
-    TRACKING_SENDERS: 'orders@rawhidecitylthr.com,@pirateship.com',
+    TRACKING_SENDERS: 'shipping@rawhidecityleather.com,orders@rawhidecitylthr.com,@pirateship.com',
     ...over,
   };
 }
@@ -187,6 +196,10 @@ export default async function run() {
 
   check('the address the template actually sends as may',
     senderAllowed(SENDER, trackingSenders(fakeEnv())));
+  check('the old account&apos;s sender still may, until that account is retired',
+    senderAllowed(OLD_SENDER, trackingSenders(fakeEnv())));
+  check('an unverified sender falls back to Pirate Ship&apos;s own address, which may',
+    senderAllowed(UNVERIFIED_SENDER, trackingSenders(fakeEnv())));
   check('Pirate Ship&apos;s own domain may too, for a template that uses it',
     senderAllowed('notifications@pirateship.com', trackingSenders(fakeEnv())));
   check('the Postmark envelope sender may NOT — it is not who the mail is from',
@@ -195,6 +208,10 @@ export default async function run() {
     senderAllowed('notifications@pirateship.com.evil.net', trackingSenders(fakeEnv())) === false);
   check('nor a lookalike of the shop&apos;s own sender',
     senderAllowed('orders@rawhidecitylthr.com.evil.net', trackingSenders(fakeEnv())) === false);
+  check('nor a lookalike of the current sender',
+    senderAllowed('shipping@rawhidecityleather.com.evil.net', trackingSenders(fakeEnv())) === false);
+  check('nor a different address on the shop&apos;s own domain',
+    senderAllowed('orders@rawhidecityleather.com', trackingSenders(fakeEnv())) === false);
   check('the default covers the live sender, not everyone',
     trackingSenders({}).includes(SENDER));
   check('an explicitly blank list allows nobody',

@@ -30,12 +30,14 @@
  *                      domain. Nothing private in it, so it lives in
  *                      wrangler.jsonc.
  *
- *                      Note it is not @pirateship.com that shows up: Pirate Ship
- *                      sends a tracking email as whatever Sender Email the
- *                      template carries, which here is orders@rawhidecitylthr.com
- *                      — the old domain, kept deliberately because that is the
- *                      zone holding the working DKIM key. Change the sender on
- *                      the template and this list has to change with it.
+ *                      Note it is usually not @pirateship.com that shows up:
+ *                      Pirate Ship sends a tracking email as whatever Sender
+ *                      Email the template carries, once that address is verified
+ *                      in Postmark. Change the sender on the template and this
+ *                      list has to change with it, or every shipment is refused.
+ *                      @pirateship.com still belongs in the list as the fallback
+ *                      for an UNVERIFIED sender, which Postmark sends as
+ *                      ship@pirateship.com with the real address as reply-to.
  */
 
 import { parseEmail, htmlToText } from './mime.js';
@@ -43,7 +45,7 @@ import { findTrackingNumber } from './pirateship.js';
 import { getAllOrders, putJson, trackingUrlFor, isShipped, isCancelled } from './snipcart.js';
 
 /** Pirate Ship's own mail. Overridable, because senders get renamed. */
-const DEFAULT_SENDERS = 'orders@rawhidecitylthr.com,@pirateship.com';
+const DEFAULT_SENDERS = 'shipping@rawhidecityleather.com,orders@rawhidecitylthr.com,@pirateship.com';
 
 /**
  * Whether this message is a tracking report rather than a forwarded receipt.
