@@ -471,6 +471,25 @@ The stamp prices live in **two** places on
 change together or the cart charges something the page never offered. There's a
 test that fails if they drift — `node worker/tests/run.mjs uploads`.
 
+### Crew pricing on hats and patches
+
+The tier copy is in the repo. **The discount itself is not** — it's a Snipcart
+dashboard rule keyed to the product id, and nothing here can see it. Change one
+without the other and the site advertises a number the cart never takes off.
+
+Patch hats (`leather-patch-hat`), $25 each:
+
+| Quantity | Off  | Each   |
+| -------- | ---- | ------ |
+| 5+       | 10%  | $22.50 |
+| 10+      | 15%  | $21.25 |
+| 20+      | 20%  | $20.00 |
+
+Velcro patches (`velcro-patch`), $7 each: 10 or more, 10% off.
+
+The copy lives on `product-leather-patch-hat.html`, `crews.html`, `shop.html`
+and `hats.html`. Grep for `or more hats` to find every one of them.
+
 ### Sitewide discounts and quote pricing
 
 **No sitewide discount is running.** `CHECKOUT_DISCOUNT` at the top of
