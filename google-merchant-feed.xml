@@ -210,6 +210,36 @@
     </item>
 
     <item>
+      <g:id>scream-for-daddy-hat</g:id>
+      <g:title>Scream for Daddy Leather Patch Hat - Richardson 112 Trucker</g:title>
+      <g:description>Leather patch hat with a Ghostface design reading "Scream for Daddy." The patch is genuine leather, laser-cut and engraved so the linework comes out sharp, then heat-pressed onto a Richardson 112 trucker. Pick a black hat or khaki and black, and a brown patch or a red one. This is a set design - the artwork and the wording do not change. Adjustable snapback, one size. Built to order, 1-3 week lead time.</g:description>
+      <g:link>https://rawhidecityleather.com/product-scream-for-daddy-hat</g:link>
+      <g:image_link>https://rawhidecityleather.com/assets/img/products/scream-for-daddy-hat.jpg</g:image_link>
+      <g:additional_image_link>https://rawhidecityleather.com/assets/img/products/scream-for-daddy-hat-khaki.jpg</g:additional_image_link>
+      <g:additional_image_link>https://rawhidecityleather.com/assets/img/products/scream-for-daddy-hat-red.jpg</g:additional_image_link>
+      <g:additional_image_link>https://rawhidecityleather.com/assets/img/products/scream-for-daddy-hat-2.jpg</g:additional_image_link>
+      <g:additional_image_link>https://rawhidecityleather.com/assets/img/products/scream-for-daddy-hat-3.jpg</g:additional_image_link>
+      <g:price>20.00 USD</g:price>
+      <g:availability>in_stock</g:availability>
+      <g:condition>new</g:condition>
+      <g:brand>Rawhide City Leather</g:brand>
+      <g:identifier_exists>no</g:identifier_exists>
+      <g:product_type>Hats</g:product_type>
+      <!-- Apparel &amp; Accessories, so all four attributes below are required.
+           Black matches the feed image; the other colourway is khaki and black,
+           which wants a variant under an item_group_id if the listing is ever
+           split. "One size" is the hat itself - the Richardson 112 is an
+           adjustable snapback. -->
+      <g:google_product_category>173</g:google_product_category>
+      <g:color>Black</g:color>
+      <g:size>One size</g:size>
+      <g:age_group>adult</g:age_group>
+      <g:gender>unisex</g:gender>
+      <g:min_handling_time>7</g:min_handling_time>
+      <g:max_handling_time>21</g:max_handling_time>
+    </item>
+
+    <item>
       <g:id>heavy-duty-belt</g:id>
       <g:title>Heavy Duty Leather Belt - Full-Grain, No Stitching to Fail, Sized to You</g:title>
       <g:description>Heavy duty leather belt hand-cut 1.5" wide from one solid strap of full-grain leather. No layers to peel apart and no stitching to fail. Black or brown with a solid buckle in brass, black, or nickel. Sized to the waist measurement you give at checkout. Built to order, 1-3 week lead time.</g:description>

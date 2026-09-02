@@ -709,7 +709,7 @@
     'fully-custom-radio-strap':2, 'basic-radio-strap':2, 'smokey-radio-strap':2,
     'basket-weave-belt':1, 'heavy-duty-belt':1, 'helmet-band':1,
     'glove-strap':1, 'chin-strap':1, 'leather-patch-hat':1, 'velcro-patch':1,
-    'my-wife-beats-me-hat':1,
+    'my-wife-beats-me-hat':1, 'scream-for-daddy-hat':1,
     'leather-butter':0
   };
   var LEAD_TEXT = [
