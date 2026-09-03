@@ -430,6 +430,19 @@ p{margin:0 0 1em}
     border-color: #d1d5db !important;
 }
 
+/* Payment step: PayPal first, card form second.
+   Stripe shows every stalled buyer reaching the card form and never entering
+   a card (43 incomplete, 0 declined, as of Sep 2026). Some of them would
+   rather not type a card number into a small shop's site. Snipcart renders
+   the card form, a separator, then the PayPal list as three siblings in one
+   container; flex order flips the list above the form without touching
+   either. The label under it keeps the card form from reading as an
+   afterthought. */
+.snipcart-payment__loading>.snipcart-loading-overlay__content{display:flex;flex-direction:column}
+.snipcart-payment__loading>.snipcart-loading-overlay__content>.snipcart-payment-methods-list__container{order:-2}
+.snipcart-payment__loading>.snipcart-loading-overlay__content>.snipcart-form__separator{order:-1}
+.snipcart-payment__form-container::before{content:"Or pay by card";display:block;color:#6B6358;font-size:.85rem;margin:0 0 10px}
+
 /* Cart shipping line. Snipcart's stock notice says shipping "will be calculated
    at checkout" even once an order has earned free shipping, which is the last
    thing read before deciding. main.js writes .rc-ship-note with the actual
