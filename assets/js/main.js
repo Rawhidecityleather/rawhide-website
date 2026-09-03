@@ -263,15 +263,17 @@
     });
   });
 
-  // Shop cards can add straight to the cart, but only Leather Butter carries one:
-  // it is the single product with no required options, so there is nothing to
-  // configure first. Every other card still links to its product page, where the
-  // leather, size and hardware get picked — an order missing those is exactly
-  // what the order-options policy has to disclaim.
+  // Cards can add straight to the cart, but only where the product has no
+  // required options and there is therefore nothing to configure first:
+  // Leather Butter and the My Wife Beats Me hat on the shop and hats grids,
+  // and the velcro patch on the crews page. Every other card still links to
+  // its product page, where the leather, size and hardware get picked — an
+  // order missing those is exactly what the order-options policy has to
+  // disclaim. A product that gains an option has to lose its card button.
   //
   // Deliberately not [data-order-form]. pageProduct() reads that attribute to
   // fire ViewContent, and reusing it here would report every shop visitor as
-  // having viewed Leather Butter.
+  // having viewed whichever product the card sells.
   document.querySelectorAll('[data-card-buy]').forEach(function(form){
     form.addEventListener('submit',function(e){
       e.preventDefault();
