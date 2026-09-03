@@ -183,8 +183,8 @@
 
     <item>
       <g:id>my-wife-beats-me-hat</g:id>
-      <g:title>My Wife Beats Me Leather Patch Hat - Richardson 112 or Waterproof Trucker</g:title>
-      <g:description>Leather patch hat reading "My Wife Beats Me." The patch is genuine leather, laser-cut and engraved so the lettering comes out sharp, then heat-pressed onto your choice of the classic Richardson 112 trucker or a performance waterproof hat. Black or grey and black. This is a set design - the wording and the patch do not change. Adjustable snapback, one size. Built to order, 1-3 week lead time.</g:description>
+      <g:title>My Wife Beats Me Leather Patch Hat - Black Richardson 112 Trucker</g:title>
+      <g:description>Leather patch hat reading "My Wife Beats Me." The patch is genuine leather, laser-cut and engraved so the lettering comes out sharp, then heat-pressed onto a black Richardson 112 trucker. Brown patch. This is a set design and a single build - the hat, the patch, and the wording do not change. Adjustable snapback, one size. Built to order, 1-3 week lead time.</g:description>
       <g:link>https://rawhidecityleather.com/product-my-wife-beats-me-hat</g:link>
       <g:image_link>https://rawhidecityleather.com/assets/img/products/my-wife-beats-me-hat.jpg</g:image_link>
       <g:additional_image_link>https://rawhidecityleather.com/assets/img/products/my-wife-beats-me-hat-2.jpg</g:additional_image_link>
@@ -196,10 +196,9 @@
       <g:identifier_exists>no</g:identifier_exists>
       <g:product_type>Hats</g:product_type>
       <!-- Apparel &amp; Accessories, so all four attributes below are required.
-           Black matches the feed image; the other colourway is grey and black,
-           which wants a variant under an item_group_id if the listing is ever
-           split. "One size" is the hat itself - both the waterproof shell and
-           the Richardson 112 are adjustable snapbacks. -->
+           Single build as of Sep 2 2026 - black hat, brown patch - so there is
+           no second colourway to split into variants. "One size" is the hat
+           itself: the Richardson 112 is an adjustable snapback. -->
       <g:google_product_category>173</g:google_product_category>
       <g:color>Black</g:color>
       <g:size>One size</g:size>
