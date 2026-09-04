@@ -27,6 +27,7 @@ const ITEM_OUNCES = {
   'helmet-band': 3,
   'glove-strap': 2,
   'chin-strap': 3,
+  'radio-bucket': 6,
   'leather-patch-hat': 4,
   'my-wife-beats-me-hat': 4,
   'scream-for-daddy-hat': 4,
