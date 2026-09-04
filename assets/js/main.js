@@ -737,9 +737,53 @@
     return worst < 0 ? null : LEAD_TEXT[worst];
   }
 
+  // A discount nobody typed still sends the buyer hunting for the promo box.
+  // The Labor Day rule ran as an automatic "order total" discount while every
+  // ad told people to enter LABORDAY15 — so the code did not exist, the promo
+  // box rejected it, and a customer who already had the 15% walked away
+  // thinking the sale was not for them. Name the rule that is on the cart,
+  // right beside the Discounts line.
+  //
+  // Driven off cart state rather than a date, so it shows up whenever a rule
+  // is live and leaves with it. Nothing here needs editing when a sale ends.
+  function autoDiscountNote(){
+    var state = window.Snipcart && Snipcart.store && Snipcart.store.getState();
+    var cart = state && state.cart;
+    var applied = cart && cart.discounts && cart.discounts.items;
+    if(!applied || !applied.forEach) return null;
+    var names = [];
+    applied.forEach(function(discount){
+      // A code the buyer entered themselves needs no explaining — they already
+      // know it worked. This line is only for the ones that arrive on their own.
+      if(discount.code) return;
+      if(discount.name) names.push(discount.name);
+    });
+    if(!names.length) return null;
+    return names.join(' and ') + (names.length > 1 ? ' are' : ' is') +
+      ' already applied. No code needed.';
+  }
+
   function paintShippingNote(){
     var host = document.querySelector('.snipcart-cart__footer .snipcart-summary-fees');
     if(!host) return;
+
+    // Painted first and kept first, so it reads as close to the Discounts row
+    // as the footer allows.
+    var sale = autoDiscountNote();
+    var saleLine = host.querySelector('.rc-sale-note');
+    if(sale){
+      if(!saleLine){
+        saleLine = document.createElement('p');
+        saleLine.className = 'rc-sale-note';
+        // insertBefore with a null reference appends, which is the right
+        // answer on the first paint, before any other note exists.
+        host.insertBefore(saleLine, host.querySelector('.rc-ship-note'));
+      }
+      if(saleLine.textContent !== sale) saleLine.textContent = sale;
+    } else if(saleLine){
+      saleLine.remove();
+    }
+
     var text = shippingNote();
     if(text === null) return;
     var line = host.querySelector('.rc-ship-note');

@@ -451,6 +451,10 @@ p{margin:0 0 1em}
 .rc-ship-note{color:#0F0F0F;font-size:.85rem;line-height:1.4;margin:2px 0 0}
 .rc-lead-note{color:#6B6358;font-size:.85rem;line-height:1.4;margin:2px 0 0}
 
+/* Automatic sale line. Sits above the shipping note and carries the rule's own
+   name, because the buyer is looking for somewhere to type that name. */
+.rc-sale-note{color:#0F0F0F;font-size:.85rem;line-height:1.4;margin:2px 0 0;font-weight:600}
+
 /* Mobile cart: keep Checkout on screen.
    A fully custom strap carries ten configuration options, and Snipcart relists
    every one of them in the cart. On a phone that pushed the total and the
