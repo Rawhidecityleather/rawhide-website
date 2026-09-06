@@ -238,6 +238,68 @@ export default async function run() {
       second.counts['already-sent'] === 1, JSON.stringify(second.counts));
   }
 
+  suite('recovery — one coupon per buyer');
+
+  {
+    // The 2026-09-04 case, reproduced: Snipcart had recorded one buyer's
+    // identical cart twice, and both were due in the same run.
+    const env = fakeEnv();
+    const { fetch, calls } = fakeFetch({ carts: [cart({ token: 'a' }), cart({ token: 'b' })] });
+    const report = await withFetch(fetch, () => runRecovery(env, NOW));
+
+    check('two carts from one buyer send one coupon, not two',
+      calls.mail.length === 1, `sent ${calls.mail.length}`);
+    check('and only one discount is minted',
+      calls.discounts.length === 1, `minted ${calls.discounts.length}`);
+    check('the run names the second a duplicate',
+      report.counts['duplicate-email'] === 1, JSON.stringify(report.counts));
+  }
+
+  {
+    // Across runs the in-memory set is gone; only the KV mark is left holding
+    // the line.
+    const env = fakeEnv();
+    const first = fakeFetch({ carts: [cart({ token: 'x' })] });
+    await withFetch(first.fetch, () => runRecovery(env, NOW));
+    check('the buyer gets their coupon', first.calls.mail.length === 1);
+
+    const second = fakeFetch({ carts: [cart({ token: 'y' })] });
+    const report = await withFetch(second.fetch, () => runRecovery(env, NOW + HOUR));
+    check('a second cart from them an hour later is not mailed',
+      second.calls.mail.length === 0, `sent ${second.calls.mail.length}`);
+    check('and costs nothing in Snipcart',
+      second.calls.discounts.length === 0, `minted ${second.calls.discounts.length}`);
+    check('the run says why',
+      report.counts['duplicate-email'] === 1, JSON.stringify(report.counts));
+  }
+
+  {
+    // Snipcart's dashboard renders addresses uppercased, so this is not
+    // hypothetical.
+    const env = fakeEnv();
+    const lower = fakeFetch({ carts: [cart({ token: 'lower', email: 'dana@example.com' })] });
+    await withFetch(lower.fetch, () => runRecovery(env, NOW));
+
+    const upper = fakeFetch({ carts: [cart({ token: 'upper', email: '  DANA@Example.COM ' })] });
+    await withFetch(upper.fetch, () => runRecovery(env, NOW + HOUR));
+    check('the same address in another casing is the same person',
+      upper.calls.mail.length === 0, `sent ${upper.calls.mail.length}`);
+  }
+
+  {
+    // The reason the mark is written after the send and not before: a buyer
+    // who was never actually reached must stay reachable.
+    const env = fakeEnv();
+    const failed = fakeFetch({ carts: [cart({ token: 'retry' })], failMail: true });
+    await withFetch(failed.fetch, () => runRecovery(env, NOW));
+    check('a failed send reaches nobody', failed.calls.mail.length === 0);
+
+    const retry = fakeFetch({ carts: [cart({ token: 'retry' })] });
+    await withFetch(retry.fetch, () => runRecovery(env, NOW + HOUR));
+    check('a send that failed does not lock the buyer out of the retry',
+      retry.calls.mail.length === 1, `sent ${retry.calls.mail.length}`);
+  }
+
   suite('recovery — when things go wrong');
 
   {
@@ -281,7 +343,11 @@ export default async function run() {
   suite('recovery — blast radius');
 
   {
-    const many = Array.from({ length: MAX_PER_RUN + 15 }, (_, i) => cart({ token: String(i) }));
+    // Distinct buyers on purpose. With one address across all forty, the
+    // per-buyer rule would collapse them to a single coupon and this would be
+    // measuring dedup instead of the cap it is named for.
+    const many = Array.from({ length: MAX_PER_RUN + 15 },
+      (_, i) => cart({ token: String(i), email: `ff${i}@example.com` }));
     const env = fakeEnv();
     const { fetch, calls } = fakeFetch({ carts: many });
     const report = await withFetch(fetch, () => runRecovery(env, NOW));
@@ -295,7 +361,11 @@ export default async function run() {
     // Ancient carts are the real first-deploy hazard: without the ceiling, the
     // first cron run would mail everyone who ever abandoned anything.
     const old = Array.from({ length: 30 }, (_, i) =>
-      cart({ token: 'old' + i, modificationDate: new Date(NOW - 60 * 24 * HOUR).toISOString() }));
+      cart({
+        token: 'old' + i,
+        email: `old${i}@example.com`,
+        modificationDate: new Date(NOW - 60 * 24 * HOUR).toISOString(),
+      }));
     const env = fakeEnv();
     const { fetch, calls } = fakeFetch({ carts: old });
     await withFetch(fetch, () => runRecovery(env, NOW));

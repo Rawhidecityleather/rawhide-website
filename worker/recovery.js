@@ -56,6 +56,17 @@ export const MAX_PER_RUN = 25;
 /** How long each customer's code lives. The whole point of the exercise. */
 export const CODE_TTL_DAYS = 7;
 
+/**
+ * How long one buyer is left alone after a coupon reaches them.
+ *
+ * Matched to the code's own lifetime on purpose: while someone is still holding
+ * a live 15% code, a second one is not a better offer, it is just a second
+ * email. Two went out in the same minute on 2026-09-04 because Snipcart had
+ * recorded one buyer's identical $173 cart twice, and dedup keyed on the cart
+ * token could not see the two carts were one person.
+ */
+export const EMAIL_COOLDOWN_DAYS = CODE_TTL_DAYS;
+
 /** Percent off. */
 export const DISCOUNT_RATE = 15;
 
@@ -112,6 +123,16 @@ const TEST_EMAILS = new Set([
   'test@example.com',
   'rawhidecityleather@gmail.com',
 ]);
+
+/**
+ * One spelling of an address, everywhere. Snipcart's dashboard renders
+ * addresses uppercased, so every comparison here — the test list above, the
+ * per-buyer cooldown below — has to agree on what "the same person" means or
+ * it quietly stops matching.
+ */
+export function normalizeEmail(email) {
+  return String(email || '').trim().toLowerCase();
+}
 
 const STORE_URL = 'https://rawhidecityleather.com';
 
@@ -270,7 +291,7 @@ export function dueReason(cart, now, { ignoreAge = false } = {}) {
   if (ageHours < SEND_AFTER_HOURS) return 'too-recent';
   if (!ignoreAge && ageHours > MAX_AGE_HOURS) return 'too-old';
 
-  const email = String(cart.email || '').trim().toLowerCase();
+  const email = normalizeEmail(cart.email);
   if (!email || !email.includes('@')) return 'no-email';
   if (TEST_EMAILS.has(email)) return 'test-email';
 
@@ -565,6 +586,34 @@ export async function listRecoveries(env, limit = 200) {
     .sort((a, b) => String(b.sentAt).localeCompare(String(a.sentAt)));
 }
 
+/* --------------------------------------------------- one coupon per buyer */
+
+const EMAIL_KEY_PREFIX = 'recovery-email:';
+
+export function emailKey(email) {
+  return EMAIL_KEY_PREFIX + normalizeEmail(email);
+}
+
+/**
+ * Kept separate from the per-cart record because the two answer different
+ * questions. The cart record answers "has this cart been handled", which is
+ * what stops a retry minting a second code. This answers "has this person been
+ * mailed", which is what stops one buyer with two carts getting two codes.
+ */
+export async function mailedRecently(env, email) {
+  return (await env.RECOVERY.get(emailKey(email))) !== null;
+}
+
+/**
+ * Written only once a send has actually succeeded, so a send that failed does
+ * not lock the buyer out of the retry meant to reach them.
+ */
+export async function markMailed(env, email, now) {
+  await env.RECOVERY.put(emailKey(email), new Date(now).toISOString(), {
+    expirationTtl: EMAIL_COOLDOWN_DAYS * 24 * 3600,
+  });
+}
+
 /* --------------------------------------------------------------- the run */
 
 /**
@@ -575,7 +624,7 @@ export async function listRecoveries(env, limit = 200) {
  * send, so a send that fails leaves a record holding the code — the retry
  * reuses it instead of minting a second discount for the same person.
  */
-export async function recoverCart(env, cart, now) {
+export async function recoverCart(env, cart, now, { mailedEmails } = {}) {
   // Checked before anything is minted. Creating the discount first and
   // discovering the mailer is unconfigured second would leave a trail of live
   // 15% codes in Snipcart that nobody was ever told about.
@@ -586,6 +635,18 @@ export async function recoverCart(env, cart, now) {
 
   if (record?.sentAt) return { token, status: 'already-sent' };
   if (record && record.attempts >= MAX_ATTEMPTS) return { token, status: 'given-up' };
+
+  // One coupon per buyer. Checked before anything is minted, so a duplicate
+  // cart costs nothing in Snipcart either.
+  //
+  // Two guards, because either alone leaves a hole. KV is eventually
+  // consistent, so the mark written for the first of two carts in one run is
+  // not reliably readable by the second a moment later — which is precisely
+  // the case that went wrong. The in-run set closes that window; the KV mark
+  // carries the cooldown across runs and across a Worker restart.
+  const email = normalizeEmail(cart.email);
+  if (mailedEmails?.has(email)) return { token, status: 'duplicate-email' };
+  if (await mailedRecently(env, email)) return { token, status: 'duplicate-email' };
 
   if (!record?.code) {
     const code = makeCode();
@@ -622,6 +683,12 @@ export async function recoverCart(env, cart, now) {
 
   record.sentAt = new Date(now).toISOString();
   await putRecord(env, record);
+
+  // Both guards updated together, and only now: everything above this line can
+  // still fail, and a buyer who was never actually mailed must stay reachable.
+  mailedEmails?.add(email);
+  await markMailed(env, email, now);
+
   return { token, status: 'sent', code: record.code };
 }
 
@@ -689,10 +756,15 @@ export async function runRecovery(env, now = Date.now()) {
     ? { youngestHours: ages[0], oldestHours: ages[ages.length - 1], usingCreationDate }
     : null;
 
+  // Shared across the whole batch so two carts belonging to one buyer cannot
+  // both send, in the window where KV would not yet report the first. See the
+  // note in recoverCart.
+  const mailedEmails = new Set();
+
   const results = [];
   for (const cart of due) {
     try {
-      results.push(await recoverCart(env, cart, now));
+      results.push(await recoverCart(env, cart, now, { mailedEmails }));
     } catch (err) {
       results.push({
         token: cart.token || cart.id,
