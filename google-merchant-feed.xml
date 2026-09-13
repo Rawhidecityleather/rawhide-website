@@ -20,7 +20,7 @@
     <item>
       <g:id>fully-custom-radio-strap</g:id>
       <g:title>Custom Leather Firefighter Radio Strap - Hand-Stamped, Holster and Anti-Sway Included</g:title>
-      <g:description>Custom leather firefighter radio strap built to your spec. Hand-cut 1.5" wide from 10-12 oz English bridle leather in black or brown. Your text and stamp designs hand-stamped and painted in your paint and outline colors, your font, and contrast stitching down the full strap. Chicago screw construction with hardware in black, brass, or nickel. Black leather radio holster and anti-sway strap included. Built to order, 6 week lead time.</g:description>
+      <g:description>Custom leather firefighter radio strap built to your spec. Hand-cut 1.5" wide from 10-12 oz English bridle leather in black, brown, or chestnut. Your text and stamp designs hand-stamped and painted in your paint and outline colors, your font, and contrast stitching down the full strap. Chicago screw construction with hardware in black, brass, or nickel. Black leather radio holster and anti-sway strap included. Built to order, 6 week lead time.</g:description>
       <g:link>https://rawhidecityleather.com/product-fully-custom-radio-strap</g:link>
       <g:image_link>https://rawhidecityleather.com/assets/img/products/fully-custom-radio-strap.jpg</g:image_link>
       <g:additional_image_link>https://rawhidecityleather.com/assets/img/products/fully-custom-radio-strap-2.jpg</g:additional_image_link>
@@ -66,7 +66,7 @@
     <item>
       <g:id>basic-radio-strap</g:id>
       <g:title>Personalized Leather Firefighter Radio Strap - Holster and Anti-Sway Included</g:title>
-      <g:description>Personalized leather firefighter radio strap. Hand-cut 1.5" wide from 10-12 oz English bridle leather in black or brown. Your text and stamp designs hand-stamped and painted in the color you pick. Chicago screw construction with hardware in black, brass, or nickel. Black leather radio holster and anti-sway strap included. Built to order, 6 week lead time.</g:description>
+      <g:description>Personalized leather firefighter radio strap. Hand-cut 1.5" wide from 10-12 oz English bridle leather in black, brown, or chestnut. Your text and stamp designs hand-stamped and painted in the color you pick. Chicago screw construction with hardware in black, brass, or nickel. Black leather radio holster and anti-sway strap included. Built to order, 6 week lead time.</g:description>
       <g:link>https://rawhidecityleather.com/product-basic-radio-strap</g:link>
       <g:image_link>https://rawhidecityleather.com/assets/img/products/basic-radio-strap.jpg</g:image_link>
       <g:additional_image_link>https://rawhidecityleather.com/assets/img/products/basic-radio-strap-2.jpg</g:additional_image_link>
@@ -97,7 +97,7 @@
       <!-- Apparel & Accessories requires all four of these. Size is "Custom"
            because the belt is cut to a waist measurement the customer types in
            at checkout, so there is no size set to enumerate. Colour is Black to
-           match the feed image; the page also offers Brown and Mahogany, which
+           match the feed image; the page also offers Brown, Mahogany and Chestnut, which
            would need per-colour variants under an item_group_id to express. -->
       <g:color>Black</g:color>
       <g:size>Custom</g:size>
@@ -130,11 +130,12 @@
     <item>
       <g:id>radio-bucket</g:id>
       <g:title>Leather Radio Bucket for Firefighters - Radio Holder with Sway Strap Included</g:title>
-      <g:description>Hand-cut full-grain leather radio bucket, the holder that carries the portable on a radio strap. Black full-grain leather, set with heavy rivets, with a snap retention strap over the top and a shock cord up the back. Sway strap included at no extra cost, hardware to match. Hardware in black, brass, or nickel. Stitch color optional in white, black, red, blue, navy blue, orange, pink, or purple. Built to order, 1-3 week lead time.</g:description>
+      <g:description>Hand-cut full-grain leather radio bucket, the holder that carries the portable on a radio strap. Black or chestnut full-grain leather, set with heavy rivets, with a snap retention strap over the top and a shock cord up the back. Sway strap included at no extra cost, hardware to match. Hardware in black, brass, or nickel. Stitch color optional in white, black, red, blue, navy blue, orange, pink, or purple. Built to order, 1-3 week lead time.</g:description>
       <g:link>https://rawhidecityleather.com/product-radio-bucket</g:link>
       <g:image_link>https://rawhidecityleather.com/assets/img/products/radio-bucket.jpg</g:image_link>
       <g:additional_image_link>https://rawhidecityleather.com/assets/img/products/radio-bucket-2.jpg</g:additional_image_link>
       <g:additional_image_link>https://rawhidecityleather.com/assets/img/products/radio-bucket-3.jpg</g:additional_image_link>
+      <g:additional_image_link>https://rawhidecityleather.com/assets/img/products/radio-bucket-chestnut.jpg</g:additional_image_link>
       <g:price>40.00 USD</g:price>
       <g:availability>in_stock</g:availability>
       <g:condition>new</g:condition>
@@ -259,7 +260,7 @@
     <item>
       <g:id>heavy-duty-belt</g:id>
       <g:title>Heavy Duty Leather Belt - Full-Grain, No Stitching to Fail, Sized to You</g:title>
-      <g:description>Heavy duty leather belt hand-cut 1.5" wide from one solid strap of full-grain leather. No layers to peel apart and no stitching to fail. Black or brown with a solid buckle in brass, black, or nickel. Sized to the waist measurement you give at checkout. Built to order, 1-3 week lead time.</g:description>
+      <g:description>Heavy duty leather belt hand-cut 1.5" wide from one solid strap of full-grain leather. No layers to peel apart and no stitching to fail. Black, brown, or chestnut with a solid buckle in brass, black, or nickel. Sized to the waist measurement you give at checkout. Built to order, 1-3 week lead time.</g:description>
       <g:link>https://rawhidecityleather.com/product-heavy-duty-belt</g:link>
       <g:image_link>https://rawhidecityleather.com/assets/img/products/heavy-duty-belt.jpg</g:image_link>
       <g:additional_image_link>https://rawhidecityleather.com/assets/img/products/heavy-duty-belt-2.jpg</g:additional_image_link>
