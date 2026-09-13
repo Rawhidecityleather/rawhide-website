@@ -15,6 +15,7 @@ const SUITES = [
   ['inquiry', () => import('./inquiry.test.mjs')],
   ['lib', () => import('./lib.test.mjs')],
   ['mime', () => import('./mime.test.mjs')],
+  ['promo', () => import('./promo.test.mjs')],
   ['quote', () => import('./quote.test.mjs')],
   ['recovery', () => import('./recovery.test.mjs')],
   ['shipped-mail', () => import('./shipped-mail.test.mjs')],

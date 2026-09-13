@@ -16,6 +16,8 @@
  *   POST /dashboard/api/quote/void   kill a quote link
  *   POST /dashboard/api/quote/paid   stamp a cash quote collected
  *   GET  /dashboard/quote-print?id=… printable quote / cash invoice
+ *   POST /dashboard/api/promo        save the sale banner, push the rule to Snipcart
+ *   GET  /api/promo                  PUBLIC. The live sale, for the cart script.
  *   GET  /dashboard/expenses         the receipt ledger for one year
  *   POST /dashboard/api/receipt      upload a receipt photo, get a draft row
  *   POST /dashboard/api/expense      save one ledger row
@@ -38,6 +40,8 @@
  *
  * Cron
  *   hourly — abandoned cart recovery, step 3. See worker/recovery.js.
+ *   hourly — the sale banner's Snipcart rule goes up on its start date and
+ *            comes down after its end date. See worker/promo-sync.js.
  *
  * Secrets (set with `wrangler secret put NAME`):
  *   SNIPCART_SECRET — Snipcart secret API key. Reads and updates orders, never
@@ -58,6 +62,7 @@
  *   QUOTES   — KV namespace holding custom-job quotes. See the README.
  *   RECOVERY — KV namespace recording which carts have had a recovery email.
  *   EXPENSES — KV namespace holding the receipt ledger. See the README.
+ *   PROMO    — KV namespace holding the sale banner. See worker/promo.js.
  *   LOGOS    — R2 bucket holding customer artwork uploads. See the README.
  *   RECEIPTS — R2 bucket holding receipt photos.
  *   AI       — Workers AI, used to read a receipt photo. Optional: without it
@@ -93,6 +98,12 @@ import {
 import { handleEmail, readRaw, MAX_EMAIL_BYTES } from './email-in.js';
 import { sendShippedEmail, sendTestShippedEmail } from './shipped-mail.js';
 import { isTrackingAddress, handleTrackingEmail } from './tracking-in.js';
+import {
+  buildPromo, putPromo, getPromo, publicPromo, promoState, bannerText,
+  stateSentence, snipcartSentence, quoteDiscountRate, withPromoBanner,
+  PromoError, PROMO_STYLES, PROMO_SCRIPT,
+} from './promo.js';
+import { syncPromo, fetchRule } from './promo-sync.js';
 
 export default {
   /**
@@ -141,6 +152,19 @@ export default {
    * status — so anything caught here is a whole-run failure worth logging.
    */
   async scheduled(event, env, ctx) {
+    // The sale banner's rule. Cheap when nothing is due: one KV read, and no
+    // Snipcart call unless the sale has crossed a date since the last run.
+    ctx.waitUntil(
+      getPromo(env)
+        .then((promo) => syncPromo(env, promo))
+        .then((report) => {
+          if (report.changed) console.log('sale rule', JSON.stringify(report.snipcart || {}));
+        })
+        .catch((err) => {
+          console.error('sale rule sync failed', err?.message || err);
+        })
+    );
+
     ctx.waitUntil(
       runRecovery(env)
         .then((report) => {
@@ -224,6 +248,13 @@ export default {
       }
     }
 
+    // Public on purpose: the cart script asks this so it can repeat the sale
+    // code beside the Discounts line. It never says more than the bar already
+    // does, and it never says the dates.
+    if (path === '/api/promo') {
+      return await handlePromoPublic(request, env);
+    }
+
     // Public for the same reason: the customer uploading their artwork is a
     // shopper. Deliberately outside guardConfigured — an upload has nothing to
     // do with Snipcart, and a missing SNIPCART_SECRET shouldn't break the
@@ -289,7 +320,17 @@ export default {
       return guardConfigured(env, () => route(path, request, env, url));
     }
 
-    return env.ASSETS.fetch(request);
+    // Every storefront page comes through here. While a sale is on, the
+    // announcement bar is swapped for it on the way out; the rest of the time
+    // this is a straight pass-through. See worker/promo.js.
+    const asset = await env.ASSETS.fetch(request);
+    try {
+      return await withPromoBanner(asset, request, env);
+    } catch (err) {
+      // The banner is decoration. A page beats a sale line every time.
+      console.error('sale banner failed', err?.message || err);
+      return asset;
+    }
   },
 };
 
@@ -307,6 +348,7 @@ async function route(path, request, env, url) {
     if (path === '/dashboard/api/quote/void') return await handleQuoteVoid(request, env);
     if (path === '/dashboard/api/quote/paid') return await handleQuoteCashPaid(request, env);
     if (path === '/dashboard/quote-print') return await handleQuotePrint(env, url);
+    if (path === '/dashboard/api/promo') return await handlePromoSave(request, env);
     if (path === '/packing-slip') return await handleSlip(request, env, url);
     return notFound();
   } catch (err) {
@@ -467,7 +509,7 @@ async function handleDashboard(request, env, url) {
   if (request.method !== 'GET') return json({ error: 'Use GET.' }, 405);
 
   const range = url.searchParams.get('range') || DEFAULT_RANGE;
-  const [{ orders, truncated }, quotes, receipts] = await Promise.all([
+  const [{ orders, truncated }, quotes, receipts, promo] = await Promise.all([
     getAllOrders(env),
     // A missing KV binding shouldn't take the whole dashboard down — the
     // quotes card just renders empty until it's wired up.
@@ -475,16 +517,82 @@ async function handleDashboard(request, env, url) {
     // Only for the rail's badge, and only ever a count. One list call, run
     // alongside the Snipcart fetch, so it costs the page nothing.
     env.EXPENSES ? listExpenses(env).catch(() => []) : Promise.resolve([]),
+    // Never throws — see getPromo.
+    getPromo(env),
   ]);
+  // Snipcart's copy of the sale rule, so the card shows what is really there.
+  // One extra call, only while a rule is live, and null on any failure.
+  const snipcartRule = await fetchRule(env, promo);
   const stats = analyze(orders, range);
 
   return page('Dashboard', renderDashboard(stats, {
     truncated,
     quotes,
     toCheck: receipts.filter((r) => !r.checked).length,
+    promo,
+    promoReady: Boolean(env.PROMO),
+    snipcartRule,
   }), {
-    styles: DASHBOARD_STYLES,
-    script: DASHBOARD_SCRIPT,
+    styles: DASHBOARD_STYLES + PROMO_STYLES,
+    script: DASHBOARD_SCRIPT + PROMO_SCRIPT,
+  });
+}
+
+/* ------------------------------------------------------------- sale banner */
+
+async function handlePromoSave(request, env) {
+  if (!fromDashboard(request)) return json({ error: 'Bad request.' }, 403);
+  if (!env.PROMO) {
+    return json({
+      error: 'Sale storage is not set up. Create the KV namespace and add the ' +
+        'PROMO binding to wrangler.jsonc — see the README.',
+    }, 500);
+  }
+
+  const body = await request.json().catch(() => ({}));
+
+  let promo;
+  try {
+    promo = buildPromo(body);
+  } catch (err) {
+    if (err instanceof PromoError) return json({ error: err.message }, 400);
+    throw err;
+  }
+
+  // Carry the Snipcart bookkeeping across — the form never sees it. A stale
+  // read here is harmless: the sync checks Snipcart by name before creating.
+  const previous = await getPromo(env);
+  if (previous && previous.snipcart) promo.snipcart = previous.snipcart;
+
+  // Saved first, synced second. If Snipcart refuses, the banner is still
+  // saved and the card says why; the hourly run tries again.
+  await putPromo(env, promo);
+  const { snipcart } = await syncPromo(env, promo);
+
+  const state = promoState(promo);
+  return json({
+    ok: true,
+    promo,
+    state,
+    text: bannerText(promo),
+    sentence: stateSentence(promo),
+    snipcart,
+    snipcartSentence: snipcartSentence(promo),
+  });
+}
+
+/**
+ * Cached for a minute at the edge, the same as the KV read behind it, so a
+ * busy day costs one KV read per colo per minute rather than one per cart.
+ */
+async function handlePromoPublic(request, env) {
+  if (request.method !== 'GET') return json({ error: 'Use GET.' }, 405);
+  const promo = await getPromo(env);
+  return new Response(JSON.stringify(publicPromo(promo)), {
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+      'cache-control': 'public, max-age=60',
+    },
   });
 }
 
@@ -507,7 +615,8 @@ async function handleQuoteCreate(request, env) {
 
   let quote;
   try {
-    quote = buildQuote(body);
+    // Frozen into the quote at creation. See quoteDiscountRate.
+    quote = buildQuote(body, { discountRate: quoteDiscountRate(await getPromo(env)) });
   } catch (err) {
     // A validation complaint is the shop's typo, not a server fault — 400 so
     // the form shows the message instead of the generic error page.

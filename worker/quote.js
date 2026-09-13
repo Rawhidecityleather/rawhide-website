@@ -26,20 +26,19 @@ import { esc, money, shortDate } from './lib.js';
 export const QUOTE_ITEM_PREFIX = 'quote-';
 
 /**
- * The discount Snipcart takes at checkout, as a fraction.
+ * The discount Snipcart takes at checkout, as a fraction — the FALLBACK.
  *
- * Zero while no sitewide cart rule is running: the button carries the quoted
- * number and the crew pays the quoted number.
+ * The live value comes from the sale banner: quoteDiscountRate in
+ * worker/promo.js reads the running sale and handleQuoteCreate passes it in,
+ * so it moves with the Snipcart rule because both come from the same record.
+ * This constant is what buildQuote uses when nothing is passed, which is the
+ * tests and nothing else. Leave it at 0.
  *
- * Set it again only if another automatic discount goes live. Snipcart's
- * automatic discounts target inclusively — you can say "these products" but not
- * "everything except these" — so a quote item cannot opt out, and a $1,800
+ * Why a quote needs it at all: Snipcart's automatic discounts target
+ * inclusively — you can say "these products" but not "everything except
+ * these" — so a quote item cannot opt out of a storewide rule, and a $1,800
  * quote would collect $1,440 under a 20% rule unless the number on the button
  * is grossed up first.
- *
- * This has to move in step with the Snipcart rule, not before or after it. A
- * rule live with this at 0 undercharges by the rule's rate; this left at 0.2
- * with no rule overcharges by 25%.
  */
 export const CHECKOUT_DISCOUNT = 0;
 
@@ -121,7 +120,7 @@ function readTaxRate(value) {
  * Turns the dashboard form into a stored quote. Throws QuoteError with
  * something worth showing the shop, never a bare validation code.
  */
-export function buildQuote(input, { now = Date.now() } = {}) {
+export function buildQuote(input, { now = Date.now(), discountRate = CHECKOUT_DISCOUNT } = {}) {
   const lines = (Array.isArray(input.lines) ? input.lines : [])
     .map((line) => ({
       description: String(line?.description ?? '').trim(),
@@ -190,8 +189,8 @@ export function buildQuote(input, { now = Date.now() } = {}) {
     grandTotal,
     // Frozen at creation. If the sale ends mid-quote the stored rate is what
     // the page was built against, and the expiry is what keeps it honest.
-    discountRate: CHECKOUT_DISCOUNT,
-    listPrice: listPriceFor(total),
+    discountRate,
+    listPrice: listPriceFor(total, discountRate),
     taxExempt,
     exemption,
     createdAt: new Date(now).toISOString(),

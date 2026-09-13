@@ -492,18 +492,18 @@ and `hats.html`. Grep for `or more hats` to find every one of them.
 
 ### Sitewide discounts and quote pricing
 
-**No sitewide discount is running.** `CHECKOUT_DISCOUNT` at the top of
-`worker/quote.js` is `0`, so the price on the button is the quoted price.
+A storewide automatic percentage reaches quotes. Snipcart's automatic
+discounts can only be pointed *at* products, never away from them, so a quote
+can't sit outside the sale. Under a 20% rule, a $1,800 quote goes out with
+$2,250 on the button, Snipcart takes its 20%, and the crew pays $1,800. The
+quote page shows both numbers.
 
-If you start another automatic discount, that constant has to move with it.
-Snipcart's automatic discounts can only be pointed *at* products, never away
-from them, so a quote can't sit outside the sale. Under a 20% rule, a $1,800
-quote goes out with $2,250 on the button, Snipcart takes its 20%, and the crew
-pays $1,800. The quote page shows both numbers.
-
-**The constant and the Snipcart rule have to change together.** A rule live with
-`CHECKOUT_DISCOUNT` at 0 undercharges by the rule's rate; the constant left at
-0.2 with no rule overcharges by 25%.
+**This follows the sale banner on its own.** A new quote reads the running
+sale (`quoteDiscountRate` in `worker/promo.js`) and grosses up by it; when
+the sale ends, new quotes go back to face value. Only an *automatic, percent,
+whole store* sale does this — a code, a dollar amount, or a sale on named
+products leaves quotes alone. `CHECKOUT_DISCOUNT` in `worker/quote.js` is
+now just the fallback the tests use; leave it at 0.
 
 Outstanding quotes are the reason expiry matters. A link created under a sale
 carries the grossed-up price for as long as it lives, so before switching a sale
@@ -571,6 +571,79 @@ It stores one record per emailed cart in the `RECOVERY` KV namespace, created
 Aug 17 2026 and already wired into `wrangler.jsonc`. That record is what stops
 the hourly cron mailing the same person every hour for a week — if you ever
 recreate the namespace, every cart in the window looks new again.
+
+## The sale banner and its Snipcart rule
+
+The strip across the top of every page — "Handmade in Lakeland, FL · Firefighter
+Owned · Free Shipping over $85" — can be swapped for a sale line from the
+dashboard, and the matching discount created in Snipcart, without a deploy.
+**Sale banner** on the dashboard: type the headline, pick the deal (percent or
+dollars off, the whole store or named products), say whether it is automatic
+or a code, pick the dates, tick **Show it on the site**, save.
+
+Two things then happen from that one form:
+
+- The Worker swaps the bar on every page while the sale is live and puts the
+  stock line back when the end date passes. The cart repeats a code beside the
+  Discounts line so nobody has to scroll back up for it.
+- A discount rule is created in Snipcart to match — the same percent or amount,
+  the same products, the same code — and archived again when the sale ends or
+  is switched off. A sale with a start date goes up on that date: the hourly
+  cron pushes the rule, so it can be up to an hour late on the rule and a
+  minute late on the bar.
+
+The card shows both halves: the banner's state, and what Snipcart actually has
+(fetched live, with the usage count). If Snipcart refuses the rule the banner
+still saves, the Snipcart line on the card says what it said, and the hourly
+run keeps trying. Pick **Banner only** to run a sale whose rule you set up in
+Snipcart by hand — free shipping, a buy-one-get-one, anything the form does
+not offer.
+
+Dates are calendar days in Florida: a sale that ends Sep 8 is up through the
+last minute of Sep 8 Eastern. The rule also carries that as its Snipcart
+expiry, as a backstop for the day the cron does not fire. Leave both dates
+blank and it is on until you switch it off.
+
+The bar always says which kind of sale it is — "No code needed" or "Use code X
+at checkout" — because of Labor Day 2026: the rule was automatic, every ad
+said "code LABORDAY15", the promo box rejected the code, and buyers who
+already had the 15% left thinking the sale was not for them. The rule and the
+banner now come from one record, so they cannot disagree.
+
+**Quotes follow it.** A storewide automatic percent grosses up new quotes on
+its own — see *Sitewide discounts and quote pricing* above.
+
+**The rule is non-combinable**, like the cart-recovery coupon, so the two never
+stack. A buyer holding a recovery code during a storewide sale gets whichever
+one they apply, not both.
+
+**How it finds its own rule.** Every rule it makes is named `Sale banner: …`.
+Before creating one it lists Snipcart's discounts and reuses any active rule
+with that prefix, archiving extras, so a stale read or a double save never
+leaves two live rules taking two cuts. Do not rename those rules in Snipcart;
+edit the sale here instead.
+
+### One-time setup
+
+Done 2026-09-13. Kept here for the day it has to be rebuilt:
+
+```bash
+npx wrangler kv namespace create PROMO
+```
+
+Put the id under `kv_namespaces` in `wrangler.jsonc` as binding `PROMO` and
+deploy. Without the binding the card explains itself and nothing else changes —
+pages pass through untouched.
+
+### Where it lives
+
+One JSON record, key `current`, in the `PROMO` namespace. `worker/promo.js`
+is the banner: the record's shape, the date window, the card, the rewrite.
+`worker/promo-sync.js` is the Snipcart side: the rule body and the hourly
+reconcile. `GET /api/promo` is public and says only what the bar already says
+(never the dates); the cart script in `assets/js/main.js` reads it. Adding a
+product to the shop means adding it to `PRODUCTS` in `worker/promo.js` too,
+or the picker cannot point a sale at it.
 
 ## Receipts and the year-end expense report
 

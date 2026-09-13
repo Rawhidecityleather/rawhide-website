@@ -96,10 +96,14 @@
   //            summary in the key's metadata so a year lists in one call.
   //            Created 2026-08-18 with
   //             wrangler kv namespace create EXPENSES
+  // PROMO    — the sale banner: one record saying what sale is on and when.
+  //            Read on every storefront page. Created 2026-09-13 with
+  //             wrangler kv namespace create PROMO
   "kv_namespaces": [
     { "binding": "QUOTES", "id": "272cd3400d3e4eae945bfbe2b16ab43f" },
     { "binding": "RECOVERY", "id": "be611b5493984061803449b43657eec4" },
-    { "binding": "EXPENSES", "id": "ccebdcbdddf74b93ab4c528138271837" }
+    { "binding": "EXPENSES", "id": "ccebdcbdddf74b93ab4c528138271837" },
+    { "binding": "PROMO", "id": "afdfd46049a34d20818709850dc77cc0" }
   ],
   // LOGOS    — customer artwork for custom stamp work. Created with
   //             wrangler r2 bucket create rawhide-logo-uploads

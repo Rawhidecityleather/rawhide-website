@@ -763,13 +763,42 @@
       ' already applied. No code needed.';
   }
 
+  // The sale banner's code, repeated in the cart. The bar at the top of the
+  // page says "use code X at checkout", but the cart drawer covers it, and the
+  // promo box is on the next screen — so the code is on screen at the moment
+  // the buyer is looking for it. Served by the Worker from the same record the
+  // bar reads (see worker/promo.js); an automatic sale needs nothing here
+  // because Snipcart's own discount line handles it above.
+  var promo = null;
+  function loadPromo(){
+    if(!window.fetch) return;
+    fetch('/api/promo').then(function(res){
+      return res.ok ? res.json() : null;
+    }).then(function(data){
+      promo = data && data.live ? data : null;
+      if(promo) paintShippingNote();
+    }).catch(function(){ /* no banner, no note */ });
+  }
+
+  function promoCodeNote(){
+    if(!promo || promo.kind !== 'code' || !promo.code) return null;
+    var state = window.Snipcart && Snipcart.store && Snipcart.store.getState();
+    var cart = state && state.cart;
+    var applied = cart && cart.discounts && cart.discounts.items;
+    // Already typed it — the Discounts line says so, no need to nag.
+    if(applied && applied.some && applied.some(function(d){
+      return d.code && String(d.code).toUpperCase() === promo.code;
+    })) return null;
+    return 'Use code ' + promo.code + ' at checkout.';
+  }
+
   function paintShippingNote(){
     var host = document.querySelector('.snipcart-cart__footer .snipcart-summary-fees');
     if(!host) return;
 
     // Painted first and kept first, so it reads as close to the Discounts row
     // as the footer allows.
-    var sale = autoDiscountNote();
+    var sale = autoDiscountNote() || promoCodeNote();
     var saleLine = host.querySelector('.rc-sale-note');
     if(sale){
       if(!saleLine){
@@ -832,4 +861,5 @@
     return true;
   }
   whenSnipcartReady(initShippingNote);
+  loadPromo();
 })();

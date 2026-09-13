@@ -22,8 +22,9 @@ import {
   PIRATE_SHIP_SINGLE_URL,
 } from './pirateship.js';
 import {
-  quoteStatus, quoteWarnings, findQuoteOrder, quotePayment, quoteGrandTotal, CHECKOUT_DISCOUNT,
+  quoteStatus, quoteWarnings, findQuoteOrder, quotePayment, quoteGrandTotal,
 } from './quote.js';
+import { renderPromoCard, isLive, quoteDiscountRate } from './promo.js';
 
 const RANGES = [
   { key: '30d', label: 'Last 30 days', compare: 'vs prior 30 days' },
@@ -181,7 +182,9 @@ function topProducts(orders) {
 
 /* --------------------------------------------------------------- rendering */
 
-export function renderDashboard(stats, { truncated, quotes = [], toCheck = 0 } = {}) {
+export function renderDashboard(stats, {
+  truncated, quotes = [], toCheck = 0, promo = null, promoReady = true, snipcartRule = null,
+} = {}) {
   const rangeLabel = rangeInfo(stats.rangeKey).label;
 
   return `<div class="shell">
@@ -189,6 +192,7 @@ export function renderDashboard(stats, { truncated, quotes = [], toCheck = 0 } =
     queueCount: stats.queue.length,
     openQuotes: quotes.filter((q) => quoteStatus(q, stats.orders) === 'open').length,
     toCheck,
+    saleLive: isLive(promo),
     active: 'orders',
   })}
   <main class="main">
@@ -202,7 +206,8 @@ export function renderDashboard(stats, { truncated, quotes = [], toCheck = 0 } =
       </div>
       ${renderQueue(stats.queue)}
       ${renderTrackingPanel()}
-      ${renderQuotes(quotes, stats.orders)}
+      ${renderQuotes(quotes, stats.orders, quoteDiscountRate(promo))}
+      ${renderPromoCard(promo, { ready: promoReady, rule: snipcartRule })}
       ${renderOrders(stats.inRange, rangeLabel)}
     </div>
   </main>
@@ -218,7 +223,9 @@ export function renderDashboard(stats, { truncated, quotes = [], toCheck = 0 } =
  * The order links are in-page anchors on the dashboard itself and full paths
  * from anywhere else, so they work from both.
  */
-export function renderRail({ queueCount = 0, openQuotes = 0, toCheck = 0, active = 'orders' } = {}) {
+export function renderRail({
+  queueCount = 0, openQuotes = 0, toCheck = 0, saleLive = false, active = 'orders',
+} = {}) {
   const link = (href, label, badge, key = 'orders') =>
     `<a href="${href}"${key === active ? ' class="on" aria-current="page"' : ''}>${esc(label)}${
       badge ? `<span class="railbadge">${esc(String(badge))}</span>` : ''
@@ -236,6 +243,7 @@ export function renderRail({ queueCount = 0, openQuotes = 0, toCheck = 0, active
       ${link(base + '#queue', 'Ship queue', queueCount || null)}
       ${link(base + '#tracking', 'Add tracking')}
       ${link(base + '#quotes', 'Quotes', openQuotes || null)}
+      ${link(base + '#sale', 'Sale banner', saleLive ? 'Live' : null)}
       ${link(base + '#orders', 'All orders')}
       ${link('/dashboard/expenses', 'Receipts', toCheck || null, 'expenses')}
     </nav>
@@ -577,7 +585,7 @@ const QUOTE_TONE = { open: 'warn', paid: 'good', expired: 'bad', void: 'bad' };
  * Bill a crew for a job that isn't in the catalog. The form builds the quote;
  * the table below is what's outstanding, so nothing sits forgotten.
  */
-function renderQuotes(quotes, orders) {
+function renderQuotes(quotes, orders, discountRate = 0) {
   const rows = quotes.map((quote) => {
     const status = quoteStatus(quote, orders);
     const order = findQuoteOrder(quote.itemId, orders);
@@ -647,11 +655,13 @@ function renderQuotes(quotes, orders) {
       in Snipcart, so the printed sheet is the record &mdash; keep a copy.
     </p>
 
-    ${CHECKOUT_DISCOUNT ? `<p class="banner">
-      The ${Math.round(CHECKOUT_DISCOUNT * 100)}% sale is on, so the button carries a
-      grossed-up price and Snipcart's discount lands the total on your number.
-      When the sale ends, set <code>CHECKOUT_DISCOUNT</code> to 0 in
-      <code>worker/quote.js</code> or every quote overcharges.
+    ${discountRate ? `<p class="banner">
+      The ${Math.round(discountRate * 100)}% storewide sale is on, so a new quote's
+      button carries a grossed-up price and Snipcart's discount lands the total
+      on your number. This follows the Sale banner card: when that sale ends,
+      new quotes go back to face value on their own. Quotes already sent keep
+      the arithmetic they were built with &mdash; void any you don't want paid
+      at the old rate.
     </p>` : ''}
 
     ${flagged.length ? banner(
