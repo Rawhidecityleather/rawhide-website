@@ -66,10 +66,41 @@ export function discountBody(promo) {
   return body;
 }
 
+/**
+ * Every discount on the account.
+ *
+ * Snipcart answers this endpoint as a bare array on some accounts and as a
+ * paged `{items, hasMoreResults, continuationToken}` on others, so this handles
+ * both rather than betting on one. The paging matters here: the recovery cron
+ * mints a discount per cart, so this list runs to dozens, and a reader that
+ * silently takes the first page reports a number that is quietly too small.
+ */
+export async function listDiscounts(env) {
+  const all = [];
+  let continuationToken = null;
+
+  for (let page = 0; page < 20; page++) {
+    const query = continuationToken
+      ? '/discounts?continuationToken=' + encodeURIComponent(continuationToken)
+      : '/discounts';
+    const res = await getJson(env, query);
+
+    if (Array.isArray(res)) {
+      all.push(...res);
+      break;
+    }
+
+    all.push(...(res?.items || []));
+    if (!res?.hasMoreResults || !res?.continuationToken) break;
+    continuationToken = res.continuationToken;
+  }
+
+  return all;
+}
+
 /** Our active rules on Snipcart, newest first. Usually zero or one. */
 export async function findOurRules(env) {
-  const list = await getJson(env, '/discounts');
-  const rules = Array.isArray(list) ? list : (list?.items || []);
+  const rules = await listDiscounts(env);
   return rules
     .filter((r) => r && !r.archived && typeof r.name === 'string' && r.name.startsWith(RULE_PREFIX))
     .sort((a, b) => String(b.creationDate || '').localeCompare(String(a.creationDate || '')));
@@ -101,14 +132,13 @@ export async function findOurRules(env) {
 export async function automaticStoreRate(env, now = Date.now()) {
   if (!env.SNIPCART_SECRET) return 0;
 
-  let list;
+  let rules;
   try {
-    list = await getJson(env, '/discounts');
+    rules = await listDiscounts(env);
   } catch {
     return 0;
   }
 
-  const rules = Array.isArray(list) ? list : (list?.items || []);
   let best = 0;
   for (const rule of rules) {
     if (!rule || rule.archived) continue;

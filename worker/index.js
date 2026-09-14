@@ -104,6 +104,7 @@ import {
   PromoError, PROMO_STYLES, PROMO_SCRIPT,
 } from './promo.js';
 import { syncPromo, fetchRule } from './promo-sync.js';
+import { recoveryStats, RECOVERY_STYLES } from './recovery-card.js';
 import { handlePhotoUpload, handlePhotoFetch } from './photos.js';
 import { withCatalog, getCatalog } from './catalog.js';
 import {
@@ -553,7 +554,15 @@ async function handleDashboard(request, env, url) {
   ]);
   // Snipcart's copy of the sale rule, so the card shows what is really there.
   // One extra call, only while a rule is live, and null on any failure.
-  const snipcartRule = await fetchRule(env, promo);
+  //
+  // The recovery numbers come alongside it. Gathered here rather than inside
+  // the card so a Snipcart outage degrades to a card with dashes in it instead
+  // of a dashboard that will not render — recoveryStats catches each of its own
+  // legs and never throws.
+  const [snipcartRule, recovery] = await Promise.all([
+    fetchRule(env, promo),
+    recoveryStats(env).catch(() => null),
+  ]);
   const stats = analyze(orders, range);
 
   return page('Dashboard', renderDashboard(stats, {
@@ -563,8 +572,9 @@ async function handleDashboard(request, env, url) {
     promo,
     promoReady: Boolean(env.PROMO),
     snipcartRule,
+    recovery,
   }), {
-    styles: DASHBOARD_STYLES + PROMO_STYLES,
+    styles: DASHBOARD_STYLES + PROMO_STYLES + RECOVERY_STYLES,
     script: DASHBOARD_SCRIPT + PROMO_SCRIPT,
   });
 }

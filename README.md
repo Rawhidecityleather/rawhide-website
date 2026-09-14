@@ -593,8 +593,42 @@ real coupon on the first run after the sale comes down.
 
 Only a rule that a buyer genuinely already has counts: no code to type, a
 percentage rather than dollars off, applying to the whole order rather than to
-named products, live and unexpired. If Snipcart cannot be reached the run sends
-anyway — a failed read must not quietly stop recovery for good.
+named products, live and unexpired, and with no order minimum a small cart would
+miss. If Snipcart cannot be reached the run sends anyway — a failed read must not
+quietly stop recovery for good.
+
+### Whether any of it is working
+
+**Cart recovery** on the dashboard, or the `#recovery` card on `/dashboard`.
+Four numbers and a table, so this stops being a thing you find out by opening
+Snipcart and counting:
+
+| Tile | Where it comes from |
+|---|---|
+| Coupons sent | the `RECOVERY` KV log, which is what the cron itself writes |
+| Used | Snipcart's own usage count on each minted code |
+| Carts waiting | the live abandoned-cart list, inside the 7-day window |
+| Sitting in them | those carts added up |
+
+Under them is **what the carts are full of**, counted by cart rather than by
+line. That tally is the point of the card. The most useful thing anyone has
+learned about these carts is that fifteen of twenty-four held the same $165
+six-week-lead strap — a fact about the product page, not about the coupon — and
+it took a hand count to see once.
+
+**There is deliberately no "revenue recovered" tile.** Snipcart's discount object
+says a code was used but not what the order came to, and a dollar figure
+assembled from a guess about the order payload would be the one number on the
+page nobody could check. When a code does get used, the order shows up in the
+orders table like any other.
+
+A tile whose source could not be read shows a dash and says so, rather than a
+zero. The whole gather is wrapped so a Snipcart outage costs the card its
+numbers and not the dashboard its page.
+
+Each row links to the cart it belongs to. **That link restores the customer's
+own cart**, their stamping and their address on it — the same reason a cart
+token never goes in this repo. Treat it like their address.
 
 ## The sale banner and its Snipcart rule
 

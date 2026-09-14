@@ -25,6 +25,7 @@ import {
   quoteStatus, quoteWarnings, findQuoteOrder, quotePayment, quoteGrandTotal,
 } from './quote.js';
 import { renderPromoCard, isLive, quoteDiscountRate } from './promo.js';
+import { renderRecoveryCard } from './recovery-card.js';
 
 const RANGES = [
   { key: '30d', label: 'Last 30 days', compare: 'vs prior 30 days' },
@@ -184,6 +185,7 @@ function topProducts(orders) {
 
 export function renderDashboard(stats, {
   truncated, quotes = [], toCheck = 0, promo = null, promoReady = true, snipcartRule = null,
+  recovery = null,
 } = {}) {
   const rangeLabel = rangeInfo(stats.rangeKey).label;
 
@@ -193,6 +195,7 @@ export function renderDashboard(stats, {
     openQuotes: quotes.filter((q) => quoteStatus(q, stats.orders) === 'open').length,
     toCheck,
     saleLive: isLive(promo),
+    leftCarts: recovery ? recovery.carts.length : 0,
     active: 'orders',
   })}
   <main class="main">
@@ -208,6 +211,7 @@ export function renderDashboard(stats, {
       ${renderTrackingPanel()}
       ${renderQuotes(quotes, stats.orders, quoteDiscountRate(promo))}
       ${renderPromoCard(promo, { ready: promoReady, rule: snipcartRule })}
+      ${recovery ? renderRecoveryCard(recovery) : ''}
       ${renderOrders(stats.inRange, rangeLabel)}
     </div>
   </main>
@@ -224,7 +228,7 @@ export function renderDashboard(stats, {
  * from anywhere else, so they work from both.
  */
 export function renderRail({
-  queueCount = 0, openQuotes = 0, toCheck = 0, saleLive = false, active = 'orders',
+  queueCount = 0, openQuotes = 0, toCheck = 0, saleLive = false, leftCarts = 0, active = 'orders',
 } = {}) {
   const link = (href, label, badge, key = 'orders') =>
     `<a href="${href}"${key === active ? ' class="on" aria-current="page"' : ''}>${esc(label)}${
@@ -244,6 +248,7 @@ export function renderRail({
       ${link(base + '#tracking', 'Add tracking')}
       ${link(base + '#quotes', 'Quotes', openQuotes || null)}
       ${link(base + '#sale', 'Sale banner', saleLive ? 'Live' : null)}
+      ${link(base + '#recovery', 'Cart recovery', leftCarts || null)}
       ${link(base + '#orders', 'All orders')}
       ${link('/dashboard/products', 'Photos', null, 'products')}
       ${link('/dashboard/expenses', 'Receipts', toCheck || null, 'expenses')}
