@@ -75,6 +75,47 @@ export async function findOurRules(env) {
     .sort((a, b) => String(b.creationDate || '').localeCompare(String(a.creationDate || '')));
 }
 
+/**
+ * The best rate a buyer already gets for doing nothing: the highest live,
+ * storewide, automatic percentage on the store right now, or 0.
+ *
+ * Cart recovery asks this before offering anybody a discount. A 15% coupon sent
+ * while an automatic 15% is already coming off the cart is not an offer — both
+ * are non-combinable, so typing the code swaps one 15% for an identical one and
+ * the buyer saves nothing. Not a theory: the Labor Day rule ran automatically
+ * from 2026-09-03, and every recovery code minted underneath it went unused
+ * while the automatic rule itself was redeemed again and again.
+ *
+ * Deliberately narrow. Only `Rate` counts — `RateOnItems` is scoped to named
+ * products and may not touch this cart at all — and only a rule with no code,
+ * because one the buyer has to type is not something they already have.
+ *
+ * Never throws. A failed read must not quietly stop recovery for good, so it
+ * comes back 0, which sends the coupon: the safe side of the mistake.
+ */
+export async function automaticStoreRate(env, now = Date.now()) {
+  if (!env.SNIPCART_SECRET) return 0;
+
+  let list;
+  try {
+    list = await getJson(env, '/discounts');
+  } catch {
+    return 0;
+  }
+
+  const rules = Array.isArray(list) ? list : (list?.items || []);
+  let best = 0;
+  for (const rule of rules) {
+    if (!rule || rule.archived) continue;
+    if (rule.trigger === 'Code' || rule.code) continue;
+    if (rule.type !== 'Rate') continue;
+    if (rule.expires && Date.parse(rule.expires) <= now) continue;
+    const rate = Number(rule.rate);
+    if (Number.isFinite(rate) && rate > best) best = rate;
+  }
+  return best;
+}
+
 /** Snipcart's copy of the rule the record points at, or null. For the card. */
 export async function fetchRule(env, promo) {
   const id = promo?.snipcart?.id;

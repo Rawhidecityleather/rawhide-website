@@ -56,8 +56,8 @@ function fakeKV() {
  * Stands in for both Snipcart and SendGrid. Records every call so the tests can
  * assert on what was actually sent, and can be told to fail the mail leg.
  */
-function fakeFetch({ carts = [], failMail = false } = {}) {
-  const calls = { discounts: [], mail: [], cartPages: 0 };
+function fakeFetch({ carts = [], failMail = false, liveDiscounts = [] } = {}) {
+  const calls = { discounts: [], mail: [], cartPages: 0, discountLists: 0 };
 
   const fetch = async (url, init = {}) => {
     const href = String(url);
@@ -66,6 +66,15 @@ function fakeFetch({ carts = [], failMail = false } = {}) {
     if (href.includes('/carts/abandoned')) {
       calls.cartPages++;
       return new Response(JSON.stringify({ items: carts, hasMoreResults: false }), {
+        headers: { 'content-type': 'application/json' },
+      });
+    }
+
+    // Listing what the store already offers is a GET with no body; minting a
+    // coupon is a POST with one. Same path, different questions.
+    if (href.includes('/discounts') && !body) {
+      calls.discountLists++;
+      return new Response(JSON.stringify({ items: liveDiscounts }), {
         headers: { 'content-type': 'application/json' },
       });
     }
@@ -433,6 +442,102 @@ export default async function run() {
     const { fetch, calls } = fakeFetch({ carts: [recent] });
     await withFetch(fetch, () => runRecovery(env, NOW));
     check('a cart in both listings is mailed once, not twice', calls.mail.length === 1);
+  }
+
+  suite('recovery — not while the whole store is already on sale');
+
+  {
+    // The 2026-09 case, reproduced. An automatic storewide 15% ran from Sep 3.
+    // Every recovery coupon minted underneath it offered the buyer a discount
+    // they already had, and not one was ever used.
+    const auto15 = { id: 'd1', name: 'LABORDAY15', trigger: 'Total', type: 'Rate', rate: 15, archived: false };
+
+    const env = fakeEnv();
+    const { fetch, calls } = fakeFetch({ carts: [cart()], liveDiscounts: [auto15] });
+    const report = await withFetch(fetch, () => runRecovery(env, NOW));
+
+    check('no coupon is minted while the same discount is already automatic',
+      calls.discounts.length === 0, `minted ${calls.discounts.length}`);
+    check('and nobody is emailed an offer they already have',
+      calls.mail.length === 0, `sent ${calls.mail.length}`);
+    check('the run says why, rather than reporting a quiet zero',
+      report.skipped === 'store-wide-15-percent-already-on', report.skipped);
+    check('the cart is still counted as due, so the window is not hidden',
+      report.due === 1 && report.scanned === 1);
+    check('and nothing is written, so the coupon still comes when the sale ends',
+      env.RECOVERY.store.size === 0, `${env.RECOVERY.store.size} records`);
+  }
+
+  {
+    // A better automatic rate than ours makes the coupon even more pointless.
+    const env = fakeEnv();
+    const { fetch, calls } = fakeFetch({
+      carts: [cart()],
+      liveDiscounts: [{ name: 'Sale banner: 20% off', trigger: 'Total', type: 'Rate', rate: 20, archived: false }],
+    });
+    const report = await withFetch(fetch, () => runRecovery(env, NOW));
+    check('a bigger automatic discount stops it too', calls.mail.length === 0);
+    check('and says the rate it found', report.skipped === 'store-wide-20-percent-already-on');
+  }
+
+  {
+    // Below ours, the coupon is still worth something.
+    const env = fakeEnv();
+    const { fetch, calls } = fakeFetch({
+      carts: [cart()],
+      liveDiscounts: [{ name: 'Small', trigger: 'Total', type: 'Rate', rate: 5, archived: false }],
+    });
+    await withFetch(fetch, () => runRecovery(env, NOW));
+    check('a smaller automatic discount does not stop it', calls.mail.length === 1);
+  }
+
+  {
+    // Rules that are not something the buyer already has.
+    const cases = [
+      ['a code the buyer has to type', { name: 'X', trigger: 'Code', code: 'TYPEME', type: 'Rate', rate: 25 }],
+      ['a rule scoped to named products', { name: 'X', trigger: 'Total', type: 'RateOnItems', rate: 25 }],
+      ['a dollars-off rule, which is not a rate', { name: 'X', trigger: 'Total', type: 'FixedAmount', amount: 25 }],
+      ['an archived rule', { name: 'X', trigger: 'Total', type: 'Rate', rate: 25, archived: true }],
+      ['a rule that has already expired', { name: 'X', trigger: 'Total', type: 'Rate', rate: 25, expires: new Date(NOW - HOUR).toISOString() }],
+    ];
+    for (const [label, rule] of cases) {
+      const env = fakeEnv();
+      const { fetch, calls } = fakeFetch({ carts: [cart()], liveDiscounts: [rule] });
+      await withFetch(fetch, () => runRecovery(env, NOW));
+      check(`${label} does not count as already on`, calls.mail.length === 1, `sent ${calls.mail.length}`);
+    }
+  }
+
+  {
+    // A rule that has not started yet, and one with no end date, both count.
+    const env = fakeEnv();
+    const { fetch, calls } = fakeFetch({
+      carts: [cart()],
+      liveDiscounts: [{ name: 'X', trigger: 'Total', type: 'Rate', rate: 15, expires: new Date(NOW + HOUR).toISOString() }],
+    });
+    await withFetch(fetch, () => runRecovery(env, NOW));
+    check('a rule still inside its dates does stop it', calls.mail.length === 0);
+  }
+
+  {
+    // Snipcart being unreachable must not stop recovery for good.
+    const env = fakeEnv();
+    const { fetch, calls } = fakeFetch({ carts: [cart()] });
+    const failing = async (url, init) => {
+      if (String(url).includes('/discounts') && !init?.body) throw new Error('Snipcart down');
+      return fetch(url, init);
+    };
+    await withFetch(failing, () => runRecovery(env, NOW));
+    check('a failed read of the discount list sends anyway, rather than going quiet',
+      calls.mail.length === 1, `sent ${calls.mail.length}`);
+  }
+
+  {
+    // An empty window costs nothing extra: nothing to hold back.
+    const env = fakeEnv();
+    const { fetch, calls } = fakeFetch({ carts: [], liveDiscounts: [] });
+    const report = await withFetch(fetch, () => runRecovery(env, NOW));
+    check('a quiet hour reports no sale skip at all', !report.skipped && calls.mail.length === 0);
   }
 
   suite('recovery — one cart by hand');

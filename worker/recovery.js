@@ -24,6 +24,7 @@
 
 import { getJson, postJson } from './snipcart.js';
 import { sendMail, mailerConfigured, MailError, UNSUBSCRIBE_TO } from './mailer.js';
+import { automaticStoreRate } from './promo-sync.js';
 
 /**
  * 24 hours. Cut from 72 on 2026-08-25.
@@ -757,6 +758,27 @@ export async function runRecovery(env, now = Date.now()) {
   const ageSpread = ages.length
     ? { youngestHours: ages[0], oldestHours: ages[ages.length - 1], usingCreationDate }
     : null;
+
+  // A coupon is only worth sending if it is worth something. While an automatic
+  // storewide percentage at least as good as ours is running, it is not: both
+  // rules are non-combinable, so the buyer types the code and swaps 15% for an
+  // identical 15%. Every cart in the window keeps its place and gets a real
+  // coupon on the first run after the sale comes down.
+  //
+  // Checked once a run, after the scan, so the tallies above still say what the
+  // window held on a quiet day.
+  const alreadyOff = await automaticStoreRate(env, now);
+  if (due.length && alreadyOff >= DISCOUNT_RATE) {
+    return {
+      scanned: carts.length,
+      due: due.length,
+      reasons,
+      ageSpread,
+      counts: {},
+      results: [],
+      skipped: `store-wide-${alreadyOff}-percent-already-on`,
+    };
+  }
 
   // Shared across the whole batch so two carts belonging to one buyer cannot
   // both send, in the window where KV would not yet report the first. See the

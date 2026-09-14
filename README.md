@@ -578,6 +578,24 @@ Aug 17 2026 and already wired into `wrangler.jsonc`. That record is what stops
 the hourly cron mailing the same person every hour for a week — if you ever
 recreate the namespace, every cart in the window looks new again.
 
+**It holds its fire while the whole store is on sale.** Before minting anything
+the run asks Snipcart what a buyer already gets for doing nothing, and if an
+automatic storewide percentage is at least as good as the coupon's 15%, it sends
+nothing and logs `skipped=store-wide-15-percent-already-on`. Both rules are
+non-combinable, so a coupon sent underneath a sale is not an offer — the buyer
+types the code and swaps 15% for an identical 15%.
+
+That is not a precaution, it is a post-mortem. The Labor Day rule ran
+automatically from Sep 3 2026, and every recovery code minted underneath it went
+unused while the automatic rule itself was redeemed again and again. Nothing is
+written to KV when a run is held back, so every one of those carts still gets a
+real coupon on the first run after the sale comes down.
+
+Only a rule that a buyer genuinely already has counts: no code to type, a
+percentage rather than dollars off, applying to the whole order rather than to
+named products, live and unexpired. If Snipcart cannot be reached the run sends
+anyway — a failed read must not quietly stop recovery for good.
+
 ## The sale banner and its Snipcart rule
 
 The strip across the top of every page — "Handmade in Lakeland, FL · Firefighter
@@ -621,7 +639,9 @@ its own — see *Sitewide discounts and quote pricing* above.
 
 **The rule is non-combinable**, like the cart-recovery coupon, so the two never
 stack. A buyer holding a recovery code during a storewide sale gets whichever
-one they apply, not both.
+one they apply, not both. That is also why **cart recovery stops sending while
+an automatic storewide percentage is live** — see *Cron* above. Run a sale and
+the coupons pause on their own; end it and they resume on the next hour.
 
 **How it finds its own rule.** Every rule it makes is named `Sale banner: …`.
 Before creating one it lists Snipcart's discounts and reuses any active rule
