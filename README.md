@@ -31,6 +31,11 @@ rawhide-website/
 
 ## Adding your images
 
+**For product photos, use the dashboard instead** — *Product photos* below.
+Adding one there needs no deploy, makes both sizes for you, and updates the
+seven places a product photo appears. What follows is the fallback set that
+ships in the repo, and what a product falls back to when nothing is uploaded.
+
 Drop these into `assets/img/` with the exact filenames:
 
 | File | What it is |
@@ -55,6 +60,7 @@ Each page is plain HTML. Open in Notepad or VS Code, find the text, change it, s
 - **Prices**: search for `$150.00` (or any price) and edit
 - **Product descriptions**: in each `product-*.html`, look for `<div class="product-description">`
 - **Hero title/tagline**: in `index.html`, look for `<h1 class="hero-title">`
+- **Product photos**: not here — *Product photos* below, on the dashboard
 
 ## Google tag setup
 
@@ -645,6 +651,96 @@ reconcile. `GET /api/promo` is public and says only what the bar already says
 product to the shop means adding it to `PRODUCTS` in `worker/promo.js` too,
 or the picker cannot point a sale at it.
 
+## Product photos
+
+**Photos** on the dashboard, or `/dashboard/products`. Pick a product, add
+photos, drag them into order, save. No deploy, no resizing, no editing seven
+files by hand.
+
+One photo appears in seven places on this site, and a photo changed here
+changes all seven:
+
+| Where | What it gets |
+|---|---|
+| The product page gallery | every photo, in the order you set |
+| The card in the shop grid | the first one |
+| The link preview (`og:image`) | the first one |
+| The structured data Google reads | the first one |
+| The cart thumbnail | the first one |
+| The Google Shopping feed | the first as the main image, the rest as extras |
+| The `<img>` width and height | the real size, so the page doesn't jump |
+
+**The first photo is the main one.** Move a photo to the front of the row and
+it becomes the big one on the page, the card in the grid, and the picture that
+shows when somebody shares the link.
+
+**A product either uses your photos or the repo's, never a mix.** Upload one
+photo and that is the whole gallery — the built-in ones stop showing. So
+upload the full set you want the page to have. **Use the built-in photos**
+puts a product back the way the repo has it and deletes the ones you uploaded.
+
+**Changes take up to a minute** to reach every page, the same as the sale
+banner and for the same reason: KV caches a record for 60 seconds at each
+location.
+
+### What to watch for
+
+**Google reads the words printed in a photo.** A worksheet, a price list, a
+brand name on a can — any of it can get the product disapproved in Merchant
+Center. That is exactly what happened to the glove strap: a "HOLSTER BLUE
+PRINTS" sheet was sitting in the frame. Changing a photo also sends that
+product back to Google for review, so a Shopping listing can go quiet for a
+day or two after a swap.
+
+**Say what is in the photo.** The box under each one is the description read
+out to anyone who cannot see the image, and read by Google. Leave it blank and
+it falls back to the product name, which is never wrong and never useful.
+
+**Photos straight off a phone are fine**, up to 12 MB each. JPG, PNG, WEBP,
+GIF and HEIC all work. Cloudflare Images makes the full-size WebP and the
+thumbnail on the way in; there is nothing to resize first.
+
+### Where it lives
+
+`worker/photos.js` — all of it: the record, the upload, the rewrite, the page.
+One JSON record, key `photos`, in the `CATALOG` namespace, holding every
+product's set. The image bytes are in the `rawhide-product-photos` R2 bucket,
+two objects per photo (`<id>-m.webp` full size, `<id>-t.webp` thumbnail),
+served at `/photo/<key>`.
+
+`/photo/<key>` is **public**, unlike `/logo/` and `/receipt/`. These are
+storefront images — a shopper has to load them, and Google has to crawl them
+for the feed. They are cached for a year and never overwritten: a changed
+photo gets a new id, so the old URL can keep its promise.
+
+The list of products comes from `PRODUCTS` in `worker/promo.js`, the same list
+the sale picker uses. A new product has to be added there, and its page has to
+be `product-<that id>.html`, or it will not appear here.
+
+Photos are deleted from the bucket when you remove them and save. A photo
+uploaded and never saved stays in the bucket, costing a fraction of a cent and
+visible to nobody.
+
+### One-time setup
+
+Done 2026-09-14. Kept here for the day it has to be rebuilt:
+
+```bash
+npx wrangler kv namespace create CATALOG
+npx wrangler r2 bucket create rawhide-product-photos
+```
+
+Put the namespace id under `kv_namespaces` in `wrangler.jsonc` as binding
+`CATALOG`, add the bucket as binding `PHOTOS`, and deploy. Without either
+binding the page explains itself and nothing else changes — every product page
+serves exactly what is in the repo.
+
+### If it ever has to come out
+
+Delete the `photos` key from the `CATALOG` namespace and every product goes
+back to its built-in photos on the next request. Nothing in the repo is
+touched by any of this — `assets/img/products/` is the fallback, always.
+
 ## Receipts and the year-end expense report
 
 `/dashboard/expenses` — photograph a receipt, it gets read, filed and totalled,
@@ -922,10 +1018,11 @@ Done once, and not worth touching again:
 | Worker | `quiet-firefly-3711` on the `rawhidecityleather@gmail.com` account |
 | Domain | `rawhidecityleather.com`, attached in the Cloudflare dashboard under the Worker's **Settings → Domains & Routes** — deliberately *not* in `wrangler.jsonc`, so deploying can't disturb it |
 | Static files | served straight from this folder by the `ASSETS` binding |
-| `run_worker_first` | in `wrangler.jsonc` — the paths the Worker answers instead of the file router (`/dashboard*`, `/packing-slip*`, `/quote*`, `/logo/*`, `/api/*`) |
+| `run_worker_first` | in `wrangler.jsonc` — the paths the Worker answers instead of the file router (`/dashboard*`, `/packing-slip*`, `/quote*`, `/logo/*`, `/photo/*`, `/api/*`) |
 | Secrets | `wrangler secret put NAME` — see the table above |
 | Quote storage | the `QUOTES` KV namespace |
 | Artwork storage | the `LOGOS` R2 bucket (`rawhide-logo-uploads`) |
+| Product photos | the `CATALOG` KV namespace and the `PHOTOS` R2 bucket (`rawhide-product-photos`) |
 
 If wrangler ever asks you to log in:
 

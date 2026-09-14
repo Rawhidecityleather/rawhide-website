@@ -104,6 +104,10 @@ import {
   PromoError, PROMO_STYLES, PROMO_SCRIPT,
 } from './promo.js';
 import { syncPromo, fetchRule } from './promo-sync.js';
+import {
+  withProductPhotos, handlePhotoUpload, handlePhotoFetch, handlePhotoSave,
+  getPhotoRecord, renderPhotosPage, photoScript, PHOTO_STYLES,
+} from './photos.js';
 
 export default {
   /**
@@ -278,6 +282,17 @@ export default {
       }
     }
 
+    // Storefront images uploaded from the dashboard. Public, like every other
+    // picture on the site, and answered before guardConfigured because serving
+    // one never touches Snipcart. Cached hard: a key never changes meaning.
+    if (path.startsWith('/photo/')) {
+      try {
+        return await handlePhotoFetch(path, env);
+      } catch (err) {
+        return failure(err, request);
+      }
+    }
+
     // Customer artwork is somebody else's property — it sits behind the same
     // login as the slip it prints on, not out in the open. Answered before
     // guardConfigured because fetching a stored file never touches Snipcart.
@@ -324,12 +339,23 @@ export default {
     // announcement bar is swapped for it on the way out; the rest of the time
     // this is a straight pass-through. See worker/promo.js.
     const asset = await env.ASSETS.fetch(request);
+
+    let decorated = asset;
     try {
-      return await withPromoBanner(asset, request, env);
+      decorated = await withPromoBanner(decorated, request, env);
     } catch (err) {
       // The banner is decoration. A page beats a sale line every time.
       console.error('sale banner failed', err?.message || err);
-      return asset;
+      decorated = asset;
+    }
+
+    // And the photos the shop uploaded, over the ones in the repo. Same rule:
+    // a page carrying the built-in photograph beats no page at all.
+    try {
+      return await withProductPhotos(decorated, request, env);
+    } catch (err) {
+      console.error('product photos failed', err?.message || err);
+      return decorated;
     }
   },
 };
@@ -349,6 +375,9 @@ async function route(path, request, env, url) {
     if (path === '/dashboard/api/quote/paid') return await handleQuoteCashPaid(request, env);
     if (path === '/dashboard/quote-print') return await handleQuotePrint(env, url);
     if (path === '/dashboard/api/promo') return await handlePromoSave(request, env);
+    if (path === '/dashboard/products') return await handleProductsPage(request, env);
+    if (path === '/dashboard/api/photos') return await handlePhotos(request, env);
+    if (path === '/dashboard/api/photo-upload') return await handlePhotoPost(request, env);
     if (path === '/packing-slip') return await handleSlip(request, env, url);
     return notFound();
   } catch (err) {
@@ -594,6 +623,40 @@ async function handlePromoPublic(request, env) {
       'cache-control': 'public, max-age=60',
     },
   });
+}
+
+/* --------------------------------------------------------- product photos */
+
+/**
+ * The photo manager. Renders whatever is in the record, and says how to finish
+ * the setup instead of offering an upload button that cannot store anything.
+ */
+async function handleProductsPage(request, env) {
+  if (request.method !== 'GET') return json({ error: 'Use GET.' }, 405);
+
+  const [record, receipts] = await Promise.all([
+    getPhotoRecord(env),
+    // Only for the rail's badge, so the nav says the same thing on every page.
+    env.EXPENSES ? listExpenses(env).catch(() => []) : Promise.resolve([]),
+  ]);
+
+  return page('Products', renderPhotosPage(record, {
+    ready: Boolean(env.CATALOG && env.PHOTOS),
+    railCounts: { toCheck: receipts.filter((r) => !r.checked).length },
+  }), {
+    styles: DASHBOARD_STYLES + PHOTO_STYLES,
+    script: photoScript(record),
+  });
+}
+
+async function handlePhotos(request, env) {
+  if (!fromDashboard(request)) return json({ error: 'Bad request.' }, 403);
+  return await handlePhotoSave(request, env);
+}
+
+async function handlePhotoPost(request, env) {
+  if (!fromDashboard(request)) return json({ error: 'Bad request.' }, 403);
+  return await handlePhotoUpload(request, env);
 }
 
 /* ------------------------------------------------------------------ quotes */

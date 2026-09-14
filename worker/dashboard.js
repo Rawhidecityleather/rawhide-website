@@ -245,6 +245,7 @@ export function renderRail({
       ${link(base + '#quotes', 'Quotes', openQuotes || null)}
       ${link(base + '#sale', 'Sale banner', saleLive ? 'Live' : null)}
       ${link(base + '#orders', 'All orders')}
+      ${link('/dashboard/products', 'Photos', null, 'products')}
       ${link('/dashboard/expenses', 'Receipts', toCheck || null, 'expenses')}
     </nav>
     <div class="railfoot">

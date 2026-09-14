@@ -99,22 +99,36 @@
   // PROMO    — the sale banner: one record saying what sale is on and when.
   //            Read on every storefront page. Created 2026-09-13 with
   //             wrangler kv namespace create PROMO
+  // CATALOG  — what the shop changed about a product without a deploy. One
+  //            record, key `photos`, holding every product's photo set — see
+  //            worker/photos.js. Read on every storefront page. Named for what
+  //            it will hold rather than what it holds today: a description or
+  //            an option list belongs in the same record, not a fourth
+  //            namespace. Created 2026-09-14 with
+  //             wrangler kv namespace create CATALOG
   "kv_namespaces": [
     { "binding": "QUOTES", "id": "272cd3400d3e4eae945bfbe2b16ab43f" },
     { "binding": "RECOVERY", "id": "be611b5493984061803449b43657eec4" },
     { "binding": "EXPENSES", "id": "ccebdcbdddf74b93ab4c528138271837" },
-    { "binding": "PROMO", "id": "afdfd46049a34d20818709850dc77cc0" }
+    { "binding": "PROMO", "id": "afdfd46049a34d20818709850dc77cc0" },
+    { "binding": "CATALOG", "id": "3aeaabea3d394ce980e18047caab4b65" }
   ],
   // LOGOS    — customer artwork for custom stamp work. Created with
   //             wrangler r2 bucket create rawhide-logo-uploads
   // RECEIPTS — the shop's own receipt photos, behind the same login. Created
   //            2026-08-18 with
   //             wrangler r2 bucket create rawhide-receipts
-  // Nothing in either is public: /logo/<key> and /receipt/<key> both sit behind
-  // the dashboard login.
+  // PHOTOS   — product photos uploaded from /dashboard/products, in two sizes
+  //            each. Created 2026-09-14 with
+  //             wrangler r2 bucket create rawhide-product-photos
+  // The first two are not public: /logo/<key> and /receipt/<key> both sit
+  // behind the dashboard login. PHOTOS is the exception and is public on
+  // purpose — /photo/<key> is a storefront image, the same as anything under
+  // /assets, and Google has to be able to crawl it for the Shopping feed.
   "r2_buckets": [
     { "binding": "LOGOS", "bucket_name": "rawhide-logo-uploads" },
-    { "binding": "RECEIPTS", "bucket_name": "rawhide-receipts" }
+    { "binding": "RECEIPTS", "bucket_name": "rawhide-receipts" },
+    { "binding": "PHOTOS", "bucket_name": "rawhide-product-photos" }
   ],
   // Reads the vendor, date and total off a receipt photo so the row arrives
   // mostly filled in. Every field it returns is a suggestion the shop confirms
