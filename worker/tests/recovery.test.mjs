@@ -382,11 +382,13 @@ export default async function run() {
     check('and reachable once it is listed by hand',
       dueReason(ancient, NOW, { ignoreAge: true }) === 'due');
 
-    // The ceiling is the only guard the hatch waives. Waiving the floor too
-    // would mail somebody who walked away twenty minutes ago.
+    // Both age guards are waived: listing a cart by hand is the decision to
+    // mail it, whether it is too old for the window or too young for it.
     const fresh = cart({ token: 'fresh', modificationDate: new Date(NOW - HOUR).toISOString() });
-    check('but the 24 hour floor still holds for a backfilled cart',
-      dueReason(fresh, NOW, { ignoreAge: true }) === 'too-recent');
+    check('a one hour old cart is too recent for the ordinary run',
+      dueReason(fresh, NOW) === 'too-recent');
+    check('but reachable once it is listed by hand',
+      dueReason(fresh, NOW, { ignoreAge: true }) === 'due');
 
     check('and the suppression list still holds',
       dueReason(cart({ email: 'test@example.com' }), NOW, { ignoreAge: true }) === 'test-email');

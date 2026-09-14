@@ -53,7 +53,7 @@
  *                     rawhidecityleather.com domain authenticated in Brevo.
  *   RECOVERY_POSTAL_ADDRESS — footer mailing address. CAN-SPAM. A PO box is fine.
  *   RECOVERY_BACKFILL_TOKENS — optional and normally UNSET. Comma-separated cart
- *                     tokens to reach past the age ceiling, for one run. A
+ *                     tokens to reach regardless of age, for one run. A
  *                     secret and not a constant because this repo is public and
  *                     a cart token restores that customer's cart. Delete it
  *                     again once the run has fired. See worker/recovery.js.

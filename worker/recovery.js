@@ -74,8 +74,8 @@ export const DISCOUNT_RATE = 15;
 export const MAX_ATTEMPTS = 3;
 
 /**
- * Carts to reach even though they are past MAX_AGE_HOURS. A hatch for one-offs,
- * not a setting.
+ * Carts to reach regardless of age — past MAX_AGE_HOURS, or not yet at
+ * SEND_AFTER_HOURS. A hatch for one-offs, not a setting.
  *
  * Shortening the send to 24 hours pulled every cart from the last week into
  * range on its own, so the ordinary backlog needs nothing here. A cart older
@@ -286,9 +286,11 @@ export function dueReason(cart, now, { ignoreAge = false } = {}) {
   if (!at) return 'no-date';
 
   const ageHours = (now - at) / HOUR;
-  // The 24 hour floor still applies to a backfilled cart. Only the ceiling is
-  // waived — that is the whole reason it needed listing by hand.
-  if (ageHours < SEND_AFTER_HOURS) return 'too-recent';
+  // A cart listed by hand skips both age guards. Listing it IS the decision:
+  // the hatch has carried one cart too old for the window (2026-08-25) and one
+  // too young for it (2026-09-13, a buyer whose cart missed the live sitewide
+  // 15% and was owed it the same night, not a day later).
+  if (!ignoreAge && ageHours < SEND_AFTER_HOURS) return 'too-recent';
   if (!ignoreAge && ageHours > MAX_AGE_HOURS) return 'too-old';
 
   const email = normalizeEmail(cart.email);
