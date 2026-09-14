@@ -107,6 +107,9 @@ import { syncPromo, fetchRule } from './promo-sync.js';
 import {
   recoveryStats, handleRecoverySend, RECOVERY_STYLES, RECOVERY_SCRIPT,
 } from './recovery-card.js';
+import {
+  recentCoupons, handleCouponCreate, COUPON_STYLES, COUPON_SCRIPT,
+} from './coupon.js';
 import { handlePhotoUpload, handlePhotoFetch } from './photos.js';
 import { withCatalog, getCatalog } from './catalog.js';
 import {
@@ -384,6 +387,7 @@ async function route(path, request, env, url) {
     if (path === '/dashboard/api/photos') return await handleProducts(request, env, url);
     if (path === '/dashboard/api/photo-upload') return await handlePhotoPost(request, env);
     if (path === '/dashboard/api/recovery/send') return await handleRecoveryPost(request, env);
+    if (path === '/dashboard/api/coupon') return await handleCouponPost(request, env);
     if (path === '/packing-slip') return await handleSlip(request, env, url);
     return notFound();
   } catch (err) {
@@ -562,9 +566,10 @@ async function handleDashboard(request, env, url) {
   // the card so a Snipcart outage degrades to a card with dashes in it instead
   // of a dashboard that will not render — recoveryStats catches each of its own
   // legs and never throws.
-  const [snipcartRule, recovery] = await Promise.all([
+  const [snipcartRule, recovery, coupons] = await Promise.all([
     fetchRule(env, promo),
     recoveryStats(env).catch(() => null),
+    recentCoupons(env).catch(() => null),
   ]);
   const stats = analyze(orders, range);
 
@@ -576,9 +581,11 @@ async function handleDashboard(request, env, url) {
     promoReady: Boolean(env.PROMO),
     snipcartRule,
     recovery,
+    coupons,
+    couponsReady: Boolean(env.SNIPCART_SECRET),
   }), {
-    styles: DASHBOARD_STYLES + PROMO_STYLES + RECOVERY_STYLES,
-    script: DASHBOARD_SCRIPT + PROMO_SCRIPT + RECOVERY_SCRIPT,
+    styles: DASHBOARD_STYLES + PROMO_STYLES + RECOVERY_STYLES + COUPON_STYLES,
+    script: DASHBOARD_SCRIPT + PROMO_SCRIPT + RECOVERY_SCRIPT + COUPON_SCRIPT,
   });
 }
 
@@ -682,6 +689,12 @@ async function handleProducts(request, env, url) {
 async function handleRecoveryPost(request, env) {
   if (!fromDashboard(request)) return json({ error: 'Bad request.' }, 403);
   return await handleRecoverySend(request, env);
+}
+
+/** A one-off code for one person. Mints it; sending it is the shop's own job. */
+async function handleCouponPost(request, env) {
+  if (!fromDashboard(request)) return json({ error: 'Bad request.' }, 403);
+  return await handleCouponCreate(request, env);
 }
 
 async function handlePhotoPost(request, env) {

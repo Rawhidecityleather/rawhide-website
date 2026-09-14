@@ -22,6 +22,7 @@ const SUITES = [
   ['quote', () => import('./quote.test.mjs')],
   ['recovery', () => import('./recovery.test.mjs')],
   ['recovery-card', () => import('./recovery-card.test.mjs')],
+  ['coupon', () => import('./coupon.test.mjs')],
   ['shipped-mail', () => import('./shipped-mail.test.mjs')],
   ['slip', () => import('./slip.test.mjs')],
   ['tracking-in', () => import('./tracking-in.test.mjs')],

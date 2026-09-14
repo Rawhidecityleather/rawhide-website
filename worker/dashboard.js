@@ -26,6 +26,7 @@ import {
 } from './quote.js';
 import { renderPromoCard, isLive, quoteDiscountRate } from './promo.js';
 import { renderRecoveryCard } from './recovery-card.js';
+import { renderCouponCard } from './coupon.js';
 
 const RANGES = [
   { key: '30d', label: 'Last 30 days', compare: 'vs prior 30 days' },
@@ -185,7 +186,7 @@ function topProducts(orders) {
 
 export function renderDashboard(stats, {
   truncated, quotes = [], toCheck = 0, promo = null, promoReady = true, snipcartRule = null,
-  recovery = null,
+  recovery = null, coupons = null, couponsReady = true,
 } = {}) {
   const rangeLabel = rangeInfo(stats.rangeKey).label;
 
@@ -212,6 +213,7 @@ export function renderDashboard(stats, {
       ${renderQuotes(quotes, stats.orders, quoteDiscountRate(promo))}
       ${renderPromoCard(promo, { ready: promoReady, rule: snipcartRule })}
       ${recovery ? renderRecoveryCard(recovery) : ''}
+      ${renderCouponCard(coupons, { ready: couponsReady })}
       ${renderOrders(stats.inRange, rangeLabel)}
     </div>
   </main>
@@ -249,6 +251,7 @@ export function renderRail({
       ${link(base + '#quotes', 'Quotes', openQuotes || null)}
       ${link(base + '#sale', 'Sale banner', saleLive ? 'Live' : null)}
       ${link(base + '#recovery', 'Cart recovery', leftCarts || null)}
+      ${link(base + '#coupon', 'One-off coupon')}
       ${link(base + '#orders', 'All orders')}
       ${link('/dashboard/products', 'Photos', null, 'products')}
       ${link('/dashboard/expenses', 'Receipts', toCheck || null, 'expenses')}

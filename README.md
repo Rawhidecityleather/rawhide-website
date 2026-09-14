@@ -949,6 +949,33 @@ back to its built-in photos, wording and options on the next request. Nothing in
 repo is touched by any of this — `product-<id>.html` and
 `assets/img/products/` are the fallback, always.
 
+## A one-off coupon for one person
+
+**One-off coupon** on the dashboard. Somebody emails, something needs putting
+right, and they should get a code. Type who it is for, pick a percent or a
+dollar amount and how many days it lasts, press the button. You get a code.
+
+**It does not email anybody.** It mints the code, shows it, and stops. Copy it
+and send it in your own words.
+
+The label is only ever seen by you — it is what tells two codes apart in a list
+a month later, so "Mike, cart missed the Labor Day 15" beats "discount 3". It
+goes into the Snipcart discount name, which is private to the account.
+
+Every code works **once**, on any cart, until it expires. Like every other rule
+this repo writes it is **non-combinable**, so if a storewide sale is running
+whoever uses it gets the better of the two, not both.
+
+There is no new storage. Snipcart is the record: every code made here is named
+`One-off: <label>`, which is how the card finds them again and where the used /
+expired state comes from. The same trick the sale banner uses on its own rule.
+`worker/coupon.js` is all of it.
+
+**The reason this exists.** On 2026-09-13 a customer's cart missed the Labor Day
+15% because the rule had been re-saved underneath him, and the only fix
+available was talking him through clearing and rebuilding his cart. A code would
+have taken one click.
+
 ## Receipts and the year-end expense report
 
 `/dashboard/expenses` — photograph a receipt, it gets read, filed and totalled,
