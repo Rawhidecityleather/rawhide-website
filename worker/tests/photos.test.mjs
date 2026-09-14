@@ -8,10 +8,14 @@ import { suite, check, throws } from './harness.mjs';
 import { installHTMLRewriterShim } from './html-rewriter-shim.mjs';
 import worker from '../index.js';
 import {
-  productIdFromPath, buildPhotoSet, photosFor, overriddenProducts, idsInRecord,
-  galleryHtml, photoUrl, isPhotoKey, withSchemaImage, rewriteFeed, photoRewrites,
-  fit, renderPhotosPage, photoScript, MAX_PHOTOS, ALT_MAX,
+  buildPhotoSet, photosFor, idsInRecord, galleryHtml, photoUrl, isPhotoKey,
+  fit, MAX_PHOTOS, ALT_MAX,
 } from '../photos.js';
+import {
+  productIdFromPath, productsWithPhotos, touchedProducts, withSchemaFields,
+  rewriteFeed, catalogRules,
+} from '../catalog.js';
+import { renderProductsPage, productsScript } from '../products-page.js';
 
 const ID_A = 'a'.repeat(32);
 const ID_B = 'b'.repeat(32);
@@ -138,51 +142,43 @@ export default async function run() {
 
   suite('photos — the record');
 
-  const set = buildPhotoSet({ productId: 'helmet-band', photos: [photo(ID_A), photo(ID_B)] });
+  const set = buildPhotoSet([photo(ID_A), photo(ID_B)], 'helmet-band');
   check('a good set comes back with its photos in order',
-    set.product === 'helmet-band' && set.photos.map((p) => p.id).join() === `${ID_A},${ID_B}`);
+    set.map((p) => p.id).join() === `${ID_A},${ID_B}`);
 
-  throws('a product we do not sell is refused',
-    () => buildPhotoSet({ productId: 'flamethrower', photos: [] }), 'not a product');
   throws('a photo with a bad id is refused',
-    () => buildPhotoSet({ productId: 'helmet-band', photos: [{ id: 'nope' }] }), 'bad id');
+    () => buildPhotoSet([{ id: 'nope' }], 'helmet-band'), 'bad id');
   throws('the same photo twice is refused',
-    () => buildPhotoSet({ productId: 'helmet-band', photos: [photo(ID_A), photo(ID_A)] }), 'twice');
+    () => buildPhotoSet([photo(ID_A), photo(ID_A)], 'helmet-band'), 'twice');
   throws('more than the page can show is refused',
-    () => buildPhotoSet({
-      productId: 'helmet-band',
-      photos: Array.from({ length: MAX_PHOTOS + 1 }, (_, i) => photo(String(i).padStart(32, '0'))),
-    }), 'more than');
+    () => buildPhotoSet(
+      Array.from({ length: MAX_PHOTOS + 1 }, (_, i) => photo(String(i).padStart(32, '0'))),
+      'helmet-band'
+    ), 'more than');
 
-  const blank = buildPhotoSet({ productId: 'helmet-band', photos: [photo(ID_A, { alt: '   ' })] });
-  check('an empty description falls back to the product name', blank.photos[0].alt === 'Helmet Band');
-  const messy = buildPhotoSet({
-    productId: 'helmet-band',
-    photos: [photo(ID_A, { alt: '  black   band \n on a helmet ' })],
-  });
-  check('a description is tidied to one line', messy.photos[0].alt === 'black band on a helmet');
-  const long = buildPhotoSet({ productId: 'helmet-band', photos: [photo(ID_A, { alt: 'x'.repeat(500) })] });
-  check('and cut to a sane length', long.photos[0].alt.length === ALT_MAX);
+  const blank = buildPhotoSet([photo(ID_A, { alt: '   ' })], 'helmet-band');
+  check('an empty description falls back to the product name', blank[0].alt === 'Helmet Band');
+  const messy = buildPhotoSet([photo(ID_A, { alt: '  black   band \n on a helmet ' })], 'helmet-band');
+  check('a description is tidied to one line', messy[0].alt === 'black band on a helmet');
+  const long = buildPhotoSet([photo(ID_A, { alt: 'x'.repeat(500) })], 'helmet-band');
+  check('and cut to a sane length', long[0].alt.length === ALT_MAX);
 
-  const junk = buildPhotoSet({
-    productId: 'helmet-band',
-    photos: [photo(ID_A, { w: -5, h: 'tall', tw: 0, th: 99999 })],
-  });
+  const junk = buildPhotoSet([photo(ID_A, { w: -5, h: 'tall', tw: 0, th: 99999 })], 'helmet-band');
   check('nonsense dimensions fall back rather than reaching the page',
-    junk.photos[0].w === 1600 && junk.photos[0].h === 1600 && junk.photos[0].tw === 400 && junk.photos[0].th === 400);
+    junk[0].w === 1600 && junk[0].h === 1600 && junk[0].tw === 400 && junk[0].th === 400);
   check('an empty set is legal — it means the built-in photos',
-    buildPhotoSet({ productId: 'helmet-band', photos: [] }).photos.length === 0);
+    buildPhotoSet([], 'helmet-band').length === 0);
 
   const record = recordOf({
     'helmet-band': { photos: [photo(ID_A), photo(ID_B)] },
     'glove-strap': { photos: [] },
   });
   check('only products with photos count as overridden',
-    overriddenProducts(record).join() === 'helmet-band');
+    productsWithPhotos(record).join() === 'helmet-band');
   check('photosFor finds a set', photosFor(record, 'helmet-band').length === 2);
   check('photosFor on an untouched product is empty', photosFor(record, 'chin-strap').length === 0);
   check('every id in the record is found', [...idsInRecord(record)].sort().join() === [ID_A, ID_B].sort().join());
-  check('nothing saved is nothing overridden', overriddenProducts(null).length === 0);
+  check('nothing saved is nothing overridden', touchedProducts(null).length === 0);
 
   suite('photos — scale-down arithmetic');
 
@@ -214,15 +210,15 @@ export default async function run() {
   suite('photos — the JSON-LD image');
 
   const productJson = '{"@type":"Product","name":"Helmet Band","image":"https://x/old.jpg","offers":{}}';
-  const swapped = withSchemaImage(productJson, 'https://x/new.webp');
+  const swapped = withSchemaFields(productJson, { image: 'https://x/new.webp' });
   check('the product image is swapped',
     swapped.includes('"image":"https://x/new.webp"') && !swapped.includes('old.jpg'));
   check('the rest of the block is left alone', swapped.includes('"name":"Helmet Band"') && swapped.includes('"offers":{}'));
   check('a breadcrumb block has no image and is untouched',
-    withSchemaImage('{"@type":"BreadcrumbList","itemListElement":[]}', 'https://x/new.webp')
+    withSchemaFields('{"@type":"BreadcrumbList","itemListElement":[]}', { image: 'https://x/new.webp' })
       === '{"@type":"BreadcrumbList","itemListElement":[]}');
   check('a list of images is replaced by the one',
-    withSchemaImage('{"@type":"Product","image":["a","b"],"x":1}', 'https://x/n.webp')
+    withSchemaFields('{"@type":"Product","image":["a","b"],"x":1}', { image: 'https://x/n.webp' })
       === '{"@type":"Product","image":"https://x/n.webp","x":1}');
   check('what comes out is still JSON', (() => {
     JSON.parse(swapped);
@@ -269,7 +265,7 @@ export default async function run() {
 
   suite('photos — the places a photo lands');
 
-  const rules = photoRewrites(recordOf({ 'helmet-band': { photos: [photo(ID_A)] } }), {
+  const rules = catalogRules(recordOf({ 'helmet-band': { photos: [photo(ID_A)] } }), {
     product: 'helmet-band', origin: 'https://rawhidecityleather.com',
   });
   const has = (selector) => rules.some((r) => r.selector === selector);
@@ -283,11 +279,11 @@ export default async function run() {
     .filter((r) => r.name === 'content' || r.name === 'data-snipcart-image')
     .every((r) => r.value.startsWith('https://rawhidecityleather.com/photo/')));
 
-  const gridOnly = photoRewrites(recordOf({ 'helmet-band': { photos: [photo(ID_A)] } }), { product: '' });
+  const gridOnly = catalogRules(recordOf({ 'helmet-band': { photos: [photo(ID_A)] } }), { product: '' });
   check('a page that is not a product page still gets its cards',
     gridOnly.length === 2 && gridOnly.every((r) => !r.selector.startsWith('.product-media')));
   check('a product with nothing saved gets no rules at all',
-    photoRewrites(recordOf({}), { product: 'helmet-band' }).length === 0);
+    catalogRules(recordOf({}), { product: 'helmet-band' }).length === 0);
 
   suite('photos — through the Worker');
 
@@ -365,7 +361,7 @@ export default async function run() {
     photos: [{ ...first, alt: 'Burgundy band on a black helmet' }],
   }, DASH);
   check('the set saves', saveRes.status === 200 && (await saveRes.json()).photos.length === 1);
-  check('it landed in KV under the one key', env.CATALOG._store.has('photos'));
+  check('it landed in KV under the one key', env.CATALOG._store.has('catalog'));
 
   const ghost = await post('/dashboard/api/photos', {
     productId: 'glove-strap', photos: [photo(ID_C)],
@@ -443,16 +439,16 @@ export default async function run() {
   suite('photos — the dashboard page');
 
   const withRecord = recordOf({ 'helmet-band': { photos: [photo(ID_A), photo(ID_B)] } });
-  const html = renderPhotosPage(withRecord, { ready: true });
-  check('it counts what is overridden', html.includes('1 with photos from here'));
+  const html = renderProductsPage(withRecord, { ready: true });
+  check('it counts what is changed here', html.includes('1 changed here'));
   check('the row shows how many', html.includes('2 photos'));
   check('the row previews the saved photo', html.includes(`/photo/${ID_A}-t.webp`));
   check('an untouched product previews its repo photo', html.includes('/assets/img/products/glove-strap.webp'));
   check('it warns about what Google reads in a photo', html.includes('Google reads the words printed in a photo'));
   check('a missing binding is explained, not hidden',
-    renderPhotosPage(null, { ready: false }).includes('not set up'));
+    renderProductsPage(null, { ready: false }).includes('not set up'));
 
-  const script = photoScript(withRecord);
+  const script = productsScript(withRecord);
   check('the script carries the record', script.includes(ID_A) && !script.includes('__STATE__'));
   check('and every placeholder is filled',
     !script.includes('__NAMES__') && !script.includes('__MAX__') && !script.includes('__ALTMAX__'));

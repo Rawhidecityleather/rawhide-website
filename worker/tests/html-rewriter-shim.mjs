@@ -71,8 +71,20 @@ function parseAttrs(raw) {
   return attrs;
 }
 
+/**
+ * Only values the handler SET are escaped. An attribute read back off the page
+ * still holds its source text — `3&quot; Leather Velcro Patch` — and escaping
+ * that again on the way out would turn it into `3&amp;quot;` and corrupt a
+ * page this never meant to touch.
+ */
 function serialiseAttrs(attrs) {
-  return attrs.map((a) => (a.value === null ? ` ${a.name}` : ` ${a.name}="${a.value}"`)).join('');
+  return attrs.map((a) => {
+    if (a.value === null) return ` ${a.name}`;
+    const value = a.set
+      ? String(a.value).replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+      : a.value;
+    return ` ${a.name}="${value}"`;
+  }).join('');
 }
 
 /* -------------------------------------------------------------- selectors */
@@ -184,12 +196,20 @@ function select(html, selector) {
 
 /* ------------------------------------------------------------------ apply */
 
+/**
+ * Handlers run in document order, the way the real one streams them, because
+ * some of them count: the wording rule takes the FIRST `.product-description`
+ * on a page and leaves the second alone. Editing forward moves everything
+ * after the edit, so a running delta carries the later matches along.
+ */
 function apply(html, selector, handler) {
-  // An edit moves everything after it, so matches are rewritten back to front.
-  const hits = select(html, selector).reverse();
+  const hits = select(html, selector);
   let out = html;
+  let delta = 0;
 
-  for (const el of hits) {
+  for (const found of hits) {
+    const el = { ...found, start: found.start + delta, openEnd: found.openEnd + delta };
+
     if (handler.element) {
       const attrs = el.attrs.map((a) => ({ ...a }));
       let inner = null;
@@ -199,9 +219,9 @@ function apply(html, selector, handler) {
         getAttribute: (name) => attrs.find((a) => a.name === name)?.value ?? null,
         hasAttribute: (name) => attrs.some((a) => a.name === name),
         setAttribute: (name, value) => {
-          const found = attrs.find((a) => a.name === name);
-          if (found) found.value = String(value);
-          else attrs.push({ name, value: String(value) });
+          const target = attrs.find((a) => a.name === name);
+          if (target) { target.value = String(value); target.set = true; }
+          else attrs.push({ name, value: String(value), set: true });
         },
         removeAttribute: (name) => {
           const i = attrs.findIndex((a) => a.name === name);
@@ -213,12 +233,12 @@ function apply(html, selector, handler) {
       });
 
       const openTag = `<${el.tag}${serialiseAttrs(attrs)}${el.selfClosing ? '/' : ''}>`;
-      if (inner === null) {
-        out = out.slice(0, el.start) + openTag + out.slice(el.openEnd);
-      } else {
-        const end = contentEnd(out, el);
-        out = out.slice(0, el.start) + openTag + inner + out.slice(end);
-      }
+      const oldEnd = inner === null ? el.openEnd : contentEnd(out, el);
+      const replacement = inner === null ? openTag : openTag + inner;
+
+      out = out.slice(0, el.start) + replacement + out.slice(oldEnd);
+      delta += replacement.length - (oldEnd - el.start);
+      el.openEnd = el.start + openTag.length;
     }
 
     if (handler.text && !VOID.has(el.tag)) {
@@ -243,6 +263,7 @@ function apply(html, selector, handler) {
       });
 
       out = out.slice(0, el.openEnd) + rebuilt + out.slice(end);
+      delta += rebuilt.length - (end - el.openEnd);
     }
   }
 

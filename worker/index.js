@@ -104,10 +104,11 @@ import {
   PromoError, PROMO_STYLES, PROMO_SCRIPT,
 } from './promo.js';
 import { syncPromo, fetchRule } from './promo-sync.js';
+import { handlePhotoUpload, handlePhotoFetch } from './photos.js';
+import { withCatalog, getCatalog } from './catalog.js';
 import {
-  withProductPhotos, handlePhotoUpload, handlePhotoFetch, handlePhotoSave,
-  getPhotoRecord, renderPhotosPage, photoScript, PHOTO_STYLES,
-} from './photos.js';
+  renderProductsPage, productsScript, readBuiltIn, handleProductSave, PRODUCTS_STYLES,
+} from './products-page.js';
 
 export default {
   /**
@@ -349,12 +350,13 @@ export default {
       decorated = asset;
     }
 
-    // And the photos the shop uploaded, over the ones in the repo. Same rule:
-    // a page carrying the built-in photograph beats no page at all.
+    // And whatever the shop changed about a product — its photos, its wording
+    // — over what the repo says. Same rule: a page carrying the built-in
+    // photograph and the built-in words beats no page at all.
     try {
-      return await withProductPhotos(decorated, request, env);
+      return await withCatalog(decorated, request, env);
     } catch (err) {
-      console.error('product photos failed', err?.message || err);
+      console.error('catalog rewrite failed', err?.message || err);
       return decorated;
     }
   },
@@ -375,8 +377,8 @@ async function route(path, request, env, url) {
     if (path === '/dashboard/api/quote/paid') return await handleQuoteCashPaid(request, env);
     if (path === '/dashboard/quote-print') return await handleQuotePrint(env, url);
     if (path === '/dashboard/api/promo') return await handlePromoSave(request, env);
-    if (path === '/dashboard/products') return await handleProductsPage(request, env);
-    if (path === '/dashboard/api/photos') return await handlePhotos(request, env);
+    if (path === '/dashboard/products') return await handleProductsPage(request, env, url);
+    if (path === '/dashboard/api/photos') return await handleProducts(request, env, url);
     if (path === '/dashboard/api/photo-upload') return await handlePhotoPost(request, env);
     if (path === '/packing-slip') return await handleSlip(request, env, url);
     return notFound();
@@ -628,30 +630,35 @@ async function handlePromoPublic(request, env) {
 /* --------------------------------------------------------- product photos */
 
 /**
- * The photo manager. Renders whatever is in the record, and says how to finish
- * the setup instead of offering an upload button that cannot store anything.
+ * The product editor. Renders whatever is in the record over what the repo
+ * says, and explains how to finish the setup instead of offering an editor
+ * that cannot store anything.
  */
-async function handleProductsPage(request, env) {
+async function handleProductsPage(request, env, url) {
   if (request.method !== 'GET') return json({ error: 'Use GET.' }, 405);
 
-  const [record, receipts] = await Promise.all([
-    getPhotoRecord(env),
+  const [record, builtIn, receipts] = await Promise.all([
+    getCatalog(env),
+    // What every product page and the feed say today, so the wording boxes
+    // open on real text rather than empty.
+    readBuiltIn(env, url.origin),
     // Only for the rail's badge, so the nav says the same thing on every page.
     env.EXPENSES ? listExpenses(env).catch(() => []) : Promise.resolve([]),
   ]);
 
-  return page('Products', renderPhotosPage(record, {
+  return page('Products', renderProductsPage(record, {
     ready: Boolean(env.CATALOG && env.PHOTOS),
+    builtIn,
     railCounts: { toCheck: receipts.filter((r) => !r.checked).length },
   }), {
-    styles: DASHBOARD_STYLES + PHOTO_STYLES,
-    script: photoScript(record),
+    styles: DASHBOARD_STYLES + PRODUCTS_STYLES,
+    script: productsScript(record, builtIn),
   });
 }
 
-async function handlePhotos(request, env) {
+async function handleProducts(request, env, url) {
   if (!fromDashboard(request)) return json({ error: 'Bad request.' }, 403);
-  return await handlePhotoSave(request, env);
+  return await handleProductSave(request, env, url.origin);
 }
 
 async function handlePhotoPost(request, env) {

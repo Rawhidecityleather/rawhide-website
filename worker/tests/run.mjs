@@ -16,6 +16,7 @@ const SUITES = [
   ['lib', () => import('./lib.test.mjs')],
   ['mime', () => import('./mime.test.mjs')],
   ['photos', () => import('./photos.test.mjs')],
+  ['product-copy', () => import('./product-copy.test.mjs')],
   ['promo', () => import('./promo.test.mjs')],
   ['quote', () => import('./quote.test.mjs')],
   ['recovery', () => import('./recovery.test.mjs')],

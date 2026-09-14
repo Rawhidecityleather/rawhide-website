@@ -31,7 +31,7 @@ rawhide-website/
 
 ## Adding your images
 
-**For product photos, use the dashboard instead** — *Product photos* below.
+**For product photos, use the dashboard instead** — *Product photos and wording* below.
 Adding one there needs no deploy, makes both sizes for you, and updates the
 seven places a product photo appears. What follows is the fallback set that
 ships in the repo, and what a product falls back to when nothing is uploaded.
@@ -60,7 +60,7 @@ Each page is plain HTML. Open in Notepad or VS Code, find the text, change it, s
 - **Prices**: search for `$150.00` (or any price) and edit
 - **Product descriptions**: in each `product-*.html`, look for `<div class="product-description">`
 - **Hero title/tagline**: in `index.html`, look for `<h1 class="hero-title">`
-- **Product photos**: not here — *Product photos* below, on the dashboard
+- **Product photos and descriptions**: not here — *Product photos and wording* below, on the dashboard
 
 ## Google tag setup
 
@@ -651,11 +651,55 @@ reconcile. `GET /api/promo` is public and says only what the bar already says
 product to the shop means adding it to `PRODUCTS` in `worker/promo.js` too,
 or the picker cannot point a sale at it.
 
-## Product photos
+## Product photos and wording
 
-**Photos** on the dashboard, or `/dashboard/products`. Pick a product, add
-photos, drag them into order, save. No deploy, no resizing, no editing seven
-files by hand.
+**Products** on the dashboard, or `/dashboard/products`. Open a product, change
+its photos or its words, save. No deploy, no resizing, no editing seven files
+by hand.
+
+### The wording
+
+Four boxes, and every one of them opens filled in with what the site says right
+now — so changing one sentence means changing one sentence, not retyping five.
+
+| Box | Where it shows |
+|---|---|
+| On the page | the paragraphs under the price |
+| The bullets | the spec list under those, where the lead time lives |
+| Search summary | the line under the title in Google, and the link preview when somebody shares it |
+| Google Shopping | the description in the Merchant feed, longer and more literal |
+
+**Anything you leave exactly as it is keeps coming out of the repo.** On save,
+a box that still matches `product-<id>.html` word for word is not stored at
+all. That is deliberate: a field you did not touch still follows along if the
+page is edited in the repo later, and only what you actually changed is pinned.
+It also means pressing Save on a product you did not edit does nothing at all.
+
+**The wording box is plain text, not HTML.** A blank line starts a new
+paragraph. `**Two stars**` makes the same highlight the repo's own pages use.
+Nothing else is markup, and anything else you type is shown as you typed it.
+
+**Use the built-in wording** puts all four boxes back to the repo's text.
+
+### Two things it will flag
+
+These are rules the shop set, so the editor flags them as you type and the save
+says so again. Neither one blocks the save — it is your copy — but both were
+learned the expensive way.
+
+- **"Hand-stitched" and anything like it.** The stitching is done on an
+  industrial walking-foot machine, and the shop's own videos show it running.
+  Hand-stamped and hand-cut are both still true and still in voice.
+- **"Lakeland" and "firefighter owned".** Provenance stays off product wording;
+  the announcement bar, the footer and the About page carry it instead. It had
+  to be pulled back out of eight pages and the feed once already.
+
+On the three patch hats there is a third: **hand-cut** and **engraved by hand**
+are flagged there, because the patch is laser cut and engraved, then
+heat-pressed. Nothing on a hat is cut or finished by hand, and crisp repeatable
+crests are the actual selling point on a crew order of ten.
+
+### The photos
 
 One photo appears in seven places on this site, and a photo changed here
 changes all seven:
@@ -675,43 +719,56 @@ it becomes the big one on the page, the card in the grid, and the picture that
 shows when somebody shares the link.
 
 **A product either uses your photos or the repo's, never a mix.** Upload one
-photo and that is the whole gallery — the built-in ones stop showing. So
-upload the full set you want the page to have. **Use the built-in photos**
-puts a product back the way the repo has it and deletes the ones you uploaded.
+photo and that is the whole gallery — the built-in ones stop showing. So upload
+the full set you want the page to have. **Use the built-in photos** puts it
+back and deletes the ones you uploaded.
 
-**Changes take up to a minute** to reach every page, the same as the sale
-banner and for the same reason: KV caches a record for 60 seconds at each
-location.
+**Photos straight off a phone are fine**, up to 12 MB each. JPG, PNG, WEBP, GIF
+and HEIC all work. Cloudflare Images makes the full-size WebP and the thumbnail
+on the way in; there is nothing to resize first.
+
+**Say what is in the photo.** The box under each one is the description read out
+to anyone who cannot see the image, and read by Google. Leave it blank and it
+falls back to the product name, which is never wrong and never useful.
 
 ### What to watch for
 
-**Google reads the words printed in a photo.** A worksheet, a price list, a
-brand name on a can — any of it can get the product disapproved in Merchant
-Center. That is exactly what happened to the glove strap: a "HOLSTER BLUE
-PRINTS" sheet was sitting in the frame. Changing a photo also sends that
-product back to Google for review, so a Shopping listing can go quiet for a
-day or two after a swap.
+**Google reads the words printed in a photo**, as well as the ones you type. A
+worksheet, a price list, a brand name on a can — any of it can get the product
+disapproved in Merchant Center. That is exactly what happened to the glove
+strap: a "HOLSTER BLUE PRINTS" sheet was sitting in the frame.
 
-**Say what is in the photo.** The box under each one is the description read
-out to anyone who cannot see the image, and read by Google. Leave it blank and
-it falls back to the product name, which is never wrong and never useful.
+**Changing a photo or the Shopping description sends that product back to Google
+for review.** A Shopping listing can go quiet for a day or two after a swap.
 
-**Photos straight off a phone are fine**, up to 12 MB each. JPG, PNG, WEBP,
-GIF and HEIC all work. Cloudflare Images makes the full-size WebP and the
-thumbnail on the way in; there is nothing to resize first.
+**Changes take up to a minute** to reach every page, the same as the sale banner
+and for the same reason: KV caches a record for 60 seconds at each location.
 
 ### Where it lives
 
-`worker/photos.js` — all of it: the record, the upload, the rewrite, the page.
-One JSON record, key `photos`, in the `CATALOG` namespace, holding every
-product's set. The image bytes are in the `rawhide-product-photos` R2 bucket,
-two objects per photo (`<id>-m.webp` full size, `<id>-t.webp` thumbnail),
-served at `/photo/<key>`.
+Four files, split by what they do rather than by what they are called:
+
+| File | What's in it |
+|---|---|
+| `worker/catalog.js` | the record, the KV read, the feed, and the one pass of HTMLRewriter |
+| `worker/photos.js` | the photo machinery: upload, both sizes, the gallery markup |
+| `worker/product-copy.js` | the wording: the fields, reading the repo's copy, the checks |
+| `worker/products-page.js` | the dashboard page and the save |
+
+The two halves are pure — hand them a product's photos or its words and they
+hand back markup and a list of rules. `catalog.js` does the lookups and the one
+rewrite. That split is what lets either half be tested without a parser or a
+binding.
+
+One JSON record, key `catalog`, in the `CATALOG` namespace, holding every
+product's photos and wording. The image bytes are in the
+`rawhide-product-photos` R2 bucket, two objects per photo (`<id>-m.webp` full
+size, `<id>-t.webp` thumbnail), served at `/photo/<key>`.
 
 `/photo/<key>` is **public**, unlike `/logo/` and `/receipt/`. These are
 storefront images — a shopper has to load them, and Google has to crawl them
-for the feed. They are cached for a year and never overwritten: a changed
-photo gets a new id, so the old URL can keep its promise.
+for the feed. They are cached for a year and never overwritten: a changed photo
+gets a new id, so the old URL can keep its promise.
 
 The list of products comes from `PRODUCTS` in `worker/promo.js`, the same list
 the sale picker uses. A new product has to be added there, and its page has to
@@ -720,6 +777,11 @@ be `product-<that id>.html`, or it will not appear here.
 Photos are deleted from the bucket when you remove them and save. A photo
 uploaded and never saved stays in the bucket, costing a fraction of a cent and
 visible to nobody.
+
+**One page has copy this does not touch.** The helmet band carries a second
+block of long-form guide copy further down — "Leather or rubber?", the
+questions. Only the first wording block on a page is edited here; that one
+stays in the HTML.
 
 ### One-time setup
 
@@ -737,9 +799,10 @@ serves exactly what is in the repo.
 
 ### If it ever has to come out
 
-Delete the `photos` key from the `CATALOG` namespace and every product goes
-back to its built-in photos on the next request. Nothing in the repo is
-touched by any of this — `assets/img/products/` is the fallback, always.
+Delete the `catalog` key from the `CATALOG` namespace and every product goes
+back to its built-in photos and wording on the next request. Nothing in the
+repo is touched by any of this — `product-<id>.html` and
+`assets/img/products/` are the fallback, always.
 
 ## Receipts and the year-end expense report
 
@@ -1022,7 +1085,7 @@ Done once, and not worth touching again:
 | Secrets | `wrangler secret put NAME` — see the table above |
 | Quote storage | the `QUOTES` KV namespace |
 | Artwork storage | the `LOGOS` R2 bucket (`rawhide-logo-uploads`) |
-| Product photos | the `CATALOG` KV namespace and the `PHOTOS` R2 bucket (`rawhide-product-photos`) |
+| Product photos and wording | the `CATALOG` KV namespace and the `PHOTOS` R2 bucket (`rawhide-product-photos`) |
 
 If wrangler ever asks you to log in:
 
