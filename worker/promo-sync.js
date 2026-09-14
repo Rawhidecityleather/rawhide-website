@@ -86,9 +86,14 @@ export async function findOurRules(env) {
  * from 2026-09-03, and every recovery code minted underneath it went unused
  * while the automatic rule itself was redeemed again and again.
  *
- * Deliberately narrow. Only `Rate` counts — `RateOnItems` is scoped to named
- * products and may not touch this cart at all — and only a rule with no code,
- * because one the buyer has to type is not something they already have.
+ * Deliberately narrow, because the question is not "is there a sale on" but
+ * "does this buyer already have this". Only `Rate` counts — `RateOnItems` is
+ * scoped to named products and may not touch this cart at all. Only a rule with
+ * no code, because one the buyer has to type is not something they have. And
+ * only one with no real order minimum: "15% over $100" is not something the
+ * owner of an $80 cart already has, and there is no cart in hand here to check
+ * it against. `totalToReach` is 1 on the rules this repo writes — an amount
+ * nothing sells under — so our own sales still count.
  *
  * Never throws. A failed read must not quietly stop recovery for good, so it
  * comes back 0, which sends the coupon: the safe side of the mistake.
@@ -109,6 +114,7 @@ export async function automaticStoreRate(env, now = Date.now()) {
     if (!rule || rule.archived) continue;
     if (rule.trigger === 'Code' || rule.code) continue;
     if (rule.type !== 'Rate') continue;
+    if (Number(rule.totalToReach) > 1) continue;
     if (rule.expires && Date.parse(rule.expires) <= now) continue;
     const rate = Number(rule.rate);
     if (Number.isFinite(rate) && rate > best) best = rate;

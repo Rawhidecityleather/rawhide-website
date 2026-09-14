@@ -450,7 +450,9 @@ export default async function run() {
     // The 2026-09 case, reproduced. An automatic storewide 15% ran from Sep 3.
     // Every recovery coupon minted underneath it offered the buyer a discount
     // they already had, and not one was ever used.
-    const auto15 = { id: 'd1', name: 'LABORDAY15', trigger: 'Total', type: 'Rate', rate: 15, archived: false };
+    // totalToReach 1 is what this repo writes for a storewide rule: an amount
+    // nothing sells under, so it is effectively unconditional.
+    const auto15 = { id: 'd1', name: 'LABORDAY15', trigger: 'Total', type: 'Rate', rate: 15, totalToReach: 1, archived: false };
 
     const env = fakeEnv();
     const { fetch, calls } = fakeFetch({ carts: [cart()], liveDiscounts: [auto15] });
@@ -498,6 +500,8 @@ export default async function run() {
       ['a rule scoped to named products', { name: 'X', trigger: 'Total', type: 'RateOnItems', rate: 25 }],
       ['a dollars-off rule, which is not a rate', { name: 'X', trigger: 'Total', type: 'FixedAmount', amount: 25 }],
       ['an archived rule', { name: 'X', trigger: 'Total', type: 'Rate', rate: 25, archived: true }],
+      ['a rule with an order minimum, which not every cart clears',
+        { name: 'X', trigger: 'Total', type: 'Rate', rate: 25, totalToReach: 100 }],
       ['a rule that has already expired', { name: 'X', trigger: 'Total', type: 'Rate', rate: 25, expires: new Date(NOW - HOUR).toISOString() }],
     ];
     for (const [label, rule] of cases) {
