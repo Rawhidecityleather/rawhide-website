@@ -8,7 +8,7 @@ import { suite, check } from './harness.mjs';
 import worker from '../index.js';
 import {
   recoveryStats, summarise, stateOf, productTally, cartValue, cartAgeHours,
-  renderRecoveryCard,
+  renderRecoveryCard, handleRecoverySend,
 } from '../recovery-card.js';
 
 const HOUR = 3600 * 1000;
@@ -31,6 +31,7 @@ function fakeKV(records = []) {
     store.set('recovery:' + r.token, { value: JSON.stringify(r), metadata: r });
   }
   return {
+    store,
     async get(key) { return store.has(key) ? store.get(key).value : null; },
     async put(key, value, options = {}) { store.set(key, { value, metadata: options.metadata || null }); },
     async list({ prefix = '', limit = 1000 } = {}) {
@@ -44,9 +45,11 @@ function fakeKV(records = []) {
   };
 }
 
-function fakeFetch({ carts = [], discounts = [], failCarts = false, failDiscounts = false } = {}) {
-  return async (url) => {
+function fakeFetch({ carts = [], discounts = [], failCarts = false, failDiscounts = false, failMail = false } = {}) {
+  const sentMail = [];
+  const fn = async function (url, init) {
     const href = String(url);
+    arguments[1] = init;
     if (href.includes('/carts/abandoned')) {
       if (failCarts) return new Response('nope', { status: 500, statusText: 'Server Error' });
       return new Response(JSON.stringify({ items: carts, hasMoreResults: false }), {
@@ -59,6 +62,13 @@ function fakeFetch({ carts = [], discounts = [], failCarts = false, failDiscount
         headers: { 'content-type': 'application/json' },
       });
     }
+    if (href.includes('brevo')) {
+      if (failMail) return new Response('nope', { status: 500, statusText: 'Server Error' });
+      sentMail.push(JSON.parse(String(arguments[1]?.body || '{}')));
+      return new Response(JSON.stringify({ messageId: '<x@relay>' }), {
+        status: 201, headers: { 'content-type': 'application/json' },
+      });
+    }
     if (href.includes('/orders')) {
       return new Response(JSON.stringify({ items: [], totalItems: 0 }), {
         headers: { 'content-type': 'application/json' },
@@ -66,6 +76,8 @@ function fakeFetch({ carts = [], discounts = [], failCarts = false, failDiscount
     }
     throw new Error('unexpected fetch: ' + href);
   };
+  fn.sentMail = sentMail;
+  return fn;
 }
 
 async function withFetch(fake, fn) {
@@ -253,6 +265,111 @@ export default async function run() {
     check('an empty window says so plainly', html.includes('No carts in the window'));
     check('and nothing is called out when nothing has been sent',
       !html.includes('none has been used'));
+  }
+
+  suite('recovery card — sending one by hand');
+
+  {
+    // The ordinary case: a cart nobody has mailed, sent on a button press.
+    const e = env();
+    const fetcher = fakeFetch({ carts: [cart({ token: 'aaa' })], discounts: [] });
+    const res = await withFetch(fetcher, () => handleRecoverySend(
+      new Request('https://x/', { method: 'POST', body: JSON.stringify({ token: 'aaa' }) }), e, NOW
+    ));
+    const body = await res.json();
+
+    check('a cart on the card can be sent by hand', res.status === 200 && body.ok === true);
+    check('and one email actually goes', fetcher.sentMail.length === 1);
+    check('a discount was minted for it', e.RECOVERY.store.size > 0);
+    check('the card is told plainly what happened', body.said === 'Sent.');
+  }
+
+  {
+    // The 24-hour floor lives in the run loop, not in recoverCart. That is what
+    // makes a by-hand send useful: a cart two hours old can still be reached.
+    const e = env();
+    const fetcher = fakeFetch({ carts: [cart({ token: 'new', modificationDate: secondsAgo(2) })] });
+    const res = await withFetch(fetcher, () => handleRecoverySend(
+      new Request('https://x/', { method: 'POST', body: JSON.stringify({ token: 'new' }) }), e, NOW
+    ));
+    check('a cart younger than 24 hours can still be sent by hand', (await res.json()).ok === true);
+  }
+
+  {
+    // Pressing twice must not send twice — the guard that was added after one
+    // buyer got two codes in the same minute.
+    const e = env();
+    const fetcher = fakeFetch({ carts: [cart({ token: 'aaa' })] });
+    const send = () => withFetch(fetcher, () => handleRecoverySend(
+      new Request('https://x/', { method: 'POST', body: JSON.stringify({ token: 'aaa' }) }), e, NOW
+    ));
+    await send();
+    const second = await (await send()).json();
+
+    check('pressing it twice sends one email, not two', fetcher.sentMail.length === 1);
+    check('and the second press says why, rather than failing', second.ok === false);
+    check('naming the guard that stopped it', second.said.includes('already had one'));
+  }
+
+  {
+    // Two carts, one buyer: the per-buyer rule holds on the manual path too.
+    const e = env();
+    const fetcher = fakeFetch({ carts: [cart({ token: 'one' }), cart({ token: 'two' })] });
+    await withFetch(fetcher, () => handleRecoverySend(
+      new Request('https://x/', { method: 'POST', body: JSON.stringify({ token: 'one' }) }), e, NOW
+    ));
+    const second = await (await withFetch(fetcher, () => handleRecoverySend(
+      new Request('https://x/', { method: 'POST', body: JSON.stringify({ token: 'two' }) }), e, NOW
+    ))).json();
+
+    check('a second cart from the same buyer is refused', second.ok === false);
+    check('and only one email ever went', fetcher.sentMail.length === 1);
+    check('the reason names the buyer, not the cart', second.said.includes('that buyer') || second.said.includes('That buyer'));
+  }
+
+  {
+    // A token that is not on the card cannot be reached through this endpoint.
+    const e = env();
+    const res = await withFetch(fakeFetch({ carts: [cart({ token: 'aaa' })] }), () => handleRecoverySend(
+      new Request('https://x/', { method: 'POST', body: JSON.stringify({ token: 'somebody-elses' }) }), e, NOW
+    ));
+    check('a cart not in the window is refused', res.status === 404);
+    check('and nothing was written', e.RECOVERY.store.size === 0);
+  }
+
+  {
+    const e = env();
+    const res = await withFetch(fakeFetch({ carts: [] }), () => handleRecoverySend(
+      new Request('https://x/', { method: 'POST', body: JSON.stringify({}) }), e, NOW
+    ));
+    check('a request naming no cart is refused', res.status === 400);
+  }
+
+  {
+    // No mail secrets: refuse before minting, so no orphan code is left in
+    // Snipcart that nobody was ever told about.
+    const e = env({ BREVO_KEY: '' });
+    const fetcher = fakeFetch({ carts: [cart({ token: 'aaa' })] });
+    const res = await withFetch(fetcher, () => handleRecoverySend(
+      new Request('https://x/', { method: 'POST', body: JSON.stringify({ token: 'aaa' }) }), e, NOW
+    ));
+    check('with no mailer it refuses up front', res.status === 500);
+    check('and mints nothing', e.RECOVERY.store.size === 0);
+  }
+
+  {
+    // A send button only appears on a cart that has not had one.
+    const e = env({ RECOVERY: fakeKV([{ token: 'aaa', code: 'RCLAAA', sentAt: '2026-09-10T00:00:00Z' }]) });
+    const stats = await withFetch(fakeFetch({
+      carts: [cart({ token: 'aaa' }), cart({ token: 'bbb' })],
+      discounts: [{ code: 'RCLAAA', numberOfUsages: 0 }],
+    }), () => recoveryStats(e, NOW));
+    const html = renderRecoveryCard(stats);
+
+    check('the waiting cart gets a button', html.includes('data-send="bbb"'));
+    check('the one already mailed does not', !html.includes('data-send="aaa"'));
+    check('and the card explains what the button does',
+      html.includes('does by hand what the hourly run does'));
   }
 
   suite('recovery card — through the Worker');

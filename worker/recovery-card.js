@@ -26,9 +26,9 @@
  * this page nobody could check.
  */
 
-import { esc, money } from './lib.js';
+import { esc, money, json } from './lib.js';
 import {
-  listRecoveries, listAbandonedCarts, cartUrl,
+  listRecoveries, listAbandonedCarts, cartUrl, recoverCart,
   SEND_AFTER_HOURS, MAX_AGE_HOURS, DISCOUNT_RATE, CODE_TTL_DAYS,
 } from './recovery.js';
 import { automaticStoreRate, listDiscounts } from './promo-sync.js';
@@ -247,15 +247,16 @@ export function renderRecoveryCard(stats) {
       </p>
     </div>` : '';
 
-  const rows = sums.rows.length ? sums.rows.map((r) => `<tr>
+  const rows = sums.rows.length ? sums.rows.map((r) => `<tr data-cart="${esc(r.token)}">
         <td class="soft">${esc(ago(r.ageHours))}</td>
         <td>${esc(r.items.join(', ') || '&mdash;')}</td>
         <td class="num">${esc(money(r.value, 'usd'))}</td>
-        <td>${r.mailed
+        <td class="rstate">${r.mailed
           ? '<span class="pill good">coupon sent</span>'
           : `<span class="pill done">waiting${r.ageHours < SEND_AFTER_HOURS ? ' for 24h' : ''}</span>`}</td>
+        <td class="rdo">${r.mailed ? '' : `<button type="button" class="rsend" data-send="${esc(r.token)}">Send it now</button>`}</td>
         <td><a href="${esc(cartUrl({ token: r.token }))}" target="_blank" rel="noopener">open cart &nearr;</a></td>
-      </tr>`).join('') : `<tr><td colspan="5" class="soft">No carts in the window.</td></tr>`;
+      </tr>`).join('') : `<tr><td colspan="6" class="soft">No carts in the window.</td></tr>`;
 
   return `<section id="recovery" class="card">
     <div class="cardhead">
@@ -280,10 +281,17 @@ export function renderRecoveryCard(stats) {
 
     <div class="tablewrap">
       <table class="rtable">
-        <thead><tr><th>Left</th><th>What was in it</th><th class="num">Value</th><th>Coupon</th><th></th></tr></thead>
+        <thead><tr><th>Left</th><th>What was in it</th><th class="num">Value</th><th>Coupon</th><th></th><th></th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>
+    <p class="hint">
+      <b>Send it now</b> does by hand what the hourly run does on its own: mints that
+      buyer a single-use ${DISCOUNT_RATE}% code and emails it. Use it for a cart that has
+      not reached ${SEND_AFTER_HOURS} hours yet, or one you have just been talking to
+      somebody about. The one-coupon-per-buyer rule still holds, so pressing it twice
+      cannot send two.
+    </p>
     <p class="hint">
       A cart only appears here for ${MAX_AGE_HOURS / 24} days. Opening one restores it
       exactly as the customer left it, stamping and all &mdash; that link is the customer's
@@ -291,6 +299,62 @@ export function renderRecoveryCard(stats) {
     </p>
   </section>`;
 }
+
+/* ---------------------------------------------------------- sending one */
+
+/**
+ * One coupon, sent by hand, to a cart on the card.
+ *
+ * `recoverCart` is the same call the hourly run makes, and it already holds the
+ * guards that matter: a cart that has had a coupon gets nothing, and neither
+ * does a buyer who has had one on another cart in the last week. What it does
+ * not hold is the age window — the 24-hour floor and the 7-day ceiling live in
+ * the run loop — which is exactly why it can be used for a cart that is only
+ * two hours old.
+ *
+ * The cart has to be one the card is showing. Looking it up in the same list
+ * the card was drawn from means a token typed into this endpoint by hand
+ * cannot reach a cart nobody is looking at.
+ */
+export async function handleRecoverySend(request, env, now = Date.now()) {
+  if (!env.SNIPCART_SECRET) return json({ error: 'Snipcart is not configured.' }, 500);
+  if (!mailerConfigured(env)) {
+    return json({ error: 'Email is not set up, so nothing can be sent. See the README.' }, 500);
+  }
+
+  const body = await request.json().catch(() => ({}));
+  const token = String(body.token || '');
+  if (!token) return json({ error: 'No cart was named.' }, 400);
+
+  let carts;
+  try {
+    carts = await listAbandonedCarts(env);
+  } catch (err) {
+    return json({ error: 'Could not read the abandoned carts: ' + (err?.message || err) }, 502);
+  }
+
+  const cart = carts.find((c) => (c.token || c.id) === token);
+  if (!cart) return json({ error: 'That cart is not in the window any more.' }, 404);
+  if (!cart.email) return json({ error: 'That cart has no email on it, so there is nobody to send to.' }, 400);
+
+  let result;
+  try {
+    result = await recoverCart(env, cart, now);
+  } catch (err) {
+    return json({ error: String(err?.message || err).slice(0, 300) }, 502);
+  }
+
+  return json({ ok: result.status === 'sent', ...result, said: SEND_SAID[result.status] || result.status });
+}
+
+/** What each outcome means, in the words the card shows. */
+const SEND_SAID = {
+  sent: 'Sent.',
+  'already-sent': 'That cart has already had one.',
+  'duplicate-email': 'That buyer already had a coupon this week, on this cart or another one.',
+  'given-up': 'This one failed too many times. The address is probably bad.',
+  failed: 'The email would not send. Try again in a minute.',
+};
 
 export const RECOVERY_STYLES = `
 .rtiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:14px 0 4px}
@@ -312,4 +376,87 @@ export const RECOVERY_STYLES = `
 .rtable td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
 .rtable .num{text-align:right;font-variant-numeric:tabular-nums}
 .rtable tr:last-child td{border-bottom:0}
+.rdo{white-space:nowrap}
+.rsend{font:inherit;font-size:11.5px;padding:4px 10px;cursor:pointer;border:1px solid var(--line);
+  border-radius:2px;background:var(--paper);color:inherit}
+.rsend:hover:not(:disabled){border-color:var(--ink)}
+.rsend:disabled{opacity:.45;cursor:default}
+.rsaid{font-size:11.5px;color:var(--soft,#6b6b6b)}
+.rsaid.bad{color:#8B2E2E}
+`;
+
+/**
+ * Runs inside the dashboard page. One button per waiting cart, doing by hand
+ * what the hourly run does on its own.
+ *
+ * It asks first when the store is on sale, because that is the one case where
+ * pressing it spends a real coupon on an offer the buyer already has — the
+ * whole reason the automatic run holds off. It is still allowed: it is his
+ * shop, and there are reasons to reach somebody anyway.
+ */
+export const RECOVERY_SCRIPT = `
+(function(){
+  var card = document.getElementById('recovery');
+  if (!card) return;
+
+  var HOLDING = card.querySelector('.pill.warn') !== null;
+  var toastEl = document.getElementById('toast');
+  var toastTimer;
+  function toast(msg, bad){
+    if (!toastEl) return;
+    toastEl.textContent = msg;
+    toastEl.className = 'toast show' + (bad ? ' bad' : '');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ toastEl.className = 'toast'; }, 6000);
+  }
+
+  card.addEventListener('click', function(e){
+    var btn = e.target.closest && e.target.closest('[data-send]');
+    if (!btn) return;
+
+    var token = btn.getAttribute('data-send');
+    var row = btn.closest('tr');
+    var what = row ? (row.children[1].textContent || 'this cart').trim() : 'this cart';
+
+    if (HOLDING && !confirm(
+      'The store is on sale right now, so 15% is already coming off this cart and the ' +
+      'coupon would save them nothing on top of it.\\n\\nSend it anyway?')) return;
+    if (!HOLDING && !confirm('Email a 15% code for ' + what + '?')) return;
+
+    btn.disabled = true;
+    var label = btn.textContent;
+    btn.textContent = 'Sending\\u2026';
+
+    fetch('/dashboard/api/recovery/send', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-rawhide-dashboard': '1' },
+      body: JSON.stringify({ token: token })
+    }).then(function(res){
+      return res.json().catch(function(){ return {}; }).then(function(data){
+        if (!res.ok || data.error) throw new Error(data.error || ('Request failed (' + res.status + ')'));
+        return data;
+      });
+    }).then(function(data){
+      var state = row && row.querySelector('.rstate');
+      if (data.ok) {
+        if (state) state.innerHTML = '<span class="pill good">coupon sent</span>';
+        btn.remove();
+        toast('Sent. ' + what + ' has its code.');
+      } else {
+        // Not an error — a guard did its job. Say which one.
+        btn.disabled = false;
+        btn.textContent = label;
+        var said = document.createElement('span');
+        said.className = 'rsaid bad';
+        said.textContent = data.said || data.status;
+        btn.parentElement.appendChild(said);
+        toast(data.said || data.status, true);
+      }
+    }).catch(function(err){
+      btn.disabled = false;
+      btn.textContent = label;
+      toast(err.message, true);
+    });
+  });
+})();
 `;

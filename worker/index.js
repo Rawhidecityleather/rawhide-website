@@ -104,7 +104,9 @@ import {
   PromoError, PROMO_STYLES, PROMO_SCRIPT,
 } from './promo.js';
 import { syncPromo, fetchRule } from './promo-sync.js';
-import { recoveryStats, RECOVERY_STYLES } from './recovery-card.js';
+import {
+  recoveryStats, handleRecoverySend, RECOVERY_STYLES, RECOVERY_SCRIPT,
+} from './recovery-card.js';
 import { handlePhotoUpload, handlePhotoFetch } from './photos.js';
 import { withCatalog, getCatalog } from './catalog.js';
 import {
@@ -381,6 +383,7 @@ async function route(path, request, env, url) {
     if (path === '/dashboard/products') return await handleProductsPage(request, env, url);
     if (path === '/dashboard/api/photos') return await handleProducts(request, env, url);
     if (path === '/dashboard/api/photo-upload') return await handlePhotoPost(request, env);
+    if (path === '/dashboard/api/recovery/send') return await handleRecoveryPost(request, env);
     if (path === '/packing-slip') return await handleSlip(request, env, url);
     return notFound();
   } catch (err) {
@@ -575,7 +578,7 @@ async function handleDashboard(request, env, url) {
     recovery,
   }), {
     styles: DASHBOARD_STYLES + PROMO_STYLES + RECOVERY_STYLES,
-    script: DASHBOARD_SCRIPT + PROMO_SCRIPT,
+    script: DASHBOARD_SCRIPT + PROMO_SCRIPT + RECOVERY_SCRIPT,
   });
 }
 
@@ -669,6 +672,16 @@ async function handleProductsPage(request, env, url) {
 async function handleProducts(request, env, url) {
   if (!fromDashboard(request)) return json({ error: 'Bad request.' }, 403);
   return await handleProductSave(request, env, url.origin);
+}
+
+/**
+ * One recovery coupon, sent by hand from the card. The only thing in this
+ * Worker that emails a customer on a button press rather than on a schedule,
+ * so it sits behind the same dashboard-only check as every other write.
+ */
+async function handleRecoveryPost(request, env) {
+  if (!fromDashboard(request)) return json({ error: 'Bad request.' }, 403);
+  return await handleRecoverySend(request, env);
 }
 
 async function handlePhotoPost(request, env) {

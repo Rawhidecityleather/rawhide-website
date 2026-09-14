@@ -630,6 +630,22 @@ Each row links to the cart it belongs to. **That link restores the customer's
 own cart**, their stamping and their address on it — the same reason a cart
 token never goes in this repo. Treat it like their address.
 
+**Send it now** on a row does by hand what the hourly run does on its own: mints
+that buyer a single-use 15% code and emails it. It is for a cart that has not
+reached 24 hours yet, or one you have just been talking to somebody about — the
+age window lives in the run loop, not in the send itself, so a cart two hours old
+can still be reached.
+
+Every guard that protects the automatic run protects this one too. A cart that
+has had a coupon has no button. A buyer who had one this week on another cart is
+refused, and the row says which rule stopped it rather than just failing. Nothing
+is minted before the mailer is checked, so a refusal never leaves a live 15% code
+in Snipcart that nobody was told about.
+
+While the store is on sale the button asks first, because that is the one case
+where pressing it spends a real coupon on a discount the buyer already has. It is
+still allowed — there are reasons to reach somebody anyway.
+
 ## The sale banner and its Snipcart rule
 
 The strip across the top of every page — "Handmade in Lakeland, FL · Firefighter
