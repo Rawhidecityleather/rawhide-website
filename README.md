@@ -651,11 +651,11 @@ reconcile. `GET /api/promo` is public and says only what the bar already says
 product to the shop means adding it to `PRODUCTS` in `worker/promo.js` too,
 or the picker cannot point a sale at it.
 
-## Product photos and wording
+## Product photos, wording and options
 
 **Products** on the dashboard, or `/dashboard/products`. Open a product, change
-its photos or its words, save. No deploy, no resizing, no editing seven files
-by hand.
+its photos, its words or the choices on its order form, save. No deploy, no
+resizing, no editing seven files by hand.
 
 ### The wording
 
@@ -731,6 +731,80 @@ on the way in; there is nothing to resize first.
 to anyone who cannot see the image, and read by Google. Leave it blank and it
 falls back to the product name, which is never wrong and never useful.
 
+### The options
+
+The dropdowns on the order form: leather colours, stitch colours, hardware
+finishes, hat colours, strap lengths. One box per dropdown, one choice per
+line, in the order the customer sees them.
+
+```
+Black
+Brown
+Chestnut
+```
+
+**An upcharge goes on the end of the line.** `White +10.00` adds ten dollars
+when that colour is picked. The price sits next to the colour it belongs to on
+purpose — adding a stitch colour to the radio bucket without its ten dollars
+should take a deliberate omission, not a forgotten step.
+
+**Out of stock without deleting it.** Two dashes and a reason greys a choice
+out and leaves it on the list saying why:
+
+```
+Black
+Chestnut
+Brown -- out of stock
+```
+
+The customer can see it exists and can't pick it, and Snipcart won't take it
+either. That is how the radio bucket carries brown while there are no photos
+of it. Delete the line instead and the colour simply vanishes, which tells a
+customer nothing.
+
+**Headings**, for a list long enough to need them. `## Richardson 112` starts
+one. Only the hat colours use them today — twenty-six colours across two
+blanks, and ungrouped it is a list people pick the wrong thing from.
+
+**Where the list starts** depends on how the page was built, and it stays that
+way. A dropdown that makes the customer choose keeps its "Select…" row; one
+with a plain "No preference" row keeps that and keeps it pickable. A dropdown
+with neither starts on whatever is now the first line, which is also how you
+change the default: move it to the top. An out-of-stock line is skipped over
+for that — the dropdown never opens on something nobody can buy.
+
+**Use the built-in options** puts every dropdown on that product back to what
+the repo says.
+
+A priced list lands in two places and both have to agree: the dropdown itself,
+and Snipcart's own copy on the hidden buy button, which its crawler reads to
+check the price the cart was handed. Rewrite one and not the other and the
+order is refused at checkout. Both are written here, and the button's field is
+found by **name** rather than by the number it happens to sit at — a stored
+number would be silently wrong the day a field moved in the HTML, and the
+upcharge would land on somebody else's option.
+
+An unpriced list matters too. `Waterproof|Richardson 112` costs nothing either
+way, and it is what makes Snipcart show the field as a dropdown in the cart and
+check the value came off it. Four fields on the hats are exactly that, so a
+list the page declared keeps its declaration even if every price comes off.
+
+### What options will NOT do
+
+**It does not change the shape of a form.** Fields are not added, removed,
+renamed or retyped here. That is still the HTML, because a field is wired to
+Snipcart by name and to the packing slip by its label.
+
+**The two "Custom Stamps" dropdowns are left alone**, on the fully custom and
+Smokey straps. They are shown on the page with a note saying why. That field
+decides how many artwork upload slots appear by reading the number off the
+front of the chosen value, so renaming `1 custom stamp` would take the fifteen
+dollars and then never ask for the file. Change that one in the HTML.
+
+**Removing a choice somebody already has in a cart** will fail their checkout,
+the same as changing a price in the repo would. Rare, and worth knowing before
+you cut a colour on a busy afternoon.
+
 ### What to watch for
 
 **Google reads the words printed in a photo**, as well as the ones you type. A
@@ -746,22 +820,23 @@ and for the same reason: KV caches a record for 60 seconds at each location.
 
 ### Where it lives
 
-Four files, split by what they do rather than by what they are called:
+Five files, split by what they do rather than by what they are called:
 
 | File | What's in it |
 |---|---|
 | `worker/catalog.js` | the record, the KV read, the feed, and the one pass of HTMLRewriter |
 | `worker/photos.js` | the photo machinery: upload, both sizes, the gallery markup |
 | `worker/product-copy.js` | the wording: the fields, reading the repo's copy, the checks |
+| `worker/product-options.js` | the dropdowns, and the two places a price has to land |
 | `worker/products-page.js` | the dashboard page and the save |
 
-The two halves are pure — hand them a product's photos or its words and they
-hand back markup and a list of rules. `catalog.js` does the lookups and the one
-rewrite. That split is what lets either half be tested without a parser or a
-binding.
+The three working files are pure — hand them a product's photos, words or
+choices and they hand back markup and a list of rules. `catalog.js` does the
+lookups and the one rewrite. That split is what lets each of them be tested
+without a parser or a binding.
 
 One JSON record, key `catalog`, in the `CATALOG` namespace, holding every
-product's photos and wording. The image bytes are in the
+product's photos, wording and dropdowns. The image bytes are in the
 `rawhide-product-photos` R2 bucket, two objects per photo (`<id>-m.webp` full
 size, `<id>-t.webp` thumbnail), served at `/photo/<key>`.
 
@@ -800,7 +875,7 @@ serves exactly what is in the repo.
 ### If it ever has to come out
 
 Delete the `catalog` key from the `CATALOG` namespace and every product goes
-back to its built-in photos and wording on the next request. Nothing in the
+back to its built-in photos, wording and options on the next request. Nothing in the
 repo is touched by any of this — `product-<id>.html` and
 `assets/img/products/` are the fallback, always.
 

@@ -216,6 +216,12 @@ function apply(html, selector, handler) {
 
       handler.element({
         tagName: el.tag,
+        // The real one exposes this as an iterator of [name, value]. The
+        // Snipcart buy button is read through it: its custom fields are
+        // numbered, and the number has to be found by matching a name.
+        get attributes() {
+          return attrs.map((a) => [a.name, a.value ?? ''])[Symbol.iterator]();
+        },
         getAttribute: (name) => attrs.find((a) => a.name === name)?.value ?? null,
         hasAttribute: (name) => attrs.some((a) => a.name === name),
         setAttribute: (name, value) => {

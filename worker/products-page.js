@@ -29,6 +29,10 @@ import {
   DESCRIPTION_MAX, DETAIL_MAX, DETAILS_MAX, SUMMARY_MAX, SUMMARY_IDEAL, FEED_MAX,
 } from './product-copy.js';
 import {
+  buildOptions, optionsFor, extractOptions, effectiveChoices, choicesToText,
+  withoutBuiltInOptions, OptionError, CHOICES_MAX,
+} from './product-options.js';
+import {
   getCatalog, putCatalog, withProduct, productName, PRODUCT_IDS, touchedProducts,
 } from './catalog.js';
 
@@ -60,6 +64,9 @@ export async function readBuiltIn(env, origin) {
     builtIn[id] = {
       ...extractCopy(pages[i]),
       feed: extractFeedDescription(feedXml, id),
+      // What dropdowns the page actually has. The page decides what exists —
+      // a save can only write to a name that appears here.
+      fields: extractOptions(pages[i]),
     };
   });
   return builtIn;
@@ -71,21 +78,71 @@ export async function readBuiltInFor(env, origin, product) {
     fetchText(env, origin, `/product-${product}`),
     fetchText(env, origin, '/google-merchant-feed.xml'),
   ]);
-  return { ...extractCopy(page), feed: extractFeedDescription(feedXml, product) };
+  return {
+    ...extractCopy(page),
+    feed: extractFeedDescription(feedXml, product),
+    fields: extractOptions(page),
+  };
 }
 
 /* --------------------------------------------------------------- the page */
 
-function statusOf(photos, copy) {
+function statusOf(photos, copy, options) {
   const bits = [];
   if (photos.length) bits.push(`${photos.length} photo${photos.length === 1 ? '' : 's'}`);
   if (copy) bits.push('wording');
+  if (options) {
+    const n = Object.keys(options).length;
+    bits.push(n === 1 ? '1 dropdown' : `${n} dropdowns`);
+  }
   if (!bits.length) return { pill: 'done', label: 'Built-in', note: 'Showing what is in the repo.' };
   return {
     pill: 'good',
     label: bits.join(' + '),
-    note: `Changed here: ${bits.join(' and ')}. Everything else comes from the repo.`,
+    note: `Changed here: ${bits.join(', ')}. Everything else comes from the repo.`,
   };
+}
+
+/**
+ * One dropdown's box, or a note saying why it has none. A field that drives
+ * the artwork upload slots is shown but not editable: the page reads a number
+ * off the front of the chosen value to decide how many files to ask for.
+ */
+function optionField(id, field, options) {
+  const choices = effectiveChoices(options, field);
+
+  if (field.locked) {
+    return `<div class="pfield plocked">
+        <span class="plabel">${esc(field.label)}</span>
+        <p class="phint">
+          ${esc(choices.map((c) => c.value).join(', '))}
+        </p>
+        <p class="phint"><b>Not editable here.</b> This one decides how many artwork
+        slots the page asks for, by reading the number off the front of the choice.
+        Renaming one would take the money and stop asking for the file. Change it in
+        <code>product-${esc(id)}.html</code>.</p>
+      </div>`;
+  }
+
+  const priced = choices.some((c) => c.price);
+  return `<label class="pfield">
+        <span class="plabel">${esc(field.label)}${field.required ? '' : ' <em>(optional)</em>'}</span>
+        <textarea data-option="${esc(field.name)}" data-for="${esc(id)}"
+          rows="${Math.min(Math.max(choices.length + 1, 4), 14)}" spellcheck="false">${
+            esc(choicesToText(choices))
+          }</textarea>
+        <span class="phint">
+          One per line, in the order they appear. ${
+            !field.placeholder
+              ? 'The first line is what it starts on.'
+              : field.placeholder.required
+                ? 'The customer has to pick one of these.'
+                : `It starts on "${esc(field.placeholder.text)}", and leaving it there is allowed.`
+          }${priced ? ' <b>Write an upcharge as <code>White +10.00</code></b> &mdash; that is what the cart charges.'
+                    : ' Add <code>+10.00</code> after a name to charge extra for it.'}
+          Put <code>-- out of stock</code> after one to grey it out without removing it.
+        </span>
+      </label>`;
 }
 
 function field(id, name, label, hint, value, { rows = 3, max } = {}) {
@@ -101,9 +158,12 @@ function field(id, name, label, hint, value, { rows = 3, max } = {}) {
 function renderRow(id, record, builtIn) {
   const photos = photosFor(record, id);
   const copy = copyFor(record, id);
-  const showing = effectiveCopy(copy, builtIn[id] || {});
-  const status = statusOf(photos, copy);
+  const options = optionsFor(record, id);
+  const base = builtIn[id] || {};
+  const showing = effectiveCopy(copy, base);
+  const status = statusOf(photos, copy, options);
   const preview = photos.length ? photoUrl(photos[0].id, 't') : builtInPhoto(id);
+  const fields = base.fields || [];
 
   return `<section class="prow" data-row="${esc(id)}">
     <button type="button" class="prowhead" data-toggle="${esc(id)}" aria-expanded="false">
@@ -149,10 +209,21 @@ function renderRow(id, record, builtIn) {
           showing.feed, { rows: 6, max: FEED_MAX })}
       </div>
 
+      <h3 class="psub">Options</h3>
+      ${fields.length ? `<p class="hint">
+        The dropdowns on the order form. Add a colour, drop one that ran out, or
+        put one back &mdash; this is the whole list the customer sees.
+      </p>
+      <div class="pfields">${fields.map((f) => optionField(id, f, options)).join('')}</div>`
+      : `<p class="hint">This one has no dropdowns to change.</p>`}
+
       <div class="pactions">
         <button type="button" class="btn" data-save="${esc(id)}">Save</button>
         <button type="button" class="btn ghost" data-reset="${esc(id)}">Use the built-in photos</button>
         <button type="button" class="btn ghost" data-resetcopy="${esc(id)}">Use the built-in wording</button>
+        ${fields.some((f) => !f.locked)
+          ? `<button type="button" class="btn ghost" data-resetoptions="${esc(id)}">Use the built-in options</button>`
+          : ''}
         <a class="btn ghost" href="/product-${esc(id)}" target="_blank" rel="noopener">Open the page &nearr;</a>
         <span class="soft" data-said="${esc(id)}"></span>
       </div>
@@ -269,6 +340,9 @@ export const PRODUCTS_STYLES = `
 .pwarn{font-size:12px;line-height:1.45;color:#8B2E2E;border-left:2px solid #8B2E2E;
   padding:4px 0 4px 8px;background:rgba(139,46,46,.05)}
 .pwarn[hidden]{display:none}
+.plocked{opacity:.72}
+.plocked .phint{margin:0}
+.pfield code{font-size:11px;background:rgba(0,0,0,.06);padding:1px 4px;border-radius:2px}
 .pactions{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:12px}
 .pfile{cursor:pointer}
 .pempty{margin:10px 0 0}
@@ -421,6 +495,18 @@ export const PRODUCTS_SCRIPT = `
     return out;
   }
 
+  /* -------------------------------------------------------------- options */
+
+  function optionBoxes(id){
+    return [].slice.call(document.querySelectorAll('[data-option][data-for="' + id + '"]'));
+  }
+
+  function optionsOf(id){
+    var out = {};
+    optionBoxes(id).forEach(function(box){ out[box.getAttribute('data-option')] = box.value; });
+    return out;
+  }
+
   // What the row differs from the repo by. Empty means this product is saying
   // exactly what the repo says and nothing needs storing.
   function changedFields(id){
@@ -429,6 +515,16 @@ export const PRODUCTS_SCRIPT = `
       if ((copy[k] || '').trim() !== (base[k] || '').trim()) changed[k] = true;
     });
     if ((copy.details || []).join('\\n') !== (base.details || []).join('\\n')) changed.details = true;
+    return changed;
+  }
+
+  function changedOptions(id){
+    var now = optionsOf(id), base = STATE[id].builtInOptions || {}, changed = [];
+    Object.keys(now).forEach(function(name){
+      var a = now[name].split('\\n').map(function(l){ return l.trim(); }).filter(Boolean).join('\\n');
+      var b = (base[name] || '').split('\\n').map(function(l){ return l.trim(); }).filter(Boolean).join('\\n');
+      if (a !== b) changed.push(name);
+    });
     return changed;
   }
 
@@ -477,13 +573,15 @@ export const PRODUCTS_SCRIPT = `
     var bits = [];
     if (photos(id).length) bits.push(photos(id).length + (photos(id).length === 1 ? ' photo' : ' photos'));
     if (Object.keys(changedFields(id)).length) bits.push('wording');
+    var drops = changedOptions(id).length;
+    if (drops) bits.push(drops === 1 ? '1 dropdown' : drops + ' dropdowns');
     if (pill) {
       pill.className = 'pill ' + (bits.length ? 'good' : 'done');
       pill.textContent = bits.length ? bits.join(' + ') : 'Built-in';
     }
     if (note) {
       note.textContent = bits.length
-        ? 'Changed here: ' + bits.join(' and ') + '. Everything else comes from the repo.'
+        ? 'Changed here: ' + bits.join(', ') + '. Everything else comes from the repo.'
         : 'Showing what is in the repo.';
     }
   }
@@ -557,6 +655,13 @@ export const PRODUCTS_SCRIPT = `
     });
   }
 
+  function fillOptions(id, map){
+    optionBoxes(id).forEach(function(box){
+      var name = box.getAttribute('data-option');
+      if (map[name] !== undefined) box.value = map[name];
+    });
+  }
+
   function save(id, button){
     var label = button ? button.textContent : '';
     if (button) { button.disabled = true; button.textContent = 'Saving\\u2026'; }
@@ -566,10 +671,12 @@ export const PRODUCTS_SCRIPT = `
       photos: photos(id).map(function(p){
         return { id: p.id, alt: p.alt || '', w: p.w, h: p.h, tw: p.tw, th: p.th };
       }),
-      copy: copyOf(id)
+      copy: copyOf(id),
+      options: optionsOf(id)
     }).then(function(data){
       STATE[id].photos = data.photos || [];
       fill(id, data.showing || {});
+      if (data.showingOptions) fillOptions(id, data.showingOptions);
       dirty(id, false);
       paint(id);
       warn(id);
@@ -588,7 +695,8 @@ export const PRODUCTS_SCRIPT = `
   }
 
   list.addEventListener('click', function(e){
-    var el = e.target.closest && e.target.closest('[data-toggle],[data-save],[data-reset],[data-resetcopy]');
+    var el = e.target.closest &&
+      e.target.closest('[data-toggle],[data-save],[data-reset],[data-resetcopy],[data-resetoptions]');
     if (!el) return;
 
     var id = el.getAttribute('data-toggle');
@@ -621,14 +729,23 @@ export const PRODUCTS_SCRIPT = `
       fill(id, STATE[id].builtIn || {});
       warn(id);
       save(id, el);
+      return;
+    }
+
+    id = el.getAttribute('data-resetoptions');
+    if (id) {
+      if (!confirm('Put every dropdown on ' + NAMES[id] + ' back to what the repo says?')) return;
+      fillOptions(id, STATE[id].builtInOptions || {});
+      save(id, el);
     }
   });
 
   list.addEventListener('input', function(e){
     var id = e.target.getAttribute && e.target.getAttribute('data-for');
-    if (!id || !e.target.hasAttribute('data-copy')) return;
+    if (!id) return;
+    if (!e.target.hasAttribute('data-copy') && !e.target.hasAttribute('data-option')) return;
     dirty(id, true);
-    warn(id);
+    if (e.target.hasAttribute('data-copy')) warn(id);
     status(id);
   });
 
@@ -645,9 +762,22 @@ export const PRODUCTS_SCRIPT = `
 export function productsScript(record, builtIn = {}) {
   const state = {};
   for (const [id] of PRODUCTS) {
+    const base = builtIn[id] || {};
+    const builtInOptions = {};
+    for (const field of base.fields || []) {
+      if (!field.locked) builtInOptions[field.name] = choicesToText(field.choices);
+    }
     state[id] = {
       photos: photosFor(record, id),
-      builtIn: builtIn[id] || { description: '', details: [], summary: '', feed: '' },
+      builtIn: {
+        description: base.description || '',
+        details: base.details || [],
+        summary: base.summary || '',
+        feed: base.feed || '',
+      },
+      // What the page's own dropdowns say, so a reset has somewhere to go back
+      // to and an edited list can be told from an untouched one.
+      builtInOptions,
     };
   }
 
@@ -686,20 +816,25 @@ export async function handleProductSave(request, env, origin) {
   const product = String(body.productId || '');
   if (!PRODUCT_IDS.has(product)) return json({ error: 'That is not a product.' }, 400);
 
+  const builtIn = await readBuiltInFor(env, origin, product);
+  const fields = builtIn.fields || [];
+
   let photos;
   let copy;
+  let options;
   try {
     photos = buildPhotoSet(body.photos, product);
     copy = buildCopy(body.copy);
+    options = buildOptions(body.options, fields);
   } catch (err) {
-    if (err instanceof PhotoError || err instanceof CopyError) {
+    if (err instanceof PhotoError || err instanceof CopyError || err instanceof OptionError) {
       return json({ error: err.message }, 400);
     }
     throw err;
   }
 
-  const builtIn = await readBuiltInFor(env, origin, product);
   copy = withoutBuiltIn(copy, builtIn);
+  options = withoutBuiltInOptions(options, fields);
 
   // Every new photo is checked against the bucket before it can go live. An id
   // that is not there means an upload that failed quietly, and a product page
@@ -712,7 +847,7 @@ export async function handleProductSave(request, env, origin) {
     if (!head) return json({ error: 'One of those photos is not in storage. Upload it again.' }, 400);
   }
 
-  const record = withProduct(before, product, { photos, copy });
+  const record = withProduct(before, product, { photos, copy, options });
   await putCatalog(env, record);
 
   const stillUsed = idsInRecord(record);
@@ -726,11 +861,17 @@ export async function handleProductSave(request, env, origin) {
     }
   }
 
+  const showingOptions = {};
+  for (const field of fields) {
+    if (!field.locked) showingOptions[field.name] = choicesToText(effectiveChoices(options, field));
+  }
+
   return json({
     ok: true,
     product,
     photos,
     showing: effectiveCopy(copy, builtIn),
+    showingOptions,
     warnings: contentWarnings(product, copy),
   });
 }

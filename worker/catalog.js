@@ -1,18 +1,19 @@
 /**
  * What the shop changed about a product without a deploy.
  *
- * One record in the CATALOG namespace holds it — photos and wording today,
- * option lists when those are built — and this file is the record and what the
- * storefront does with it. The two halves live next door:
+ * One record in the CATALOG namespace holds it — photos, wording and the
+ * choices on the order form — and this file is the record and what the
+ * storefront does with it. The three halves live next door:
  *
- *   worker/photos.js       the photo machinery: upload, both sizes, the gallery
- *   worker/product-copy.js the wording: the fields, the checks, the markup
- *   worker/products-page.js the dashboard page that edits them
+ *   worker/photos.js          upload, both sizes, the gallery markup
+ *   worker/product-copy.js    the wording: the fields, the checks, the markup
+ *   worker/product-options.js the dropdowns, and the two places a price lands
+ *   worker/products-page.js   the dashboard page that edits all of it
  *
- * Both halves are pure. They take a product's photos or its wording and hand
+ * All three are pure. They take a product's photos, words or choices and hand
  * back markup and a list of rules; this file does the record lookups, the KV
- * read, the feed, and the one pass of HTMLRewriter that puts it all on a page.
- * That split is what keeps either half testable without a parser or a binding.
+ * read, the feed, and the one pass of HTMLRewriter that puts it on a page.
+ * That split is what keeps each of them testable without a parser or a binding.
  *
  * Nothing here is required. A product with no record is served exactly as the
  * repo has it, and so is every product if the binding is missing or KV is
@@ -22,6 +23,7 @@
 import { PRODUCTS } from './promo.js';
 import { photoRules, photoCardRules, feedImageLinks, photosFor } from './photos.js';
 import { copyRules, copyFor, itemFor } from './product-copy.js';
+import { optionRules, optionsFor } from './product-options.js';
 
 /** One record, one key. Small enough that a page reads the lot in one call. */
 export const CATALOG_KEY = 'catalog';
@@ -54,9 +56,17 @@ export function productsWithCopy(record) {
   return Object.keys(record?.products || {}).filter((id) => copyFor(record, id));
 }
 
+export function productsWithOptions(record) {
+  return Object.keys(record?.products || {}).filter((id) => optionsFor(record, id));
+}
+
 /** Every product this record changes anything about, in catalogue order. */
 export function touchedProducts(record) {
-  const touched = new Set([...productsWithPhotos(record), ...productsWithCopy(record)]);
+  const touched = new Set([
+    ...productsWithPhotos(record),
+    ...productsWithCopy(record),
+    ...productsWithOptions(record),
+  ]);
   return PRODUCTS.map(([id]) => id).filter((id) => touched.has(id));
 }
 
@@ -65,11 +75,12 @@ export function touchedProducts(record) {
  * "No entry" and "an entry that overrides nothing" have to stay the same
  * thing, or a reset would leave a husk that still counts as an override.
  */
-export function withProduct(record, product, { photos, copy }) {
+export function withProduct(record, product, { photos, copy, options }) {
   const products = { ...(record?.products || {}) };
   const entry = {};
   if (photos?.length) entry.photos = photos;
   if (copy) entry.copy = copy;
+  if (options) entry.options = options;
 
   if (Object.keys(entry).length) products[product] = entry;
   else delete products[product];
@@ -195,6 +206,7 @@ export function catalogRules(record, { product = '', origin = 'https://rawhideci
   if (product) {
     rules.push(...photoRules(photosFor(record, product), { origin }));
     rules.push(...copyRules(copyFor(record, product)));
+    rules.push(...optionRules(optionsFor(record, product)));
   }
 
   // The grids. A card is an <a> to the product, on the shop page, the category
@@ -242,6 +254,38 @@ export function applyRules(response, rules) {
     } else if (rule.action === 'attr') {
       rewriter = rewriter.on(rule.selector, {
         element(el) { el.setAttribute(rule.name, rule.value); },
+      });
+    } else if (rule.action === 'select') {
+      // The dropdown itself: its choices, and the price list the cart script
+      // copies onto the buy button when somebody adds to cart.
+      rewriter = rewriter.on(rule.selector, {
+        element(el) {
+          el.setInnerContent(rule.value, { html: true });
+          if (rule.dataOptions) el.setAttribute('data-options', rule.dataOptions);
+          else el.removeAttribute('data-options');
+        },
+      });
+    } else if (rule.action === 'custom-options') {
+      // Snipcart's own copy of the price list, which its crawler reads off the
+      // page to check what the cart was handed. Its fields are numbered, and
+      // the number is positional — so it is resolved here, from the page being
+      // streamed, by matching the field's name. A number stored in the record
+      // would be silently wrong the day a field moved in the HTML, and the
+      // upcharge would land on somebody else's option.
+      rewriter = rewriter.on(rule.selector, {
+        element(el) {
+          const indexOf = new Map();
+          for (const [name, value] of el.attributes) {
+            const found = /^data-item-custom(\d+)-name$/.exec(name);
+            if (found) indexOf.set(value, found[1]);
+          }
+          for (const [fieldName, options] of Object.entries(rule.byName)) {
+            const index = indexOf.get(fieldName);
+            if (!index) continue;
+            if (options) el.setAttribute(`data-item-custom${index}-options`, options);
+            else el.removeAttribute(`data-item-custom${index}-options`);
+          }
+        },
       });
     } else if (rule.action === 'card') {
       rewriter = rewriter.on(rule.selector, {
