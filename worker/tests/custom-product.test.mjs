@@ -23,6 +23,7 @@ import {
   extraSaleProducts, customIdFromPath, productIdFromPath,
 } from '../catalog.js';
 import { buildPromo } from '../promo.js';
+import { renderCustomCard, customScript } from '../custom-product-page.js';
 
 const DONOR = readFileSync(new URL('../../product-leather-butter.html', import.meta.url), 'utf8');
 
@@ -423,6 +424,42 @@ export default async function run() {
   check('a draft is left out of it',
     !rewriteSitemap(SITEMAP, withCustomProduct(null, buildCustomProduct(input({ published: false }))),
       'https://rawhidecityleather.com').includes('shop-apron'));
+
+  suite('added products — the delete confirmation');
+
+  // A native confirm() blocks the whole tab, so nobody working through the page
+  // can get past it — which is exactly how it went the first time one of these
+  // was deleted for real.
+  const liveCard = renderCustomCard(withCustomProduct(null, build()));
+  const draftCard = renderCustomCard(withCustomProduct(null, buildCustomProduct(input({ published: false }))));
+
+  check('nothing on the page opens a browser dialog',
+    !customScript(withCustomProduct(null, build())).includes('confirm('));
+  check('the panel starts hidden', liveCard.includes('data-cpconfirm="shop-apron" hidden'));
+
+  check('a live product asks for its name to be typed',
+    liveCard.includes('data-cpconfirmtype="shop-apron"'));
+  check('and its delete button starts refused',
+    /data-cpconfirmgo="shop-apron" disabled/.test(liveCard));
+  check('a draft asks for nothing to be typed',
+    !draftCard.includes('data-cpconfirmtype='));
+  check('and its delete button is ready, because a draft costs nothing',
+    /data-cpconfirmgo="shop-apron"(?! disabled)/.test(draftCard));
+
+  check('a live product is told what goes with it',
+    liveCard.includes('the card comes off the shop grid')
+    && liveCard.includes('photographs are deleted'));
+  check('the Shopping feed is named only when it is in the feed',
+    liveCard.includes('Shopping feed entry')
+    && !renderCustomCard(withCustomProduct(null, build({ inFeed: false }))).includes('Shopping feed entry'));
+  check('a draft says plainly that no customer sees a change',
+    draftCard.includes('nothing a customer can see changes'));
+  check('both say the orders are safe', liveCard.includes('Orders already placed keep their own record'));
+
+  // Checked against the STORED name, not the name box, which may have been
+  // retyped without saving.
+  check('the typed name is checked against the stored one',
+    customScript(withCustomProduct(null, build())).includes('"shop-apron":"Shop Apron"'));
 
   /* ----------------------------------------------------------- the Worker */
 

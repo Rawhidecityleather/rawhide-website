@@ -251,8 +251,51 @@ function renderEditor(product) {
         <button type="button" class="btn ghost cpdanger" data-cpdelete="${esc(product.id)}">Delete</button>` : ''}
         <span class="soft" data-cpsaid="${esc(key)}"></span>
       </div>
+      ${product ? confirmPanel(product) : ''}
     </div>
   </section>`;
+}
+
+/**
+ * The are-you-sure, in the page rather than in a browser dialog.
+ *
+ * A native confirm() blocks the tab it is on, which means nobody working
+ * through the page — including this assistant — can get past it, and the only
+ * way out is a human hand on the mouse. It also cannot say what is about to
+ * happen in more than one flat line of text.
+ *
+ * What it says depends on what the product actually is right now. A draft is
+ * nothing to a customer and clicking through it should be quick; a live one
+ * takes its page, its card, its sitemap line, its feed entry and its
+ * photographs with it, so that one asks for the name to be typed. Making both
+ * cases equally laborious just teaches the habit of typing without reading.
+ */
+function confirmPanel(product) {
+  const live = Boolean(product.published);
+
+  const what = live
+    ? 'It is on the site. The page stops answering, the card comes off the shop grid, ' +
+      `and the sitemap line${product.inFeed ? ' and the Shopping feed entry go' : ' goes'} ` +
+      'with it. The photographs are deleted out of storage.'
+    : 'It is a draft, so nothing a customer can see changes. The page stops answering ' +
+      'and the record goes.';
+
+  return `<div class="cpconfirm" data-cpconfirm="${esc(product.id)}" hidden>
+        <p class="cpconfirmhead">Delete ${esc(product.name)}?</p>
+        <p class="cpconfirmwhat">${what} Orders already placed keep their own record and are
+        not touched. <b>This cannot be undone.</b></p>
+        ${live ? `<label class="pfield cpconfirmtype">
+          <span class="plabel">Type <b>${esc(product.name)}</b> to confirm</span>
+          <input type="text" data-cpconfirmtype="${esc(product.id)}" spellcheck="false"
+            autocomplete="off" placeholder="${esc(product.name)}">
+        </label>` : ''}
+        <div class="pactions">
+          <button type="button" class="btn cpdanger" data-cpconfirmgo="${esc(product.id)}"${
+            live ? ' disabled' : ''
+          }>Delete it</button>
+          <button type="button" class="btn ghost" data-cpconfirmno="${esc(product.id)}">Keep it</button>
+        </div>
+      </div>`;
 }
 
 /**
@@ -322,7 +365,16 @@ export const CUSTOM_STYLES = `
 .cptick input{margin-top:2px;flex:none}
 .cptick b{font-weight:600}
 .cpticks,.cpnotes{border-top:1px solid var(--line);margin-top:14px;padding-top:6px}
-.cpdanger:hover{border-color:#8B2E2E;color:#8B2E2E}
+.cpdanger:hover:not(:disabled){border-color:#8B2E2E;color:#8B2E2E}
+.cpdanger:disabled{opacity:.4;cursor:default}
+.cpconfirm{border:1px solid #8B2E2E;border-radius:2px;padding:14px 16px;margin:12px 0 4px;
+  background:rgba(139,46,46,.04)}
+.cpconfirm[hidden]{display:none}
+.cpconfirmhead{margin:0 0 6px;font-weight:600;font-size:13.5px;color:#8B2E2E}
+.cpconfirmwhat{margin:0;font-size:12.5px;line-height:1.6;color:var(--soft,#6b6b6b)}
+.cpconfirmtype{margin-top:12px;max-width:340px}
+.cpconfirmtype input{width:100%;font:inherit;font-size:13px;padding:6px 8px;
+  border:1px solid var(--line);border-radius:2px;background:var(--paper);color:inherit}
 .cpempty[hidden]{display:none}
 `;
 
@@ -332,6 +384,7 @@ export const CUSTOM_SCRIPT = `
   if (!list) return;
 
   var STATE = __CSTATE__;
+  var NAMES = __CNAMES__;
   var NEW = __NEW__;
   var MAX = __MAX__;
   var IDEAL = __IDEAL__;
@@ -642,7 +695,8 @@ export const CUSTOM_SCRIPT = `
 
   list.addEventListener('click', function(e){
     var el = e.target.closest && e.target.closest(
-      '[data-cptoggle],[data-cpsave],[data-cpdelete],[data-cpaddfield]');
+      '[data-cptoggle],[data-cpsave],[data-cpdelete],[data-cpaddfield],' +
+      '[data-cpconfirmgo],[data-cpconfirmno]');
     if (!el) return;
 
     var key = el.getAttribute('data-cptoggle');
@@ -670,20 +724,52 @@ export const CUSTOM_SCRIPT = `
     key = el.getAttribute('data-cpsave');
     if (key) { save(key, el); return; }
 
+    // Delete opens the panel underneath rather than doing anything. Nothing is
+    // sent until the panel's own button is pressed.
     key = el.getAttribute('data-cpdelete');
     if (key) {
-      if (!confirm('Delete ' + (val(key, 'name') || key) + '?\\n\\n' +
-        'The page stops answering and the card comes off the grid. Orders already placed ' +
-        'keep their record. This cannot be undone.')) return;
+      var panel = q('[data-cpconfirm="' + key + '"]');
+      if (!panel) return;
+      panel.hidden = false;
+      var typed = q('[data-cpconfirmtype="' + key + '"]');
+      if (typed) { typed.value = ''; typed.focus(); }
+      var go = q('[data-cpconfirmgo="' + key + '"]');
+      if (go && typed) go.disabled = true;
+      panel.scrollIntoView({ block: 'nearest' });
+      return;
+    }
+
+    key = el.getAttribute('data-cpconfirmno');
+    if (key) {
+      var shut = q('[data-cpconfirm="' + key + '"]');
+      if (shut) shut.hidden = true;
+      return;
+    }
+
+    key = el.getAttribute('data-cpconfirmgo');
+    if (key) {
       el.disabled = true;
+      el.textContent = 'Deleting\\u2026';
       post('/dashboard/api/product-delete', { productId: key }).then(function(){
         toast('Deleted.');
         setTimeout(function(){ location.reload(); }, 700);
       }).catch(function(err){
         toast(err.message, true);
         el.disabled = false;
+        el.textContent = 'Delete it';
       });
     }
+  });
+
+  // The name has to be typed out on a product that is live. Case and stray
+  // spaces are forgiven — the point is to have read which product this is, not
+  // to be caught out by a capital letter.
+  list.addEventListener('input', function(e){
+    var key = e.target.getAttribute && e.target.getAttribute('data-cpconfirmtype');
+    if (!key) return;
+    var go = q('[data-cpconfirmgo="' + key + '"]');
+    var want = (NAMES[key] || '').trim().toLowerCase();
+    if (go) go.disabled = e.target.value.trim().toLowerCase() !== want;
   });
 
   list.addEventListener('input', function(e){
@@ -714,8 +800,10 @@ export const CUSTOM_SCRIPT = `
 /** The script with this record baked into it, so the page opens ready to use. */
 export function customScript(record) {
   const state = { [NEW]: { photos: [], fields: [] } };
+  const names = {};
 
   for (const product of customProducts(record)) {
+    names[product.id] = product.name;
     state[product.id] = {
       photos: product.photos || [],
       // The dropdowns go to the browser as the text the box shows, not as the
@@ -731,6 +819,9 @@ export function customScript(record) {
 
   return CUSTOM_SCRIPT
     .replace('__CSTATE__', JSON.stringify(state))
+    // The STORED name, not whatever is in the name box. Somebody may have
+    // retyped that without saving, and the panel above it shows the stored one.
+    .replace('__CNAMES__', JSON.stringify(names))
     .replace('__NEW__', JSON.stringify(NEW))
     .replace('__CHECKS__', JSON.stringify(CONTENT_CHECKS))
     .replace('__MAX__', String(MAX_PHOTOS))
