@@ -18,6 +18,7 @@ const SUITES = [
   ['photos', () => import('./photos.test.mjs')],
   ['product-copy', () => import('./product-copy.test.mjs')],
   ['product-options', () => import('./product-options.test.mjs')],
+  ['custom-product', () => import('./custom-product.test.mjs')],
   ['promo', () => import('./promo.test.mjs')],
   ['quote', () => import('./quote.test.mjs')],
   ['recovery', () => import('./recovery.test.mjs')],

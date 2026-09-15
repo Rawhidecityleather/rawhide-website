@@ -101,7 +101,7 @@ import { isTrackingAddress, handleTrackingEmail } from './tracking-in.js';
 import {
   buildPromo, putPromo, getPromo, publicPromo, promoState, bannerText,
   stateSentence, snipcartSentence, quoteDiscountRate, withPromoBanner,
-  PromoError, PROMO_STYLES, PROMO_SCRIPT,
+  PromoError, PROMO_STYLES, promoScript,
 } from './promo.js';
 import { syncPromo, fetchRule } from './promo-sync.js';
 import {
@@ -111,10 +111,15 @@ import {
   recentCoupons, handleCouponCreate, COUPON_STYLES, COUPON_SCRIPT,
 } from './coupon.js';
 import { handlePhotoUpload, handlePhotoFetch } from './photos.js';
-import { withCatalog, getCatalog } from './catalog.js';
+import {
+  withCatalog, getCatalog, customProductPage, extraSaleProducts,
+} from './catalog.js';
 import {
   renderProductsPage, productsScript, readBuiltIn, handleProductSave, PRODUCTS_STYLES,
 } from './products-page.js';
+import {
+  handleCustomSave, handleCustomDelete, customScript, CUSTOM_STYLES,
+} from './custom-product-page.js';
 
 export default {
   /**
@@ -345,7 +350,19 @@ export default {
     // Every storefront page comes through here. While a sale is on, the
     // announcement bar is swapped for it on the way out; the rest of the time
     // this is a straight pass-through. See worker/promo.js.
-    const asset = await env.ASSETS.fetch(request);
+    let asset = await env.ASSETS.fetch(request);
+
+    // No file answers to this address. It may still be a product the shop
+    // added on the dashboard, which has no file anywhere — the Worker builds
+    // the page out of the record. Everything else keeps its 404.
+    if (asset.status === 404) {
+      try {
+        const made = await customProductPage(request, env, canonical, path);
+        if (made) asset = made;
+      } catch (err) {
+        console.error('custom product page failed', err?.message || err);
+      }
+    }
 
     let decorated = asset;
     try {
@@ -385,6 +402,8 @@ async function route(path, request, env, url) {
     if (path === '/dashboard/api/promo') return await handlePromoSave(request, env);
     if (path === '/dashboard/products') return await handleProductsPage(request, env, url);
     if (path === '/dashboard/api/photos') return await handleProducts(request, env, url);
+    if (path === '/dashboard/api/product-new') return await handleProductNew(request, env);
+    if (path === '/dashboard/api/product-delete') return await handleProductDelete(request, env);
     if (path === '/dashboard/api/photo-upload') return await handlePhotoPost(request, env);
     if (path === '/dashboard/api/recovery/send') return await handleRecoveryPost(request, env);
     if (path === '/dashboard/api/coupon') return await handleCouponPost(request, env);
@@ -548,7 +567,7 @@ async function handleDashboard(request, env, url) {
   if (request.method !== 'GET') return json({ error: 'Use GET.' }, 405);
 
   const range = url.searchParams.get('range') || DEFAULT_RANGE;
-  const [{ orders, truncated }, quotes, receipts, promo] = await Promise.all([
+  const [{ orders, truncated }, quotes, receipts, promo, catalog] = await Promise.all([
     getAllOrders(env),
     // A missing KV binding shouldn't take the whole dashboard down — the
     // quotes card just renders empty until it's wired up.
@@ -558,7 +577,11 @@ async function handleDashboard(request, env, url) {
     env.EXPENSES ? listExpenses(env).catch(() => []) : Promise.resolve([]),
     // Never throws — see getPromo.
     getPromo(env),
+    // For the sale picker: the products the shop added itself are not in
+    // PRODUCTS, and a sale that cannot name one is a sale with a hole in it.
+    getCatalog(env),
   ]);
+  const saleProducts = extraSaleProducts(catalog);
   // Snipcart's copy of the sale rule, so the card shows what is really there.
   // One extra call, only while a rule is live, and null on any failure.
   //
@@ -583,9 +606,10 @@ async function handleDashboard(request, env, url) {
     recovery,
     coupons,
     couponsReady: Boolean(env.SNIPCART_SECRET),
+    saleProducts,
   }), {
     styles: DASHBOARD_STYLES + PROMO_STYLES + RECOVERY_STYLES + COUPON_STYLES,
-    script: DASHBOARD_SCRIPT + PROMO_SCRIPT + RECOVERY_SCRIPT + COUPON_SCRIPT,
+    script: DASHBOARD_SCRIPT + promoScript(saleProducts) + RECOVERY_SCRIPT + COUPON_SCRIPT,
   });
 }
 
@@ -604,7 +628,7 @@ async function handlePromoSave(request, env) {
 
   let promo;
   try {
-    promo = buildPromo(body);
+    promo = buildPromo(body, new Date(), extraSaleProducts(await getCatalog(env)));
   } catch (err) {
     if (err instanceof PromoError) return json({ error: err.message }, 400);
     throw err;
@@ -671,14 +695,25 @@ async function handleProductsPage(request, env, url) {
     builtIn,
     railCounts: { toCheck: receipts.filter((r) => !r.checked).length },
   }), {
-    styles: DASHBOARD_STYLES + PRODUCTS_STYLES,
-    script: productsScript(record, builtIn),
+    styles: DASHBOARD_STYLES + PRODUCTS_STYLES + CUSTOM_STYLES,
+    script: productsScript(record, builtIn) + customScript(record),
   });
 }
 
 async function handleProducts(request, env, url) {
   if (!fromDashboard(request)) return json({ error: 'Bad request.' }, 403);
   return await handleProductSave(request, env, url.origin);
+}
+
+/** A product the shop added itself: created here, and edited here after that. */
+async function handleProductNew(request, env) {
+  if (!fromDashboard(request)) return json({ error: 'Bad request.' }, 403);
+  return await handleCustomSave(request, env);
+}
+
+async function handleProductDelete(request, env) {
+  if (!fromDashboard(request)) return json({ error: 'Bad request.' }, 403);
+  return await handleCustomDelete(request, env);
 }
 
 /**

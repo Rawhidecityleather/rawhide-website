@@ -73,7 +73,7 @@ export class PromoError extends Error {}
  * The `snipcart` block is not set here. It belongs to worker/promo-sync.js,
  * and the save handler carries the stored one across.
  */
-export function buildPromo(body = {}, now = new Date()) {
+export function buildPromo(body = {}, now = new Date(), extra = []) {
   const headline = String(body.headline ?? '').replace(/\s+/g, ' ').trim();
   if (!headline) {
     throw new PromoError('Say what the sale is. The headline is what the bar shows.');
@@ -108,7 +108,7 @@ export function buildPromo(body = {}, now = new Date()) {
     code,
     starts,
     ends,
-    deal: cleanDeal(body.deal),
+    deal: cleanDeal(body.deal, extra),
     updatedAt: now.toISOString(),
   };
 }
@@ -128,7 +128,7 @@ function cleanDate(value, which) {
  * amount  — dollars off the order, or off each named product
  * none    — banner only; the shop set the rule up in Snipcart by hand
  */
-function cleanDeal(input = {}) {
+function cleanDeal(input = {}, extra = []) {
   const type = ['percent', 'amount', 'none'].includes(input?.type) ? input.type : 'none';
   if (type === 'none') return { type, value: 0, scope: 'store', productIds: [] };
 
@@ -150,7 +150,10 @@ function cleanDeal(input = {}) {
   let productIds = [];
   if (scope === 'products') {
     const picked = Array.isArray(input.productIds) ? input.productIds : [];
-    productIds = PRODUCTS.map(([id]) => id).filter((id) => picked.includes(id));
+    // The catalogue plus anything the shop has added itself. Filtered against
+    // that list rather than trusted from the form, so a sale can only ever
+    // name a product the site actually sells.
+    productIds = [...PRODUCTS, ...extra].map(([id]) => id).filter((id) => picked.includes(id));
     if (!productIds.length) throw new PromoError('Pick at least one product, or make it the whole store.');
   }
 
@@ -379,7 +382,9 @@ export function snipcartSentence(promo, { rule = null, now = new Date() } = {}) 
  * says how to finish the setup instead of offering a form that cannot save.
  * `rule` is Snipcart's copy of the discount, when the dashboard could fetch it.
  */
-export function renderPromoCard(promo, { ready = true, rule = null, now = new Date() } = {}) {
+export function renderPromoCard(promo, {
+  ready = true, rule = null, now = new Date(), extra = [],
+} = {}) {
   const state = promoState(promo, now);
   const tone = STATE_COPY[state];
   const p = promo || { headline: '', kind: 'auto', code: '', starts: '', ends: '', enabled: false };
@@ -395,7 +400,7 @@ export function renderPromoCard(promo, { ready = true, rule = null, now = new Da
     : (rule && rule.archived) ? 'bad' : 'done';
 
   const checked = (test) => (test ? ' checked' : '');
-  const products = PRODUCTS.map(([id, name]) => `<label class="qcheck promoproduct">
+  const products = [...PRODUCTS, ...extra].map(([id, name]) => `<label class="qcheck promoproduct">
           <input type="checkbox" name="productIds" value="${esc(id)}"${checked(deal.productIds.includes(id))}>
           <span>${esc(name)}</span>
         </label>`).join('');
@@ -561,7 +566,7 @@ export const PROMO_SCRIPT = `
   if (!form) return;
 
   var DEFAULT_BAR = ${JSON.stringify(DEFAULT_ANNOUNCEMENT)};
-  var NAMES = ${JSON.stringify(Object.fromEntries(PRODUCTS))};
+  var NAMES = __NAMES__;
   var toastEl = document.getElementById('toast');
   var toastTimer;
   function toast(msg, bad){
@@ -694,3 +699,15 @@ export const PROMO_SCRIPT = `
   });
 })();
 `;
+
+/**
+ * The script with the product names in it. A name is only used to say what was
+ * picked, but the list has to match the checkboxes the card rendered — a
+ * product the shop added is in one and would be missing from the other.
+ */
+export function promoScript(extra = []) {
+  return PROMO_SCRIPT.replace(
+    '__NAMES__',
+    JSON.stringify(Object.fromEntries([...PRODUCTS, ...extra]))
+  );
+}

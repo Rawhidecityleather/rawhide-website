@@ -20,7 +20,7 @@ import { esc, json } from './lib.js';
 import { PRODUCTS } from './promo.js';
 import { renderRail } from './dashboard.js';
 import {
-  photosFor, photoUrl, builtInPhoto, buildPhotoSet, idsInRecord, deletePhoto,
+  photosFor, photoUrl, builtInPhoto, buildPhotoSet, deletePhoto,
   PhotoError, MAX_PHOTOS, ALT_MAX,
 } from './photos.js';
 import {
@@ -33,8 +33,10 @@ import {
   withoutBuiltInOptions, OptionError, CHOICES_MAX,
 } from './product-options.js';
 import {
-  getCatalog, putCatalog, withProduct, productName, PRODUCT_IDS, touchedProducts,
+  getCatalog, putCatalog, withProduct, productName, PRODUCT_IDS, touchedProducts, allPhotoIds,
 } from './catalog.js';
+import { renderCustomCard } from './custom-product-page.js';
+import { customProducts } from './custom-product.js';
 
 /* ------------------------------------------------------- the repo's wording */
 
@@ -237,6 +239,7 @@ function renderRow(id, record, builtIn) {
  */
 export function renderProductsPage(record, { ready = true, builtIn = {}, railCounts = {} } = {}) {
   const changed = touchedProducts(record).length;
+  const added = customProducts(record).length;
   const rows = PRODUCTS.map(([id]) => renderRow(id, record, builtIn)).join('');
   const saved = record?.updatedAt
     ? 'Last changed ' + new Date(record.updatedAt).toLocaleDateString('en-US', {
@@ -250,8 +253,11 @@ export function renderProductsPage(record, { ready = true, builtIn = {}, railCou
     <header class="topbar">
       <div class="topleft">
         <h1>Products</h1>
-        <p class="sub">${PRODUCTS.length} products &middot; ${
-          changed ? `${changed} changed here` : 'all on the built-in photos and wording'
+        <p class="sub">${PRODUCTS.length + added} products &middot; ${
+          [
+            changed ? `${changed} changed here` : '',
+            added ? `${added} added here` : '',
+          ].filter(Boolean).join(' &middot; ') || 'all on the built-in photos and wording'
         }</p>
       </div>
       <div class="topright">
@@ -264,6 +270,8 @@ export function renderProductsPage(record, { ready = true, builtIn = {}, railCou
         <code>CATALOG</code> and <code>PHOTOS</code> bindings to <code>wrangler.jsonc</code>
         &mdash; see the README. Nothing uploads or saves until then.
       </p>`}
+
+      ${renderCustomCard(record, { ready })}
 
       <section class="card">
         <div class="cardhead">
@@ -840,7 +848,7 @@ export async function handleProductSave(request, env, origin) {
   // that is not there means an upload that failed quietly, and a product page
   // with a broken main image on it is worse than one with an old photo.
   const before = await getCatalog(env);
-  const known = idsInRecord(before);
+  const known = allPhotoIds(before);
   for (const photo of photos) {
     if (known.has(photo.id)) continue;
     const head = await env.PHOTOS.head(`${photo.id}-m.webp`);
@@ -850,7 +858,7 @@ export async function handleProductSave(request, env, origin) {
   const record = withProduct(before, product, { photos, copy, options });
   await putCatalog(env, record);
 
-  const stillUsed = idsInRecord(record);
+  const stillUsed = allPhotoIds(record);
   for (const id of known) {
     if (stillUsed.has(id)) continue;
     try {

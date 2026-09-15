@@ -99,7 +99,7 @@ function newId() {
  * they are the width and height attributes that stop the page jumping while
  * the image loads.
  */
-function cleanPhoto(input, product) {
+function cleanPhoto(input, product, fallbackName) {
   const id = String(input?.id || '');
   if (!/^[0-9a-f]{32}$/.test(id)) throw new PhotoError('That photo has a bad id. Upload it again.');
 
@@ -115,7 +115,7 @@ function cleanPhoto(input, product) {
     // Falling back to the product name is deliberate. An empty alt on a product
     // photo is a hole in the page for anyone using a screen reader, and the
     // name is a poor description but never a wrong one.
-    alt: alt || PRODUCT_NAME.get(product) || product,
+    alt: alt || fallbackName || PRODUCT_NAME.get(product) || product,
     w: size('w', MAIN_WIDTH),
     h: size('h', MAIN_WIDTH),
     tw: size('tw', THUMB_WIDTH),
@@ -128,13 +128,13 @@ function cleanPhoto(input, product) {
  * page can show. An empty list is legal and means the same as no photos at
  * all — use the repo's.
  */
-export function buildPhotoSet(list, product) {
+export function buildPhotoSet(list, product, fallbackName = '') {
   const photos = (Array.isArray(list) ? list : []);
   if (photos.length > MAX_PHOTOS) {
     throw new PhotoError(`That is more than ${MAX_PHOTOS} photos. The page cannot show them all.`);
   }
 
-  const cleaned = photos.map((p) => cleanPhoto(p, product));
+  const cleaned = photos.map((p) => cleanPhoto(p, product, fallbackName));
 
   const seen = new Set();
   for (const p of cleaned) {

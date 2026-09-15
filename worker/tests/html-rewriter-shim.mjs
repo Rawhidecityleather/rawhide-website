@@ -10,7 +10,8 @@
  * It is small but it is not a toy: it tokenises tags, counts nesting to find an
  * element's contents, and understands the selector shapes this Worker uses —
  * `.class`, `tag`, `tag.class`, `tag[attr]`, `tag[attr="value"]`, and a
- * descendant chain of those. What it is NOT is a compliant HTML parser. It
+ * descendant chain of those, plus an id. What it is NOT is a compliant HTML
+ * parser. It
  * assumes well-formed markup with quoted attributes, which is what this repo's
  * pages are, and it runs each handler in its own pass rather than one streaming
  * pass — the same result only while the selectors do not overlap.
@@ -94,11 +95,12 @@ function serialiseAttrs(attrs) {
  * `.class` and `[attr]` / `[attr="value"]` filters.
  */
 function parsePart(part) {
+  const ids = [...part.matchAll(/#([\w-]+)/g)].map((m) => m[1]);
   const tag = /^([a-zA-Z][\w-]*)/.exec(part);
   const classes = [...part.matchAll(/\.([\w-]+)/g)].map((m) => m[1]);
   const attrs = [...part.matchAll(/\[([^\]=]+)(?:=["']([^"']*)["'])?\]/g)]
     .map((m) => ({ name: m[1], value: m[2] ?? null }));
-  return { tag: tag ? tag[1].toLowerCase() : '', classes, attrs };
+  return { tag: tag ? tag[1].toLowerCase() : '', classes, ids, attrs };
 }
 
 function parseSelector(selector) {
@@ -107,6 +109,11 @@ function parseSelector(selector) {
 
 function matches(el, part) {
   if (part.tag && part.tag !== el.tag) return false;
+
+  if (part.ids.length) {
+    const id = el.attrs.find((a) => a.name === 'id')?.value || '';
+    if (!part.ids.every((want) => want === id)) return false;
+  }
 
   if (part.classes.length) {
     const classAttr = el.attrs.find((a) => a.name === 'class');
@@ -139,6 +146,16 @@ function scan(html, from = 0, to = html.length) {
     });
   }
   return found;
+}
+
+/** Past the closing tag, for an element being taken off the page whole. */
+function elementEnd(html, el) {
+  if (VOID.has(el.tag) || el.selfClosing) return el.openEnd;
+  const inner = contentEnd(html, el);
+  const close = new RegExp('</' + el.tag + '\\s*>', 'gi');
+  close.lastIndex = inner;
+  const shut = close.exec(html);
+  return shut ? shut.index + shut[0].length : inner;
 }
 
 /**
@@ -213,6 +230,8 @@ function apply(html, selector, handler) {
     if (handler.element) {
       const attrs = el.attrs.map((a) => ({ ...a }));
       let inner = null;
+      let appended = '';
+      let gone = false;
 
       handler.element({
         tagName: el.tag,
@@ -236,7 +255,20 @@ function apply(html, selector, handler) {
         setInnerContent: (content, opts) => {
           inner = opts?.html ? String(content) : esc(content);
         },
+        append: (content, opts) => {
+          appended += opts?.html ? String(content) : esc(content);
+        },
+        remove: () => { gone = true; },
       });
+
+      // Taken off the page whole, contents and closing tag with it. Nothing
+      // left for a text handler on the same element to run over.
+      if (gone) {
+        const end = elementEnd(out, el);
+        out = out.slice(0, el.start) + out.slice(end);
+        delta -= end - el.start;
+        continue;
+      }
 
       const openTag = `<${el.tag}${serialiseAttrs(attrs)}${el.selfClosing ? '/' : ''}>`;
       const oldEnd = inner === null ? el.openEnd : contentEnd(out, el);
@@ -245,6 +277,14 @@ function apply(html, selector, handler) {
       out = out.slice(0, el.start) + replacement + out.slice(oldEnd);
       delta += replacement.length - (oldEnd - el.start);
       el.openEnd = el.start + openTag.length;
+
+      // Appended content goes in last, just inside the closing tag, so it
+      // lands after whatever setInnerContent just wrote rather than under it.
+      if (appended && !VOID.has(el.tag) && !el.selfClosing) {
+        const at = contentEnd(out, el);
+        out = out.slice(0, at) + appended + out.slice(at);
+        delta += appended.length;
+      }
     }
 
     if (handler.text && !VOID.has(el.tag)) {

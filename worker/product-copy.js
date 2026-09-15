@@ -264,9 +264,11 @@ const FIELD_LABEL = {
  * Every rule a product's wording trips, with the field it tripped on. Returns
  * [] for wording that is fine, which is what the page checks for.
  */
-export function contentWarnings(product, copy) {
+export function contentWarnings(product, copy, { hats = null } = {}) {
   if (!copy) return [];
-  const isHat = HAT_IDS.includes(product);
+  // A hat added from the dashboard is not in HAT_IDS and never will be, so the
+  // caller can say. Everything else asks the list, which is the three in the repo.
+  const isHat = hats === null ? HAT_IDS.includes(product) : hats;
   const warnings = [];
 
   for (const [field, label] of Object.entries(FIELD_LABEL)) {

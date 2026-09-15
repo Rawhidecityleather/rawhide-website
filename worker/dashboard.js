@@ -186,7 +186,7 @@ function topProducts(orders) {
 
 export function renderDashboard(stats, {
   truncated, quotes = [], toCheck = 0, promo = null, promoReady = true, snipcartRule = null,
-  recovery = null, coupons = null, couponsReady = true,
+  recovery = null, coupons = null, couponsReady = true, saleProducts = [],
 } = {}) {
   const rangeLabel = rangeInfo(stats.rangeKey).label;
 
@@ -211,7 +211,7 @@ export function renderDashboard(stats, {
       ${renderQueue(stats.queue)}
       ${renderTrackingPanel()}
       ${renderQuotes(quotes, stats.orders, quoteDiscountRate(promo))}
-      ${renderPromoCard(promo, { ready: promoReady, rule: snipcartRule })}
+      ${renderPromoCard(promo, { ready: promoReady, rule: snipcartRule, extra: saleProducts })}
       ${recovery ? renderRecoveryCard(recovery) : ''}
       ${renderCouponCard(coupons, { ready: couponsReady })}
       ${renderOrders(stats.inRange, rangeLabel)}
@@ -253,7 +253,7 @@ export function renderRail({
       ${link(base + '#recovery', 'Cart recovery', leftCarts || null)}
       ${link(base + '#coupon', 'One-off coupon')}
       ${link(base + '#orders', 'All orders')}
-      ${link('/dashboard/products', 'Photos', null, 'products')}
+      ${link('/dashboard/products', 'Products', null, 'products')}
       ${link('/dashboard/expenses', 'Receipts', toCheck || null, 'expenses')}
     </nav>
     <div class="railfoot">

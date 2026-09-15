@@ -717,9 +717,11 @@ One JSON record, key `current`, in the `PROMO` namespace. `worker/promo.js`
 is the banner: the record's shape, the date window, the card, the rewrite.
 `worker/promo-sync.js` is the Snipcart side: the rule body and the hourly
 reconcile. `GET /api/promo` is public and says only what the bar already says
-(never the dates); the cart script in `assets/js/main.js` reads it. Adding a
-product to the shop means adding it to `PRODUCTS` in `worker/promo.js` too,
-or the picker cannot point a sale at it.
+(never the dates); the cart script in `assets/js/main.js` reads it.
+
+Adding a product to the repo means adding it to `PRODUCTS` in `worker/promo.js`
+too, or the picker cannot point a sale at it. A product added on the dashboard
+instead is in the picker on its own, as soon as it is on the site.
 
 ## Product photos, wording and options
 
@@ -919,6 +921,10 @@ The list of products comes from `PRODUCTS` in `worker/promo.js`, the same list
 the sale picker uses. A new product has to be added there, and its page has to
 be `product-<that id>.html`, or it will not appear here.
 
+That is the products in the repo. A product added on the dashboard is not one
+of them — it gets its own row at the top of the page and is edited there, name
+and price included. See **Adding a product** below.
+
 Photos are deleted from the bucket when you remove them and save. A photo
 uploaded and never saved stays in the bucket, costing a fraction of a cent and
 visible to nobody.
@@ -948,6 +954,138 @@ Delete the `catalog` key from the `CATALOG` namespace and every product goes
 back to its built-in photos, wording and options on the next request. Nothing in the
 repo is touched by any of this — `product-<id>.html` and
 `assets/img/products/` are the fallback, always.
+
+## Adding a product
+
+**Add a product**, at the top of the dashboard's Products page. A name, a price,
+which part of the shop it goes in, photos, wording, and as many dropdowns as the
+order form needs. Press Save and there is a product.
+
+Everything above this section edits a product that is already in the repo. This
+one builds a product that is not: there is no `product-<id>.html` anywhere, and
+the Worker puts the page together on every request out of one record in KV.
+
+### What pressing Save does
+
+| Where | What lands there |
+|---|---|
+| `/product-<address>` | the whole page — gallery, price, order form, buy button, structured data |
+| The shop grid | a card in the section you picked |
+| `/hats` or `/radio-straps` | the same card, for those two categories only |
+| `sitemap.xml` | the address, with the day it last changed |
+| The Google Shopping feed | an item, if the box is ticked |
+| The sale picker | a checkbox, so a sale can name it |
+
+It reaches the site within a minute, the same as everything else here and for the
+same reason: KV caches a record for 60 seconds at each location.
+
+### Add it as a draft first
+
+Leave **Put it on the site** off and save. The page answers, so you can open it
+and read it, and it carries a `noindex` tag so Google leaves it alone. There is
+no card in the grid and no item in the feed until you tick it.
+
+That is the only way to see what the dropdowns and the wording actually look
+like, and it costs nothing. A listing that goes up half-written is a listing
+somebody can buy off.
+
+### The address never changes
+
+It is made from the name — `Shop Apron` becomes `/product-shop-apron` — and you
+can edit it right up until you save. After that it is fixed, and the box is
+read-only.
+
+That is deliberate. The address is the Snipcart product id, and it is written
+into every order ever placed for the thing. Rename it and those orders point at a
+product that no longer exists.
+
+### The order form
+
+One box per dropdown, one choice per line, in the order the customer sees them.
+The syntax is the same as the options editor above:
+
+```
+Black
+Chestnut
+Brown -- out of stock
+```
+
+**An upcharge goes on the end of the line.** `White +10.00` adds ten dollars when
+that colour is picked, and the card in the grid then says "From $95.00" instead
+of "$95.00".
+
+**Two dashes and a reason** greys a choice out and leaves it on the list saying
+why. `## Richardson 112` starts a heading.
+
+**A dropdown nobody has to answer opens on its first line.** There is no blank
+row on one, ever, and that is not a style choice. The cart script numbers the
+custom fields on the hidden buy button by the fields that came back filled in,
+and Snipcart's crawler reads the numbering off the page as it was served. A
+dropdown that could arrive empty would shift every field after it by one, and the
+upcharge would land on somebody else's option. So put the do-nothing choice at
+the top and name it — `No stitching`, not a blank.
+
+The **notes box** is the one field allowed to come back empty, which is why it is
+always last.
+
+### What it will not do
+
+**No artwork upload.** The two "Custom Stamps" dropdowns on the fully custom and
+Smokey straps drive how many upload slots appear, by reading a number off the
+front of the chosen value. That wiring lives in the HTML and is not something to
+copy here. A product that needs a customer's file needs a page in the repo.
+
+**No Add to Cart on the card.** A card only gets one where the product has
+nothing to pick first, and anything added here is assumed to have something.
+
+**Only two category pages.** `/hats` and `/radio-straps` get the card as well as
+`/shop`. Belts and accessories have no page of their own — `/shop#belts` is where
+the footer sends people — so those land on the shop page only.
+
+**It does not write to the repo.** Nothing here touches a file. Deleting the
+`catalog` key from KV takes every added product off the site at once, and the
+fourteen in the repo carry on exactly as they are.
+
+### Deleting one
+
+The page stops answering, the card comes off the grid, the feed entry and the
+sitemap line go with it, and the photographs are deleted out of the bucket. It
+cannot be undone.
+
+Orders already placed are untouched. They live at Snipcart and carry their own
+copy of what was bought.
+
+### Where it lives
+
+| File | What's in it |
+|---|---|
+| `worker/custom-product.js` | the record, the page, the card, the feed item, the sitemap line |
+| `worker/custom-product-page.js` | the form on the dashboard, and the two writes behind it |
+
+`worker/custom-product.js` is pure, the same as the three files above it — hand it
+a product and it hands back markup. `worker/catalog.js` does the serving.
+
+The products sit in the same `catalog` record as everything else, under `custom`
+rather than `products`, so a page reads the lot in one call. Photos go in the same
+`rawhide-product-photos` bucket and are served from the same public `/photo/<key>`.
+
+**The page is built by rewriting a real one.** `/product-leather-butter` is
+fetched out of the repo and its own product is replaced wholesale — the gallery,
+the price, the form, the buy button, both structured data blocks, every meta tag.
+What is left of it is the chrome: the header, the nav, the fonts, the footer, the
+pixel, the cart script. Taking those from a real page is the point. Writing them
+out in the Worker instead would mean maintaining the site's header twice, and the
+copy nobody looks at would be the one that went stale.
+
+Leather Butter is the donor because it is the plainest page in the repo: one
+product, no upload slots, no crew pricing panel, exactly the two `ld+json` blocks
+every product page carries. `worker/tests/custom-product.test.mjs` reads it off
+disk and checks a built page against it, so the day that page changes shape the
+test says so rather than the site.
+
+**It needs HTMLRewriter**, which means it needs the Workers runtime. In the Node
+preview an added product 404s instead of serving the donor — the wrong product at
+the right address is worse than no page.
 
 ## A one-off coupon for one person
 
@@ -1258,6 +1396,7 @@ Done once, and not worth touching again:
 | Quote storage | the `QUOTES` KV namespace |
 | Artwork storage | the `LOGOS` R2 bucket (`rawhide-logo-uploads`) |
 | Product photos and wording | the `CATALOG` KV namespace and the `PHOTOS` R2 bucket (`rawhide-product-photos`) |
+| Products added on the dashboard | the same two — under `custom` in the `catalog` record, and the same bucket |
 
 If wrangler ever asks you to log in:
 

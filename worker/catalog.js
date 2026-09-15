@@ -21,9 +21,15 @@
  */
 
 import { PRODUCTS } from './promo.js';
-import { photoRules, photoCardRules, feedImageLinks, photosFor } from './photos.js';
+import {
+  photoRules, photoCardRules, feedImageLinks, photosFor, idsInRecord,
+} from './photos.js';
 import { copyRules, copyFor, itemFor } from './product-copy.js';
 import { optionRules, optionsFor } from './product-options.js';
+import {
+  cardHtml, categoryFor, customFor, customPhotoIds, feedItemXml, feedReady,
+  liveCustomProducts, pageRules, sitemapEntry,
+} from './custom-product.js';
 
 /** One record, one key. Small enough that a page reads the lot in one call. */
 export const CATALOG_KEY = 'catalog';
@@ -46,6 +52,17 @@ export function productIdFromPath(path) {
   return PRODUCT_IDS.has(match[1]) ? match[1] : '';
 }
 
+/**
+ * The same, for a product the shop added on the dashboard. A separate function
+ * because these two have nothing in common past the shape of the address: one
+ * is a page in the repo being rewritten, the other is a page being built.
+ */
+export function customIdFromPath(path, record) {
+  const match = /^\/product-([a-z0-9-]+)$/.exec(String(path || ''));
+  if (!match || PRODUCT_IDS.has(match[1])) return '';
+  return customFor(record, match[1]) ? match[1] : '';
+}
+
 /* ----------------------------------------------------------- the record */
 
 export function productsWithPhotos(record) {
@@ -61,6 +78,15 @@ export function productsWithOptions(record) {
 }
 
 /** Every product this record changes anything about, in catalogue order. */
+/**
+ * Whether this record has anything at all to do to a page. The gate on every
+ * rewrite below, and it counts both halves: a shop that has changed nothing
+ * about a repo product may still have added one of its own.
+ */
+export function catalogChanges(record) {
+  return touchedProducts(record).length + liveCustomProducts(record).length;
+}
+
 export function touchedProducts(record) {
   const touched = new Set([
     ...productsWithPhotos(record),
@@ -85,7 +111,23 @@ export function withProduct(record, product, { photos, copy, options }) {
   if (Object.keys(entry).length) products[product] = entry;
   else delete products[product];
 
-  return { products, updatedAt: new Date().toISOString() };
+  // The rest of the record is carried across, not rebuilt. The products the
+  // shop added itself live beside this half, and returning only this one
+  // deleted every one of them — and swept their photographs out of the bucket
+  // behind them — the moment anybody pressed Save on a repo product.
+  return { ...(record || {}), products, updatedAt: new Date().toISOString() };
+}
+
+/**
+ * Every photo id anywhere in the record. Both halves, always: a repo product
+ * keeps its photos under `products` and one the shop added keeps them under
+ * `custom`, and a sweep that looked at one half would delete the other half's
+ * pictures the next time anything at all was saved.
+ */
+export function allPhotoIds(record) {
+  const out = new Set(idsInRecord(record));
+  for (const id of customPhotoIds(record)) out.add(id);
+  return out;
 }
 
 /* --------------------------------------------------------------------- KV */
@@ -132,9 +174,21 @@ export function xmlEscape(text) {
  * printed in the photograph as well as the ones in the text.
  */
 export function rewriteFeed(xml, record, origin) {
-  if (!touchedProducts(record).length) return xml;
+  // The shop's own products are not in the file to be rewritten — they are
+  // added to it, right before the channel closes, in the same shape as the
+  // rest. Only the ones complete enough for Google go in: an item with no
+  // picture or no description is refused on arrival, and a refused item is an
+  // account-level problem rather than a quiet one.
+  const added = liveCustomProducts(record).filter(feedReady)
+    .map((product) => feedItemXml(product, { origin }))
+    .join('');
+  const withAdded = (text) => (added
+    ? text.replace(/[ \t]*<\/channel>/, added + '  </channel>')
+    : text);
 
-  return String(xml).replace(/<item>[\s\S]*?<\/item>/g, (block) => {
+  if (!touchedProducts(record).length) return withAdded(String(xml));
+
+  return withAdded(String(xml).replace(/<item>[\s\S]*?<\/item>/g, (block) => {
     const id = /<g:id>([^<]*)<\/g:id>/.exec(block)?.[1];
     if (!id || !PRODUCT_IDS.has(id)) return block;
 
@@ -159,7 +213,21 @@ export function rewriteFeed(xml, record, origin) {
     }
 
     return out;
-  });
+  }));
+}
+
+/**
+ * The sitemap. Same idea and for the same reason: a page the Worker builds is
+ * not in the file on disk, so it is added to the end of it. A draft is left
+ * out — it carries a noindex tag of its own, and a sitemap that lists a page
+ * telling Google not to index it is a warning in Search Console.
+ */
+export function rewriteSitemap(xml, record, origin) {
+  const added = liveCustomProducts(record)
+    .map((product) => sitemapEntry(product, { origin }))
+    .join('');
+  if (!added) return xml;
+  return String(xml).replace('</urlset>', added + '</urlset>');
 }
 
 /* -------------------------------------------------------------- storefront */
@@ -200,7 +268,9 @@ function jsonValue(text) {
  * `product` is the page's own product when it is a product page, and '' on the
  * shop and category grids, which carry cards for several products at once.
  */
-export function catalogRules(record, { product = '', origin = 'https://rawhidecityleather.com' } = {}) {
+export function catalogRules(record, {
+  product = '', path = '', origin = 'https://rawhidecityleather.com',
+} = {}) {
   const rules = [];
 
   if (product) {
@@ -214,6 +284,24 @@ export function catalogRules(record, { product = '', origin = 'https://rawhideci
   // photos reach a card — the cards carry a name and a price, no wording.
   for (const id of productsWithPhotos(record)) {
     rules.push(...photoCardRules(photosFor(record, id), id, { origin }));
+  }
+
+  // A product the shop added has no card anywhere to swap, so one is put in.
+  // The shop page files its cards by section; the two category pages that
+  // exist are each about one thing, so their first grid is the right one and
+  // there is nothing to choose between. Belts and accessories have no page of
+  // their own — /shop#belts is where the footer sends people.
+  const here = String(path).replace(/[/]+$/, '') || '/';
+  for (const made of liveCustomProducts(record)) {
+    const card = cardHtml(made);
+    if (!card) continue;
+    const category = categoryFor(made.category);
+
+    if (here === '/shop') {
+      rules.push({ selector: '#' + category.section + ' .product-grid', action: 'append', value: card });
+    } else if (category.page && here === category.page) {
+      rules.push({ selector: '.product-grid', action: 'append', value: card, once: true });
+    }
   }
 
   return rules;
@@ -254,6 +342,30 @@ export function applyRules(response, rules) {
     } else if (rule.action === 'attr') {
       rewriter = rewriter.on(rule.selector, {
         element(el) { el.setAttribute(rule.name, rule.value); },
+      });
+    } else if (rule.action === 'append') {
+      // A card going into a grid that has no card for it to replace. `once`
+      // is for the category pages, where the grid is found by class rather
+      // than by id and the page carries more than one.
+      let seen = 0;
+      rewriter = rewriter.on(rule.selector, {
+        element(el) {
+          if (rule.once && seen++) return;
+          el.append(rule.value, { html: true });
+        },
+      });
+    } else if (rule.action === 'blocks') {
+      // A run of elements replaced outright, in order — the two ld+json blocks
+      // on a page the Worker builds. Anything past the end of the list is
+      // removed rather than left: what is in it belongs to the donor page, and
+      // a stray Product block would describe the wrong product to Google.
+      let index = 0;
+      rewriter = rewriter.on(rule.selector, {
+        element(el) {
+          const value = rule.values[index++];
+          if (value === undefined) el.remove();
+          else el.setInnerContent(value, { html: true });
+        },
       });
     } else if (rule.action === 'select') {
       // The dropdown itself: its choices, and the price list the cart script
@@ -337,23 +449,102 @@ export async function withCatalog(response, request, env) {
   const path = url.pathname.replace(/\/+$/, '') || '/';
 
   const isFeed = path === '/google-merchant-feed.xml';
-  if (!type.includes('text/html') && !isFeed) return response;
+  const isSitemap = path === '/sitemap.xml';
+  if (!type.includes('text/html') && !isFeed && !isSitemap) return response;
 
   const record = await getCatalog(env);
-  if (!touchedProducts(record).length) return response;
+  if (!catalogChanges(record)) return response;
 
-  if (isFeed) {
+  if (isFeed || isSitemap) {
     const xml = await response.text();
-    return new Response(rewriteFeed(xml, record, url.origin), {
-      status: response.status,
-      headers: response.headers,
-    });
+    return new Response(
+      isFeed ? rewriteFeed(xml, record, url.origin) : rewriteSitemap(xml, record, url.origin),
+      { status: response.status, headers: response.headers }
+    );
   }
 
   return applyRules(response, catalogRules(record, {
     product: productIdFromPath(path),
+    path,
     origin: url.origin,
   }));
+}
+
+/* ------------------------------------------- a page that is not in the repo */
+
+/**
+ * The page a custom product is built out of.
+ *
+ * Its own product is replaced wholesale — the gallery, the price, the form,
+ * the buy button, both structured data blocks, every meta tag — so what is
+ * left of it is the chrome: the header, the nav, the fonts, the footer, the
+ * pixel, the cart script. Taking those from a real page means they cannot
+ * drift out of date with the site, which writing them out here would
+ * guarantee the first time the footer changed.
+ *
+ * Leather Butter is the donor because it is the plainest page in the repo:
+ * one product, no upload slots, no crew pricing panel, exactly the two ld+json
+ * blocks every product page carries.
+ */
+export const DONOR_PAGE = '/product-leather-butter';
+
+export async function serveCustomProduct(env, product, url) {
+  // Without the rewriter the donor would go back as itself, which is to say
+  // the wrong product at the right address. Better a 404: this is only ever
+  // missing outside the Workers runtime, which is the Node preview.
+  if (typeof HTMLRewriter === 'undefined') return null;
+
+  let donor;
+  try {
+    donor = await env.ASSETS.fetch(new Request(new URL(DONOR_PAGE, url.origin)));
+  } catch {
+    return null;
+  }
+  if (!donor.ok) return null;
+
+  const headers = new Headers(donor.headers);
+  headers.set('content-type', 'text/html; charset=utf-8');
+  // A minute, the same as the KV record behind it. Promising longer would mean
+  // a price change sitting in a cache after the record already moved on.
+  headers.set('cache-control', 'public, max-age=60');
+  // Both belong to the donor, and this is not the donor. A conditional request
+  // carrying them back would be answered 304 with the other product's page.
+  headers.delete('etag');
+  headers.delete('last-modified');
+
+  return applyRules(
+    new Response(donor.body, { status: 200, headers }),
+    pageRules(product, { origin: url.origin })
+  );
+}
+
+/**
+ * The hook in index.js: a storefront address that no file answers to, which
+ * may belong to a product the shop added. Returns null for everything else,
+ * and the 404 goes back untouched.
+ *
+ * The shape is checked before the record is read, so the Worker is not making
+ * a KV lookup for every bot asking after /wp-login.
+ */
+export async function customProductPage(request, env, url, path) {
+  if (request.method !== 'GET' && request.method !== 'HEAD') return null;
+  if (!/^\/product-[a-z0-9-]+$/.test(path)) return null;
+
+  const record = await getCatalog(env);
+  const id = customIdFromPath(path, record);
+  if (!id) return null;
+
+  return await serveCustomProduct(env, customFor(record, id), url);
+}
+
+/**
+ * The products a sale can be pointed at beyond the ones in PRODUCTS: whatever
+ * the shop has added and put on the site. A draft is left out — there is no
+ * card to put a price strike through, and Snipcart would be holding a rule
+ * against a product nobody can buy.
+ */
+export function extraSaleProducts(record) {
+  return liveCustomProducts(record).map((product) => [product.id, product.name]);
 }
 
 /**
