@@ -427,6 +427,26 @@ export function buyButtonHtml(product, { origin = 'https://rawhidecityleather.co
   return `${out}></button>`;
 }
 
+/**
+ * What stands in for the gallery when a product has no photographs.
+ *
+ * Only a draft can be in that state — publishing refuses without a photo — so
+ * the only person who ever reads this is the shop, and it says what to do next
+ * rather than apologising to a customer who will never see it.
+ *
+ * It exists because an empty .product-media collapses to nothing and takes the
+ * left half of the page grid with it, and a draft opened for review then looks
+ * like a broken page rather than an unfinished one.
+ */
+const NO_PHOTOS = '<div class="product-media-empty" style="display:flex;align-items:center;' +
+  'justify-content:center;min-height:420px;padding:28px;text-align:center;' +
+  'background:var(--c-bg-2);border:1px solid var(--c-line-strong)">' +
+  '<div><p style="margin:0 0 8px;font-family:var(--font-display);font-weight:600;' +
+  'font-size:.82rem;letter-spacing:.22em;text-transform:uppercase;color:var(--c-text)">' +
+  'No photos yet</p>' +
+  '<p style="margin:0;color:var(--c-text-soft);font-size:.95rem">Add them on the dashboard. ' +
+  'This one cannot go on the site until it has at least one.</p></div></div>';
+
 const DISCLAIMER = '<p class="form-help" style="margin-top:14px">Accessory use only. Not PPE and ' +
   'not NFPA certified. <a href="/shipping#use-disclaimer" style="color:var(--c-accent)">Read our ' +
   'Use Disclaimer</a>.</p>';
@@ -434,7 +454,7 @@ const DISCLAIMER = '<p class="form-help" style="margin-top:14px">Accessory use o
 /** Everything inside `<main class="product-page">`. */
 export function mainHtml(product, { origin = 'https://rawhidecityleather.com' } = {}) {
   return `<div class="container product-page-grid">
-    <div class="product-media" data-gallery>${galleryHtml(product.photos || [])}</div>
+    <div class="product-media" data-gallery>${galleryHtml(product.photos || []) || NO_PHOTOS}</div>
     <div class="product-info">
       <p class="eyebrow">${esc(product.eyebrow)}</p>
       <h1>${esc(product.name)}</h1>

@@ -328,6 +328,14 @@ export default async function run() {
   check('a draft tells Google to skip it',
     (await draft.text()).includes('<meta name="robots" content="noindex">'));
 
+  // A draft is the only thing that can have no photographs, and an empty
+  // .product-media collapses the left half of the page grid.
+  const bare = buildCustomProduct(input({ published: false, photos: [] }));
+  check('a draft with no photos says so where the gallery would be',
+    mainHtml(bare).includes('No photos yet'));
+  check('and a product with photos gets the gallery, not the note',
+    mainHtml(made).includes('product-main-image') && !mainHtml(made).includes('No photos yet'));
+
   check('a product with no notes box has no textarea on its form',
     !mainHtml(made).includes('<textarea'));
   check('the not-PPE line is there unless it is turned off',
