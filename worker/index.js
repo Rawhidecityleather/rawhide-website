@@ -376,14 +376,40 @@ export default {
     // And whatever the shop changed about a product — its photos, its wording
     // — over what the repo says. Same rule: a page carrying the built-in
     // photograph and the built-in words beats no page at all.
+    let final = decorated;
     try {
-      return await withCatalog(decorated, request, env);
+      final = await withCatalog(decorated, request, env);
     } catch (err) {
       console.error('catalog rewrite failed', err?.message || err);
-      return decorated;
     }
+    return withSecurityHeaders(final);
   },
 };
+
+/**
+ * The headers every storefront response carries. None of them change what a
+ * page does: they stop a browser second-guessing a content type, keep the
+ * site on HTTPS once it has been there, and tell it which device features a
+ * leather shop has no use for. No content-security-policy — Snipcart, Kit and
+ * the Meta pixel each load from their own hosts, and one missed source would
+ * blank the cart.
+ */
+const SECURITY_HEADERS = {
+  'strict-transport-security': 'max-age=31536000; includeSubDomains',
+  'x-content-type-options': 'nosniff',
+  'referrer-policy': 'strict-origin-when-cross-origin',
+  'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=()',
+};
+
+export function withSecurityHeaders(response) {
+  // A response from the ASSETS binding has immutable headers; this copy is
+  // the same body and status with headers that can be written to.
+  const out = new Response(response.body, response);
+  for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
+    if (!out.headers.has(name)) out.headers.set(name, value);
+  }
+  return out;
+}
 
 async function route(path, request, env, url) {
   // `return await`, not `return` — a bare `return promise` inside try resolves

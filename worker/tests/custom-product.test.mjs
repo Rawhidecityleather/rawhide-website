@@ -345,6 +345,16 @@ export default async function run() {
   check('a description with a closing script tag cannot end the block early',
     !productSchema(build({ summary: 'One</script><script>alert(1)</script>' })).includes('</script>'));
 
+  const schemaOffer = (over) => JSON.parse(productSchema(build(over))).offers;
+  check('the offer says what shipping costs: free at $85 and up',
+    schemaOffer({ price: '85.00' }).shippingDetails.shippingRate.value === '0.00'
+    && schemaOffer({ price: '84.99' }).shippingDetails.shippingRate.value === '10.00');
+  check('and the handling time is the lead time the feed publishes',
+    schemaOffer({ lead: '6-weeks' }).shippingDetails.deliveryTime.handlingTime.maxValue === 30
+    && schemaOffer({ lead: '1-3-days' }).shippingDetails.deliveryTime.handlingTime.minValue === 1);
+  check('and returns are not offered, which is the shipping page rule',
+    schemaOffer({}).hasMerchantReturnPolicy.returnPolicyCategory.endsWith('MerchantReturnNotPermitted'));
+
   suite('added products — the card in the grid');
 
   check('the card links to the page and carries the photo',

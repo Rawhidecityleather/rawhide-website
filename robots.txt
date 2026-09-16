@@ -1,4 +1,8 @@
 User-agent: *
 Allow: /
+Disallow: /dashboard
+Disallow: /packing-slip
+Disallow: /quote
+Disallow: /api/
 
 Sitemap: https://rawhidecityleather.com/sitemap.xml

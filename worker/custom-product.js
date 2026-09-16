@@ -485,7 +485,29 @@ export function productSchema(product, { origin = 'https://rawhidecityleather.co
     (image ? `"image":${jsonValue(image)},` : '') +
     '"brand":{"@type":"Brand","name":"Rawhide City Leather"},' +
     `"offers":{"@type":"Offer","url":${jsonValue(url)},"priceCurrency":"USD",` +
-    `"price":${jsonValue(product.price)},"availability":"https://schema.org/InStock"}}`;
+    `"price":${jsonValue(product.price)},"availability":"https://schema.org/InStock",` +
+    `"shippingDetails":${shippingDetailsJson(product)},` +
+    '"hasMerchantReturnPolicy":{"@type":"MerchantReturnPolicy","applicableCountry":"US",' +
+    '"returnPolicyCategory":"https://schema.org/MerchantReturnNotPermitted"}}}';
+}
+
+/** Free at $85 and up, $10.00 under it — the shipping page's rule. */
+export const FREE_SHIPPING_AT = 85;
+
+/**
+ * What the shipping page promises, as structured data: the flat rate this
+ * product's price earns, the US only, and the handling time the feed already
+ * publishes for its lead time. No transit time — the carrier's is not ours
+ * to promise.
+ */
+export function shippingDetailsJson(product) {
+  const lead = LEAD.get(product.lead) || LEAD.get('1-3-weeks');
+  const rate = Number(product.price) >= FREE_SHIPPING_AT ? '0.00' : '10.00';
+  return '{"@type":"OfferShippingDetails",' +
+    `"shippingRate":{"@type":"MonetaryAmount","value":"${rate}","currency":"USD"},` +
+    '"shippingDestination":{"@type":"DefinedRegion","addressCountry":"US"},' +
+    '"deliveryTime":{"@type":"ShippingDeliveryTime","handlingTime":{"@type":"QuantitativeValue",' +
+    `"minValue":${lead.min},"maxValue":${lead.max},"unitCode":"DAY"}}}`;
 }
 
 export function breadcrumbSchema(product, { origin = 'https://rawhidecityleather.com' } = {}) {

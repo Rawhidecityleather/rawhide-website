@@ -238,6 +238,22 @@ export default async function run() {
   check('a card quote cannot be stamped by hand',
     (await post('/dashboard/api/quote/paid', { id: cardJob.id }, DASH)).status === 409);
 
+  suite('worker — security headers');
+
+  const storefront = await get('/shop.html');
+  check('a storefront page carries HSTS',
+    (storefront.headers.get('strict-transport-security') || '').includes('max-age=31536000'));
+  check('and nosniff, a referrer policy, and a permissions policy',
+    storefront.headers.get('x-content-type-options') === 'nosniff'
+    && storefront.headers.get('referrer-policy') === 'strict-origin-when-cross-origin'
+    && (storefront.headers.get('permissions-policy') || '').includes('camera=()'));
+  check('the page itself is untouched',
+    storefront.status === 200 && (await storefront.text()) === 'asset'
+    && storefront.headers.get('x-served-by') === 'assets');
+  const missing = await get('/no-such-page');
+  check('a 404 gets the same headers',
+    missing.status === 404 && missing.headers.get('x-content-type-options') === 'nosniff');
+
   suite('worker — www to apex');
 
   const WWW = 'https://www.rawhidecityleather.com';
