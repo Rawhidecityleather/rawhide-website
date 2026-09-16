@@ -692,15 +692,24 @@
     var state = window.Snipcart && Snipcart.store && Snipcart.store.getState();
     var cart = state && state.cart;
     if(!cart) return null;
-    // In the cart view no shipping has been chosen yet, so total is the goods
-    // total after any discount — the same number Snipcart tests the threshold
-    // against. Fall back to subtotal on older shapes.
-    var amount = typeof cart.total === 'number' ? cart.total
-               : typeof cart.subtotal === 'number' ? cart.subtotal : null;
+    // Test the goods total, not cart.total. Once Snipcart knows the buyer's
+    // address it folds tax into cart.total, and an $80 Florida cart reads
+    // $85.60 — over the threshold on a number the shipping rule never sees.
+    // Proven on production: $80 of goods + $5.60 FL tax was quoted Standard
+    // Shipping $10.00 and no free option at all, while this line was promising
+    // free shipping. subtotal stays at the goods total through tax and
+    // shipping, and is the number Snipcart's own rule agreed with.
+    var amount = typeof cart.subtotal === 'number' ? cart.subtotal
+               : typeof cart.total === 'number' ? cart.total : null;
     if(amount === null) return null;
+    // Snipcart loads taxes as soon as it has an address — a returning buyer
+    // sees the tax line in the cart itself. Promising it "at checkout" while
+    // the figure is sitting right above reads like the price is still moving.
+    var taxesKnown = !!(cart.taxes && cart.taxes.status === 'Loaded');
+    var tax = taxesKnown ? '' : ' Taxes calculated at checkout.';
     return amount >= FREE_SHIPPING_AT
-      ? 'Free shipping. Taxes calculated at checkout.'
-      : '$10.00 shipping. Free at $85 and up. Taxes calculated at checkout.';
+      ? 'Free shipping.' + tax
+      : '$10.00 shipping. Free at $85 and up.' + tax;
   }
 
   // Lead time never appeared in the cart at all — the first a buyer heard of a
