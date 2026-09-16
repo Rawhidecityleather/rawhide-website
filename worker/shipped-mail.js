@@ -32,6 +32,14 @@ const SITE = 'https://rawhidecityleather.com';
 
 export const SHIPPED_SUBJECT = 'Your Rawhide City Leather gear has shipped';
 
+/**
+ * Where the review ask points. The contact page reads ?about=review and
+ * pre-selects "Leave a review", so the customer lands on a form that already
+ * knows why they came. Reviews are what put stars under a product in search,
+ * and every piece that has none is a piece nobody was ever asked about.
+ */
+export const REVIEW_URL = `${SITE}/contact?about=review`;
+
 /** Matches the Pirate Ship template's greeting, which uses a first name only. */
 export function firstName(order) {
   const a = order?.shippingAddress || order?.billingAddress || {};
@@ -71,6 +79,10 @@ export function shippedText(order, trackingNumber, now) {
     '',
     'Every piece carries our career warranty: if workmanship or materials ever',
     `fail you, we will make it right. ${SITE}/shipping#warranty`,
+    '',
+    'Once it has been on the job a few shifts, tell us how it is holding up,',
+    'good or bad. It helps the next firefighter decide, and it is how a small',
+    `shop gets found. Leave a review: ${REVIEW_URL}`,
     '',
     '"We do not cut corners. We cut leather."',
     '',
@@ -145,6 +157,13 @@ export function shippedHtml(order, trackingNumber, now) {
                 <td style="padding:20px 36px 8px 36px;">
                   <p style="margin:0 0 10px 0;font-family:Arial,Helvetica,sans-serif;font-weight:bold;font-size:13px;letter-spacing:3px;text-transform:uppercase;color:#0F0F0F;">Built for the long haul</p>
                   <p style="margin:0 0 12px 0;font-family:Georgia,'Times New Roman',serif;font-size:15px;line-height:1.65;color:#3A3833;">Leather is a natural material, and yours was built to earn character. An occasional pass of leather balm will keep it strong shift after shift. Every piece carries our career warranty: if workmanship or materials ever fail you, we will make it right. <a href="${SITE}/shipping#warranty" target="_blank" style="color:#0F0F0F;text-decoration:underline;">Read the warranty</a>.</p>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:12px 36px 8px 36px;">
+                  <p style="margin:0 0 10px 0;font-family:Arial,Helvetica,sans-serif;font-weight:bold;font-size:13px;letter-spacing:3px;text-transform:uppercase;color:#0F0F0F;">Once it has been on the job</p>
+                  <p style="margin:0 0 14px 0;font-family:Georgia,'Times New Roman',serif;font-size:15px;line-height:1.65;color:#3A3833;">Give it a few shifts. Then tell us how it is holding up, good or bad. It helps the next firefighter decide, and it is how a small shop gets found.</p>
+                  <a href="${REVIEW_URL}" target="_blank" style="display:inline-block;padding:12px 26px;border:2px solid #0F0F0F;font-family:Arial,Helvetica,sans-serif;font-weight:bold;font-size:12px;letter-spacing:3px;text-transform:uppercase;color:#0F0F0F;text-decoration:none;">Leave a Review</a>
                 </td>
               </tr>
               <tr>

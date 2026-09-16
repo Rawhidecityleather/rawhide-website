@@ -13,7 +13,7 @@
 import { suite, check } from './harness.mjs';
 import {
   firstName, shipDate, shippedHtml, shippedText, sendShippedEmail,
-  sendTestShippedEmail, SHIPPED_SUBJECT,
+  sendTestShippedEmail, SHIPPED_SUBJECT, REVIEW_URL,
 } from '../shipped-mail.js';
 
 const USPS = '9400111899223197428490';
@@ -77,6 +77,13 @@ export default async function run() {
   check('the tracking number is in it', html.includes(USPS));
   check('the track link points at our own page',
     html.includes('rawhidecityleather.com/track?num=' + USPS), 'track link');
+  check('it asks for a review, and points at the form that knows why they came',
+    html.includes('Leave a Review') && html.includes('href="' + REVIEW_URL + '"')
+    && REVIEW_URL === 'https://rawhidecityleather.com/contact?about=review');
+  check('the ask waits for a few shifts rather than the day it lands',
+    html.includes('Give it a few shifts'));
+  check('the plain-text copy asks too',
+    shippedText(order(), USPS, NOW).includes('Leave a review: ' + REVIEW_URL));
   check("the ship date is the shop's day, not UTC's",
     html.includes('August 19, 2026'), shipDate(NOW));
   check('the tagline is there', html.includes('We do not cut corners'));
