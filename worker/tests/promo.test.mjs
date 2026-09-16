@@ -400,8 +400,11 @@ export default async function run() {
     check('a scheduled sale creates nothing yet', api.active().length === 0);
     const schedRec = JSON.parse(env.PROMO._store.get('current'));
     check('the card says it goes up with the banner', snipcartSentence(schedRec).includes('goes up with the banner'));
-    const dayOf = new Date(Date.now() + 86400000);
-    dayOf.setUTCHours(16);
+    // Noon Eastern on the sale's own day. Building this by adding 24h to now and
+    // then forcing the UTC hour lands a day late after 8pm Florida time, when
+    // now+24h has already rolled into the next UTC day — the test used to fail
+    // every evening. Anchor it to the date string the sale actually carries.
+    const dayOf = new Date(`${tomorrow}T16:00:00Z`);
     const cronUp = await syncPromo(env, schedRec, dayOf);
     check('the hourly run creates it on the start date', cronUp.changed && api.active().length === 1 &&
       api.active()[0].type === 'FixedAmount' && api.active()[0].amount === 10 && api.active()[0].trigger === 'Total');

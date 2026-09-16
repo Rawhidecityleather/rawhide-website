@@ -484,6 +484,31 @@ p{margin:0 0 1em}
   .snipcart-item-line__variants .snipcart-form__select{padding:4px 8px;font-size:.85rem}
 }
 
+/* Pinning the footer only helps if the footer leaves room for the cart. Snipcart
+   ships it with a 40px margin under the promo box and a payment-badge block
+   carrying 24px of padding inside 40/80px margins — about 200px of air. Once the
+   promo box, both notes and the badge had all landed in there it stood 499px
+   tall, so on a 667px phone it covered 75% of the screen: the product name was
+   sliced through the middle and not one of the ten options was visible. Trim it
+   wherever it is pinned, phone or short laptop. */
+@media (max-width:700px), (max-height:800px){
+  .snipcart-cart__footer .snipcart-discount-box{margin-bottom:8px}
+  .snipcart-cart__footer .snipcart-discount-box__button{padding:10px 8px;min-height:0}
+  .snipcart-cart__footer .snipcart-cart__featured-payment-methods-container{margin-top:6px}
+  .snipcart-cart__footer .snipcart-featured-payment-methods{margin:0;padding:6px 0}
+}
+
+/* Phone width, where the last pixels matter: the card logos go — "Secured by
+   Snipcart" carries that signal on its own — and the thumbnail gets a column of
+   its own. Snipcart's item header is a flex row with no basis on the media, so a
+   long product name squeezed the photo down to a 14px sliver jammed into its
+   first letter. Cover, not fill: stock heights squash a 3:4 product shot flat. */
+@media (max-width:700px){
+  .snipcart-cart__footer .snipcart-featured-payment-methods__list{display:none}
+  .snipcart-item-line__media{flex:0 0 56px;height:72px;margin-right:10px}
+  .snipcart-item-line__media img{width:56px;height:72px;max-height:none;object-fit:cover;display:block}
+}
+
 /* Shop dropdown: static expanded list inside the mobile menu */
 @media (max-width:900px){
   .site-nav .dropdown{position:static;transform:none;display:block;min-width:0;background:transparent;border:0;box-shadow:none;padding:10px 0 0 16px}
