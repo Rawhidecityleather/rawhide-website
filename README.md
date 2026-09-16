@@ -649,7 +649,7 @@ still allowed — there are reasons to reach somebody anyway.
 ## The sale banner and its Snipcart rule
 
 The strip across the top of every page — "Handmade in Lakeland, FL · Firefighter
-Owned · Free Shipping over $85" — can be swapped for a sale line from the
+Owned · Free Shipping $85 and up" — can be swapped for a sale line from the
 dashboard, and the matching discount created in Snipcart, without a deploy.
 **Sale banner** on the dashboard: type the headline, pick the deal (percent or
 dollars off, the whole store or named products), say whether it is automatic

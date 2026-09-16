@@ -28,7 +28,7 @@ export const TIME_ZONE = 'America/New_York';
 
 /** What the bar says when no sale is on. Mirrors the markup in every page. */
 export const DEFAULT_ANNOUNCEMENT =
-  'Handmade in Lakeland, FL · Firefighter Owned · Free Shipping over $85';
+  'Handmade in Lakeland, FL · Firefighter Owned · Free Shipping $85 and up';
 
 /**
  * The catalogue, by Snipcart product id. The ids are the data-item-id on each

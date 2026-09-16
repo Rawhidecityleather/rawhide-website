@@ -395,7 +395,7 @@ export function renderRecoveryEmail(cart, code, expiresAt, postalAddress) {
     '',
     ...items.map((i) => `  ${i.name}${i.quantity > 1 ? ` x ${i.quantity}` : ''}  ${money(i.totalPrice)}`),
     items.length ? '' : null,
-    'Free shipping on orders over $85.',
+    'Free shipping on orders $85 and up.',
     '',
     `Finish your order: ${link}`,
     '',
@@ -484,7 +484,7 @@ ${items.length ? `
                     </tr>${rows}
                     <tr>
                       <td style="padding:2px 20px 20px 20px;">
-                        <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#6B6358;">Free shipping on orders over $85</p>
+                        <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#6B6358;">Free shipping on orders $85 and up</p>
                       </td>
                     </tr>
                   </table>

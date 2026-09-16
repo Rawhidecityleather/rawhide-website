@@ -683,7 +683,7 @@
   // The cart's stock line reads "Shipping and taxes will be calculated at
   // checkout" even on an order that has already earned free shipping. That is
   // the last thing a buyer reads before deciding, and it quietly contradicts
-  // the banner promising free shipping over $85. Say which one they are
+  // the banner promising free shipping at $85 and up. Say which one they are
   // getting instead. Snipcart owns its own notice node and re-renders it, so
   // hide that in CSS and keep a line of our own alongside it.
   var FREE_SHIPPING_AT = 85; // Snipcart's rule is "total above 84.99"

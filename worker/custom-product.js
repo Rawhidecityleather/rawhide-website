@@ -526,7 +526,7 @@ function xml(text) {
  * One `<item>`, in the shape the rest of google-merchant-feed.xml is in.
  *
  * No `<g:shipping>`, deliberately, and this is load-bearing: item-level
- * shipping OVERRIDES the account settings, and the free-over-$85 rule lives
+ * shipping OVERRIDES the account settings, and the free-at-$85-and-up rule lives
  * there. A block here would switch that off for this product and say nothing.
  * The comment at the top of the feed says the same at more length.
  */
