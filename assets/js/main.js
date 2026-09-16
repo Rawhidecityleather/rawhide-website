@@ -435,6 +435,35 @@
   // own markup — so say something ourselves. No preventDefault: if Kit's script is
   // blocked, the form still posts natively and Kit shows its own success page.
   var news = document.querySelector('.newsletter-form');
+
+  // Kit's script used to sit on every page. It sets a cookie the moment it
+  // loads, for a form most visitors never scroll to. So it is fetched when the
+  // form is about to come into view, or the moment someone reaches for it,
+  // whichever comes first. Until then the form is plain HTML, and if the
+  // script never arrives it still posts natively and Kit shows its own page.
+  var kitLoaded=false;
+  function loadKit(){
+    if(kitLoaded)return;
+    kitLoaded=true;
+    var s=document.createElement('script');
+    s.src='https://f.convertkit.com/ckjs/ck.5.js';
+    s.async=true;
+    document.body.appendChild(s);
+  }
+  if(news){
+    news.addEventListener('focusin',loadKit);
+    news.addEventListener('pointerenter',loadKit);
+    if('IntersectionObserver' in window){
+      var kitWatch=new IntersectionObserver(function(entries){
+        for(var i=0;i<entries.length;i++){
+          if(entries[i].isIntersecting){loadKit();kitWatch.disconnect();return;}
+        }
+      },{rootMargin:'300px 0px'});
+      kitWatch.observe(news);
+    }else{
+      loadKit();
+    }
+  }
   if(news){
     news.addEventListener('submit',function(){
       var email=news.querySelector('input[name="email_address"]');
