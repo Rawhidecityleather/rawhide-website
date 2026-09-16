@@ -77,6 +77,9 @@ p{margin:0 0 1em}
 .hero-title{color:var(--c-cream);font-size:clamp(2.8rem,7vw,6.4rem);margin-bottom:.4em;text-shadow:0 4px 30px rgba(0,0,0,.6)}
 .hero-tagline{font-family:var(--font-stamp);font-size:1.25rem;letter-spacing:.05em;color:var(--c-cream);opacity:.94;margin-bottom:2.4em}
 .hero-actions{display:flex;gap:16px;justify-content:center;flex-wrap:wrap}
+.hero-rating{display:inline-flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:8px 12px;margin-top:30px;font-family:var(--font-display);font-weight:600;font-size:.8rem;letter-spacing:.2em;text-transform:uppercase;color:var(--c-cream);text-decoration:none;opacity:.94;text-shadow:0 2px 14px rgba(0,0,0,.6)}
+.hero-rating:hover span:last-child{text-decoration:underline;text-underline-offset:4px}
+.hero-rating-stars{letter-spacing:3px;font-size:1rem;line-height:1}
 
 /* Buttons */
 .btn{display:inline-block;font-family:var(--font-display);font-weight:700;letter-spacing:.22em;text-transform:uppercase;font-size:.85rem;padding:16px 34px;border-radius:var(--radius);border:2px solid transparent;cursor:pointer;transition:all .2s;text-align:center;text-decoration:none}
