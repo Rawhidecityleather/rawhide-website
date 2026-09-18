@@ -137,6 +137,30 @@ export default function run() {
   check('an order with no date is not counted as overdue',
     tile([waiting('A', 99, [])]).overdue === 0);
 
+  suite('dashboard — cash jobs count as revenue');
+
+  const job = (title, daysAgo, grandTotal) => ({
+    id: 'x', title, payment: 'cash', grandTotal, total: grandTotal,
+    paidAt: placed(daysAgo), voidedAt: null,
+  });
+  const paidOrder = waiting('CARD', 3, band);   // $100
+  const withCash = analyze([paidOrder], '30d', {
+    cashJobs: [job('Station 4 straps', 5, 1926), job('Old plaque', 45, 240)],
+  });
+  const without = analyze([paidOrder], '30d');
+
+  check('orders alone are unchanged', without.revenue === 100 && without.paidCount === 1);
+  check('a cash job in the window adds what was collected', withCash.revenue === 2026);
+  check('and counts as a sale', withCash.paidCount === 2 && withCash.avgOrder === 1013);
+  check('one outside the window lands in the comparison instead', withCash.prevRevenue === 240);
+  check('lifetime takes them all', withCash.lifetime === 2266 && withCash.lifetimeCount === 3);
+  check('the month chart carries the money',
+    withCash.months.reduce((n, m) => n + m.revenue, 0) === 2266);
+  check('top products lists the job by its title',
+    withCash.products[0].name === 'Station 4 straps' && withCash.products[0].revenue === 1926);
+  check('the queue and the order list stay Snipcart-only',
+    withCash.queue.length === 1 && withCash.inRange.length === 1 && withCash.orders.length === 1);
+
   const tied = analyze([
     waiting('TODAYS-BAND', 0, band),
     waiting('AGED-STRAP', 21, strap),

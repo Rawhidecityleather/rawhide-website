@@ -424,8 +424,12 @@ under **All orders**, next to the Snipcart orders, so paid work can't hide in
 the Quotes table. It has no address and no tracking number, so its button is
 **Mark handed over** — that takes it off the queue and flips it to done in the
 order list. A card quote needs none of this: it's already in both as its order.
-Cash jobs are still not in the revenue tiles or the chart; those count Snipcart
-money only.
+
+A paid cash job also counts as revenue, dated the day it was marked paid, for
+the full amount collected — tax included, the same way a Snipcart order counts
+its grand total. It's in the revenue tiles, the order count, the monthly chart
+and Top products (under the quote's title). Because that KV record is the only
+book of record for the money, a paid cash quote is stored with no expiry.
 
 ## Custom stamp artwork
 

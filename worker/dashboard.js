@@ -80,7 +80,15 @@ function placedAt(order) {
   return isNaN(d) ? 0 : d.getTime();
 }
 
-export function analyze(orders, requestedRange) {
+/**
+ * A paid cash job is money the shop took that Snipcart never saw. For the
+ * revenue figures it stands in line with the orders as a sale dated the day it
+ * was paid; `worth` and `isSale` are the two questions every total asks.
+ */
+const worth = (sale) => (sale.cashJob ? quoteGrandTotal(sale.cashJob) : netRevenue(sale));
+const isSale = (sale) => (sale.cashJob ? true : countsAsSale(sale));
+
+export function analyze(orders, requestedRange, { cashJobs = [] } = {}) {
   // An unknown ?range= falls back rather than rendering a window nothing labels.
   const rangeKey = RANGES.some((r) => r.key === requestedRange) ? requestedRange : DEFAULT_RANGE;
   const sorted = [...orders].sort((a, b) => placedAt(b) - placedAt(a));
@@ -91,16 +99,27 @@ export function analyze(orders, requestedRange) {
     return t >= start && t <= end;
   });
 
+  // Money only. The lists above stay pure Snipcart orders — the queue and the
+  // order table place cash jobs themselves.
+  const sales = [
+    ...sorted,
+    ...cashJobs.map((quote) => ({ cashJob: quote, creationDate: quote.paidAt })),
+  ];
+  const salesInRange = sales.filter((s) => {
+    const t = placedAt(s);
+    return t >= start && t <= end;
+  });
+
   const comparable = prevStart !== null;
   const previous = comparable
-    ? sorted.filter((o) => {
-        const t = placedAt(o);
+    ? sales.filter((s) => {
+        const t = placedAt(s);
         return t >= prevStart && t < prevEnd;
       })
     : [];
 
-  const revenue = sum(inRange, netRevenue);
-  const paidCount = inRange.filter(countsAsSale).length;
+  const revenue = sum(salesInRange, worth);
+  const paidCount = salesInRange.filter(isSale).length;
 
   // The queue is the one list that isn't newest-first: it's work to be done,
   // so it runs most-overdue down to furthest-out. An order with nothing to date
@@ -128,12 +147,12 @@ export function analyze(orders, requestedRange) {
     revenue,
     paidCount,
     avgOrder: paidCount ? revenue / paidCount : 0,
-    lifetime: sum(sorted, netRevenue),
-    lifetimeCount: sorted.filter(countsAsSale).length,
-    prevRevenue: comparable ? sum(previous, netRevenue) : null,
-    prevCount: comparable ? previous.filter(countsAsSale).length : null,
-    months: monthSeries(sorted, 12),
-    products: topProducts(inRange),
+    lifetime: sum(sales, worth),
+    lifetimeCount: sales.filter(isSale).length,
+    prevRevenue: comparable ? sum(previous, worth) : null,
+    prevCount: comparable ? previous.filter(isSale).length : null,
+    months: monthSeries(sales, 12),
+    products: topProducts(salesInRange),
     refunded: sum(inRange, (o) => Number(o.refundsAmount) || 0),
     refundedCount: inRange.filter((o) => refundState(o) !== 'none').length,
   };
@@ -159,8 +178,8 @@ function monthSeries(orders, count) {
   for (const order of orders) {
     const bucket = buckets.get(monthKey(order.creationDate));
     if (!bucket) continue;
-    bucket.revenue += netRevenue(order);
-    if (countsAsSale(order)) bucket.orders += 1;
+    bucket.revenue += worth(order);
+    if (isSale(order)) bucket.orders += 1;
   }
 
   return [...buckets.entries()].map(([key, value]) => ({ key, ...value }));
@@ -170,6 +189,16 @@ function topProducts(orders) {
   const totals = new Map();
 
   for (const order of orders) {
+    // A cash job is one line under its own title — the same way a card quote
+    // already shows up here, as the single item its order carries.
+    if (order.cashJob) {
+      const name = order.cashJob.title || 'Custom build';
+      const row = totals.get(name) || { name, units: 0, revenue: 0 };
+      row.units += 1;
+      row.revenue += worth(order);
+      totals.set(name, row);
+      continue;
+    }
     if (!countsAsSale(order)) continue;
     for (const item of order.items || []) {
       const name = item.name || item.id || 'Custom build';

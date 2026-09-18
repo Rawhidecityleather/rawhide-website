@@ -18,7 +18,7 @@ function makeKV() {
   const store = new Map();
   return {
     async put(key, value, opts = {}) {
-      store.set(key, { value, metadata: opts.metadata || null });
+      store.set(key, { value, metadata: opts.metadata || null, expiration: opts.expiration ?? null });
     },
     async get(key) {
       return store.get(key)?.value ?? null;
@@ -289,6 +289,15 @@ export default async function run() {
   check('metadata is still under KV\'s 1 KB cap',
     (await env.QUOTES.list({ prefix: 'quote:' })).keys
       .every((k) => JSON.stringify(k.metadata).length < 1024));
+
+  // The KV record is the only book of record for cash money, and the revenue
+  // tiles read from it. Everything else can lapse a year after its link dies.
+  check('a paid cash job is kept for good',
+    env.QUOTES._store.get('quote:' + cash.id).expiration === null);
+  check('an unpaid one still expires',
+    env.QUOTES._store.get('quote:' + owed.id).expiration > Date.now() / 1000);
+  check('and so does a card quote',
+    env.QUOTES._store.get('quote:' + cardJob.id).expiration > Date.now() / 1000);
 
   let scriptOk = true;
   try { new Function(DASHBOARD_SCRIPT); } catch (err) { scriptOk = err.message; }

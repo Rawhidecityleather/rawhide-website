@@ -240,12 +240,17 @@ function summarize(quote) {
 }
 
 export async function putQuote(env, quote) {
-  await env.QUOTES.put(KEY_PREFIX + quote.id, JSON.stringify(quote), {
-    metadata: summarize(quote),
-    // Let KV drop the record a year after the link dies. The order it produced
-    // lives in Snipcart, which is the real book of record.
-    expiration: Math.floor(Date.parse(quote.expiresAt) / 1000) + 365 * 86400,
-  });
+  const options = { metadata: summarize(quote) };
+  // Let KV drop the record a year after the link dies. The order it produced
+  // lives in Snipcart, which is the real book of record.
+  //
+  // Not a paid cash job, though. Nothing in Snipcart stands behind that one, so
+  // this record is the revenue figure — letting it lapse would quietly take the
+  // money back out of the lifetime total a year on.
+  if (!isPaidCashJob(quote)) {
+    options.expiration = Math.floor(Date.parse(quote.expiresAt) / 1000) + 365 * 86400;
+  }
+  await env.QUOTES.put(KEY_PREFIX + quote.id, JSON.stringify(quote), options);
   return quote;
 }
 
@@ -256,7 +261,7 @@ export async function getQuote(env, id) {
 }
 
 /** Newest first. Summaries only — enough for the dashboard card. */
-export async function listQuotes(env, limit = 200) {
+export async function listQuotes(env, limit = 1000) {
   const { keys } = await env.QUOTES.list({ prefix: KEY_PREFIX, limit });
   return keys
     .map((key) => key.metadata)

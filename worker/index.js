@@ -87,7 +87,7 @@ import { handleInquiry } from './inquiry.js';
 import {
   buildQuote, putQuote, getQuote, listQuotes, voidQuote, markQuotePaid,
   renderQuotePage, quoteStatus, isQuoteId, QuoteError, QUOTE_ITEM_PREFIX,
-  markQuoteCashPaid, markQuoteHandedOver,
+  markQuoteCashPaid, markQuoteHandedOver, isPaidCashJob,
 } from './quote.js';
 import { storeUpload, handleReceiptFetch, deleteReceipt } from './receipts.js';
 import {
@@ -622,7 +622,7 @@ async function handleDashboard(request, env, url) {
     recoveryStats(env).catch(() => null),
     recentCoupons(env).catch(() => null),
   ]);
-  const stats = analyze(orders, range);
+  const stats = analyze(orders, range, { cashJobs: quotes.filter(isPaidCashJob) });
 
   return page('Dashboard', renderDashboard(stats, {
     truncated,
