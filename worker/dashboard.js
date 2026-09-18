@@ -23,7 +23,7 @@ import {
 } from './pirateship.js';
 import {
   quoteStatus, quoteWarnings, findQuoteOrder, quotePayment, quoteGrandTotal,
-  isPaidCashJob,
+  isPaidCashJob, quoteRefunded, quoteRefundState,
 } from './quote.js';
 import { renderPromoCard, isLive, quoteDiscountRate } from './promo.js';
 import { renderRecoveryCard } from './recovery-card.js';
@@ -85,8 +85,16 @@ function placedAt(order) {
  * revenue figures it stands in line with the orders as a sale dated the day it
  * was paid; `worth` and `isSale` are the two questions every total asks.
  */
-const worth = (sale) => (sale.cashJob ? quoteGrandTotal(sale.cashJob) : netRevenue(sale));
-const isSale = (sale) => (sale.cashJob ? true : countsAsSale(sale));
+const worth = (sale) => (sale.cashJob
+  ? quoteGrandTotal(sale.cashJob) - quoteRefunded(sale.cashJob)
+  : netRevenue(sale));
+const isSale = (sale) => (sale.cashJob
+  ? quoteRefundState(sale.cashJob) !== 'full'
+  : countsAsSale(sale));
+const refundedOn = (sale) => (sale.cashJob
+  ? quoteRefunded(sale.cashJob)
+  : Number(sale.refundsAmount) || 0);
+const refundOf = (sale) => (sale.cashJob ? quoteRefundState(sale.cashJob) : refundState(sale));
 
 export function analyze(orders, requestedRange, { cashJobs = [] } = {}) {
   // An unknown ?range= falls back rather than rendering a window nothing labels.
@@ -153,8 +161,8 @@ export function analyze(orders, requestedRange, { cashJobs = [] } = {}) {
     prevCount: comparable ? previous.filter(isSale).length : null,
     months: monthSeries(sales, 12),
     products: topProducts(salesInRange),
-    refunded: sum(inRange, (o) => Number(o.refundsAmount) || 0),
-    refundedCount: inRange.filter((o) => refundState(o) !== 'none').length,
+    refunded: sum(salesInRange, refundedOn),
+    refundedCount: salesInRange.filter((s) => refundOf(s) !== 'none').length,
   };
 }
 
@@ -192,6 +200,7 @@ function topProducts(orders) {
     // A cash job is one line under its own title — the same way a card quote
     // already shows up here, as the single item its order carries.
     if (order.cashJob) {
+      if (!isSale(order)) continue;
       const name = order.cashJob.title || 'Custom build';
       const row = totals.get(name) || { name, units: 0, revenue: 0 };
       row.units += 1;
@@ -224,7 +233,8 @@ export function renderDashboard(stats, {
   // order. A cash job never reaches Snipcart, so it gets put there by hand.
   const cashJobs = quotes.filter(isPaidCashJob);
   // Same order as the rest of the queue: longest-waiting first.
-  const cashWaiting = cashJobs.filter((q) => !q.handedOverAt)
+  // A job refunded in full is off the bench, the same as a refunded order.
+  const cashWaiting = cashJobs.filter((q) => !q.handedOverAt && quoteRefundState(q) !== 'full')
     .sort((a, b) => String(a.paidAt).localeCompare(String(b.paidAt)));
   const { start, end } = rangeBounds(stats.rangeKey);
   const cashInRange = cashJobs.filter((q) => {
@@ -697,7 +707,15 @@ function renderQuotes(quotes, orders, discountRate = 0) {
          ${print}
          ${cash ? '' : `<button type="button" class="btn tiny ghost qcopy" data-id="${esc(quote.id)}">Copy link</button>`}
          <button type="button" class="btn tiny ghost qvoid" data-id="${esc(quote.id)}">Void</button>`
-      : print;
+      // Only a cash job refunds from here. A card quote's money went through
+      // Snipcart, and that's the only place it can be sent back from.
+      : `${print}${cash && status === 'paid' && quoteRefundState(quote) !== 'full'
+          ? `<button type="button" class="btn tiny ghost qrefund"
+               data-id="${esc(quote.id)}" data-what="${esc(quote.title)}"
+               data-left="${(quoteGrandTotal(quote) - quoteRefunded(quote)).toFixed(2)}">Refund</button>`
+          : ''}`;
+
+    const refund = cash ? quoteRefundState(quote) : 'none';
 
     return `<tr data-quote="${esc(quote.id)}">
       <td>${link}</td>
@@ -709,7 +727,10 @@ function renderQuotes(quotes, orders, discountRate = 0) {
       <td class="nowrap">${esc(tinyDate(quote.createdAt))}</td>
       <td class="nowrap">${esc(tinyDate(quote.expiresAt))}</td>
       <td class="num strong">${esc(money(quoteGrandTotal(quote), 'usd'))}</td>
-      <td><span class="pill ${QUOTE_TONE[status]}">${status === 'void' ? 'Voided' : esc(status[0].toUpperCase() + status.slice(1))}</span></td>
+      <td><span class="pill ${QUOTE_TONE[status]}">${status === 'void' ? 'Voided' : esc(status[0].toUpperCase() + status.slice(1))}</span>${
+        refund === 'none' ? '' : `<span class="pill refund" title="${esc(money(quoteRefunded(quote), 'usd'))} refunded">${
+          refund === 'full' ? 'Refunded' : 'Part refund'}</span>`
+      }</td>
       <td class="qactions">${actions}</td>
     </tr>`;
   }).join('');
@@ -732,7 +753,8 @@ function renderQuotes(quotes, orders, discountRate = 0) {
       below, hand it over, and mark it paid when the money's in. Nothing lands
       in Snipcart, so the printed sheet is the record &mdash; keep a copy. Once
       it's paid it sits in the Ship queue until you mark it handed over, and it
-      shows under All orders.
+      shows under All orders. Hand money back on one? Hit <em>Refund</em> on its
+      row so the revenue numbers stop counting it.
     </p>
 
     ${discountRate ? `<p class="banner">
@@ -900,16 +922,24 @@ function renderOrders(allOrders, rangeLabel, cashJobs = []) {
   const orders = shown.filter((e) => e.order).map((e) => e.order);
   const jobs = shown.filter((e) => e.quote).map((e) => e.quote);
 
+  const jobBucket = (quote) => (quoteRefundState(quote) === 'full' ? 'refunded'
+    : quote.handedOverAt ? 'shipped' : 'open');
+
   const jobRow = (quote) => {
     const done = !!quote.handedOverAt;
-    return `<tr data-bucket="${done ? 'shipped' : 'open'}" data-refund="none">
+    const refund = quoteRefundState(quote);
+    const refundTag = refund === 'none' ? '' :
+      `<span class="pill refund" title="${esc(money(quoteRefunded(quote), 'usd'))} refunded">${
+        refund === 'full' ? 'Refunded' : 'Part refund'
+      }</span>`;
+    return `<tr data-bucket="${jobBucket(quote)}" data-refund="${refund}"${refund === 'full' ? ' hidden' : ''}>
       <td><a class="mono" href="/dashboard/quote-print?id=${esc(quote.id)}"
         target="_blank" rel="noopener noreferrer">${esc(quote.id)}</a></td>
       <td class="nowrap">${esc(shortDate(quote.paidAt))}</td>
       <td>${esc(quote.customer)}</td>
       <td class="num soft">&mdash;</td>
       <td class="num strong">${esc(money(quoteGrandTotal(quote), 'usd'))}</td>
-      <td><span class="pill ${done ? 'good' : 'warn'}">${done ? 'Handed over' : 'To hand over'}</span></td>
+      <td><span class="pill ${done ? 'good' : 'warn'}">${done ? 'Handed over' : 'To hand over'}</span>${refundTag}</td>
       <td class="soft">${quote.paidMethod === 'check' ? 'Check' : 'Cash'} &middot; quote</td>
       <td><span class="soft">&mdash;</span></td>
     </tr>`;
@@ -955,12 +985,15 @@ function renderOrders(allOrders, rangeLabel, cashJobs = []) {
   // Counts come off the same predicates the rows use, so a chip never promises
   // rows the filter won't show.
   const tally = (test) => orders.filter(test).length;
-  const jobsDone = jobs.filter((q) => q.handedOverAt).length;
+  const jobTally = (test) => jobs.filter(test).length;
   const filters = [
-    ['active', 'Active', tally((o) => !isCancelled(o) && refundState(o) !== 'full') + jobs.length],
-    ['open', 'Needs shipping', tally(needsShipping) + jobs.length - jobsDone],
-    ['shipped', 'Shipped', tally((o) => isShipped(o) && !isCancelled(o) && refundState(o) !== 'full') + jobsDone],
-    ['refunded', 'Refunded', tally((o) => refundState(o) !== 'none')],
+    ['active', 'Active', tally((o) => !isCancelled(o) && refundState(o) !== 'full')
+      + jobTally((q) => jobBucket(q) !== 'refunded')],
+    ['open', 'Needs shipping', tally(needsShipping) + jobTally((q) => jobBucket(q) === 'open')],
+    ['shipped', 'Shipped', tally((o) => isShipped(o) && !isCancelled(o) && refundState(o) !== 'full')
+      + jobTally((q) => jobBucket(q) === 'shipped')],
+    ['refunded', 'Refunded', tally((o) => refundState(o) !== 'none')
+      + jobTally((q) => quoteRefundState(q) !== 'none')],
     ['cancelled', 'Cancelled', tally(isCancelled)],
     ['all', 'All', shown.length],
   ];
@@ -1431,6 +1464,29 @@ export const DASHBOARD_SCRIPT = `
         })
         .catch(function(err){
           paidBtn.disabled = false;
+          toast(err.message, true);
+        });
+      return;
+    }
+
+    var refundBtn = event.target.closest('.qrefund');
+    if (refundBtn) {
+      var left = refundBtn.getAttribute('data-left');
+      var typed = window.prompt(
+        'Refund on "' + refundBtn.getAttribute('data-what') + '". How much did you hand back? ' +
+        'This only records it. $' + left + ' is the full amount left.', left);
+      if (typed === null) return;
+      var amount = Number(typed.replace(/[^0-9.]/g, ''));
+      if (!(amount > 0)) { toast('Type a dollar amount.', true); return; }
+
+      refundBtn.disabled = true;
+      post('/dashboard/api/quote/refund', { id: refundBtn.getAttribute('data-id'), amount: amount })
+        .then(function(){
+          toast('Refund recorded.');
+          setTimeout(function(){ location.reload(); }, 900);
+        })
+        .catch(function(err){
+          refundBtn.disabled = false;
           toast(err.message, true);
         });
       return;

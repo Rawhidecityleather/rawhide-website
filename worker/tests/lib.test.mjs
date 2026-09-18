@@ -161,6 +161,24 @@ export default function run() {
   check('the queue and the order list stay Snipcart-only',
     withCash.queue.length === 1 && withCash.inRange.length === 1 && withCash.orders.length === 1);
 
+  suite('dashboard — a refunded cash job');
+
+  const afterRefund = analyze([paidOrder], '30d', {
+    cashJobs: [
+      { ...job('Station 4 straps', 5, 1926), refundedAmount: 126 },
+      { ...job('Cancelled shield', 2, 90), refundedAmount: 90 },
+    ],
+  });
+  check('a part refund comes out of revenue', afterRefund.revenue === 1900);
+  check('a full refund stops counting as a sale', afterRefund.paidCount === 2);
+  check('the tile reports what went back',
+    afterRefund.refunded === 216 && afterRefund.refundedCount === 2);
+  check('top products shows what was kept',
+    afterRefund.products[0].revenue === 1800
+    && !afterRefund.products.some((p) => p.name === 'Cancelled shield'));
+  check('a refund bigger than the job cannot go negative',
+    analyze([], '30d', { cashJobs: [{ ...job('Odd', 1, 50), refundedAmount: 500 }] }).revenue === 0);
+
   const tied = analyze([
     waiting('TODAYS-BAND', 0, band),
     waiting('AGED-STRAP', 21, strap),

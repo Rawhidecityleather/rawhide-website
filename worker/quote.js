@@ -203,6 +203,10 @@ export function buildQuote(input, { now = Date.now(), discountRate = CHECKOUT_DI
     // A cash job has no Snipcart order to flip to Shipped, so this is the stamp
     // that takes it off the ship queue once the work is in the crew's hands.
     handedOverAt: null,
+    // Money handed back on a cash job, running total. Snipcart keeps this for
+    // a card order; nothing else keeps it for cash.
+    refundedAmount: 0,
+    refundedAt: null,
   };
 }
 
@@ -236,6 +240,7 @@ function summarize(quote) {
     paidAt: quote.paidAt,
     paidMethod: quote.paidMethod || null,
     handedOverAt: quote.handedOverAt || null,
+    refundedAmount: quote.refundedAmount || 0,
   };
 }
 
@@ -329,6 +334,31 @@ export async function markQuoteHandedOver(env, id, { now = Date.now() } = {}) {
   return putQuote(env, quote);
 }
 
+/**
+ * Money handed back on a paid cash job. Adds to a running total, so knocking
+ * $50 off today and refunding the rest next week is two calls. A card quote is
+ * refused — that refund happens in Snipcart, where the card is.
+ */
+export async function refundCashQuote(env, id, amount, { now = Date.now() } = {}) {
+  const quote = await getQuote(env, id);
+  if (!quote) return null;
+  if (quotePayment(quote) !== 'cash') {
+    throw new QuoteError('That quote was paid by card — refund its order in Snipcart.');
+  }
+  if (!quote.paidAt) throw new QuoteError('That quote has not been paid, so there is nothing to refund.');
+
+  const value = round2(Number(amount));
+  if (!(value > 0)) throw new QuoteError('Enter the amount you handed back.');
+
+  const left = round2(quoteGrandTotal(quote) - quoteRefunded(quote));
+  if (left <= 0) throw new QuoteError('That job is already fully refunded.');
+  if (value > left) throw new QuoteError(`Only $${left.toFixed(2)} of that job is left to refund.`);
+
+  quote.refundedAmount = round2(quoteRefunded(quote) + value);
+  quote.refundedAt = new Date(now).toISOString();
+  return putQuote(env, quote);
+}
+
 export function isQuoteId(id) {
   return typeof id === 'string' && /^[a-z0-9]{10,32}$/.test(id);
 }
@@ -370,6 +400,18 @@ export function quoteGrandTotal(quote) {
  */
 export function isPaidCashJob(summary) {
   return quotePayment(summary) === 'cash' && !!summary?.paidAt && !summary.voidedAt;
+}
+
+/** What's been handed back, never more than was collected. */
+export function quoteRefunded(quote) {
+  return Math.min(Math.max(Number(quote?.refundedAmount) || 0, 0), quoteGrandTotal(quote));
+}
+
+/** 'none', 'partial' or 'full' — the same three words refundState uses for an order. */
+export function quoteRefundState(quote) {
+  const refunded = quoteRefunded(quote);
+  if (refunded <= 0) return 'none';
+  return refunded >= quoteGrandTotal(quote) ? 'full' : 'partial';
 }
 
 export function findQuoteOrder(itemId, orders = []) {

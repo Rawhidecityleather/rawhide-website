@@ -299,6 +299,59 @@ export default async function run() {
   check('and so does a card quote',
     env.QUOTES._store.get('quote:' + cardJob.id).expiration > Date.now() / 1000);
 
+  suite('worker — refunding a cash job');
+
+  const refund = (id, amount, headers = DASH) =>
+    post('/dashboard/api/quote/refund', { id, amount }, headers);
+
+  check('a refund demands a login', (await refund(cash.id, 100, {})).status === 401);
+  check('and the dashboard header', (await refund(cash.id, 100, { Authorization: AUTH })).status === 403);
+  check('an unpaid job has nothing to refund', (await refund(owed.id, 50)).status === 409);
+  check('a card quote refunds in Snipcart, not here', (await refund(cardJob.id, 50)).status === 409);
+  check('an unknown quote is a 404', (await refund('zzzzzzzzzzzz', 50)).status === 404);
+  check('zero is refused', (await refund(cash.id, 0)).status === 409);
+  check('so is a word', (await refund(cash.id, 'lots')).status === 409);
+  check('so is more than was collected', (await refund(cash.id, 1926.01)).status === 409);
+
+  const part = await refund(cash.id, 126);
+  check('a part refund lands', part.status === 200 && (await part.json()).refundedAmount === 126);
+
+  boardHtml = await board();
+  check('the order list tags it', section(boardHtml, 'orders').includes('Part refund'));
+  check('so does the quotes table', section(boardHtml, 'quotes').includes('Part refund'));
+  check('and the button offers what is left',
+    section(boardHtml, 'quotes').includes('data-left="1800.00"'));
+  check('an unpaid job gets no refund button',
+    !section(boardHtml, 'quotes').split(owed.id)[1].split('</tr>')[0].includes('qrefund'));
+
+  const partSheet = await (await get('/dashboard/quote-print?id=' + cash.id, { Authorization: AUTH })).text();
+  check('the receipt shows the refund', partSheet.includes('Refunded $126.00') && partSheet.includes('$1,800.00 kept'));
+
+  // A second job, still on the bench, refunded in full.
+  const dud = await (await post('/dashboard/api/quote', {
+    title: 'Cancelled shield', customer: 'Eng. Holt', payment: 'cash',
+    lines: [{ description: 'Shield', quantity: 1, unitPrice: 90 }],
+  }, DASH)).json();
+  await post('/dashboard/api/quote/paid', { id: dud.id }, DASH);
+  check('it is on the queue once paid', section(await board(), 'queue').includes(dud.id));
+
+  check('refunds add up', (await refund(dud.id, 40)).status === 200
+    && (await (await refund(dud.id, 50)).json()).refundedAmount === 90);
+  check('past the total is refused', (await refund(dud.id, 1)).status === 409);
+
+  boardHtml = await board();
+  check('a full refund takes it off the ship queue', !section(boardHtml, 'queue').includes(dud.id));
+  check('and files it under Refunded, hidden like a refunded order',
+    new RegExp('<tr data-bucket="refunded" data-refund="full" hidden>\\s*<td><a[^>]*' + dud.id)
+      .test(section(boardHtml, 'orders')));
+  check('its button is gone',
+    !section(boardHtml, 'quotes').split(dud.id)[1].split('</tr>')[0].includes('qrefund'));
+  check('the record is still kept for good',
+    env.QUOTES._store.get('quote:' + dud.id).expiration === null);
+  check('metadata is still under the cap with a refund on it',
+    (await env.QUOTES.list({ prefix: 'quote:' })).keys
+      .every((k) => JSON.stringify(k.metadata).length < 1024));
+
   let scriptOk = true;
   try { new Function(DASHBOARD_SCRIPT); } catch (err) { scriptOk = err.message; }
   check('the dashboard script still parses', scriptOk === true, String(scriptOk));

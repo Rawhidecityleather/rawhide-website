@@ -431,6 +431,16 @@ its grand total. It's in the revenue tiles, the order count, the monthly chart
 and Top products (under the quote's title). Because that KV record is the only
 book of record for the money, a paid cash quote is stored with no expiry.
 
+**Refunding a cash job.** Hand the money back yourself, then hit **Refund** on
+the job's row in the Quotes table and type what you gave back — all of it, or
+part. Nothing moves money; this only writes it down. The amount comes out of
+the revenue figures and shows in the "refunded" note on the Net revenue tile,
+the row gets a **Refunded** or **Part refund** tag, and the receipt reprints
+with the refund on it. Refund a job in full and it drops off the ship queue and
+out of the order count, the same as a fully refunded Snipcart order. Amounts
+add up, so two part refunds are two clicks. There is no undo, so check the
+number before you hit OK. A card quote refunds in Snipcart, not here.
+
 ## Custom stamp artwork
 
 The fully custom radio strap sells custom stamps as a paid option — one for $15,

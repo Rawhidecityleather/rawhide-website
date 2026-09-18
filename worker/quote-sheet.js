@@ -11,7 +11,9 @@
  */
 
 import { esc, money, shortDate } from './lib.js';
-import { quotePayment, quoteGrandTotal, FREE_SHIPPING_OVER } from './quote.js';
+import {
+  quotePayment, quoteGrandTotal, quoteRefunded, quoteRefundState, FREE_SHIPPING_OVER,
+} from './quote.js';
 
 const SHOP_EMAIL = 'rawhidecityleather@gmail.com';
 const SHOP_SITE = 'rawhidecityleather.com';
@@ -165,12 +167,17 @@ function renderPayment(quote, { cash, paid, grandTotal, origin }) {
     const how = quote.paidMethod === 'check' ? 'by check'
       : quote.paidMethod === 'cash' ? 'in cash'
       : 'by card';
+    const refund = quoteRefundState(quote);
     return `<section class="qs-pay paid">
-      <p class="qs-pay-head">Paid in full</p>
+      <p class="qs-pay-head">${refund === 'full' ? 'Refunded in full' : 'Paid in full'}</p>
       <p class="qs-amount">${esc(money(grandTotal, 'usd'))}</p>
       <p class="soft">Received ${esc(how)} on ${esc(shortDate(quote.paidAt))}${
         quote.paidOrder ? ` &middot; order ${esc(quote.paidOrder)}` : ''
       }.</p>
+      ${refund === 'none' ? '' : `<p class="soft">Refunded ${esc(money(quoteRefunded(quote), 'usd'))}${
+        quote.refundedAt ? ` as of ${esc(shortDate(quote.refundedAt))}` : ''
+      }${refund === 'partial'
+        ? ` &middot; ${esc(money(grandTotal - quoteRefunded(quote), 'usd'))} kept` : ''}.</p>`}
     </section>`;
   }
 
