@@ -577,6 +577,10 @@ function renderQueue(queue, cashJobs = []) {
         <button type="button" class="btn tiny ghost qrefund"
           data-id="${esc(quote.id)}" data-what="${esc(quote.title)}"
           data-left="${(quoteGrandTotal(quote) - quoteRefunded(quote)).toFixed(2)}">Refund</button>
+        ${quoteRefundState(quote) === 'partial'
+          ? `<button type="button" class="btn tiny ghost qunrefund"
+               data-id="${esc(quote.id)}" data-what="${esc(quote.title)}">Undo refund</button>`
+          : ''}
       </td>
     </tr>`).join('');
 
