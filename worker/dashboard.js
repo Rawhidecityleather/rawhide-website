@@ -564,12 +564,19 @@ function renderQueue(queue, cashJobs = []) {
         quote.department ? `<span class="soft block">${esc(quote.department)}</span>` : ''
       }</td>
       <td class="c-items items">${esc(quote.title)}
-        <span class="pill cash">${quote.paidMethod === 'check' ? 'Check' : 'Cash'}</span></td>
+        <span class="pill cash">${quote.paidMethod === 'check' ? 'Check' : 'Cash'}</span>${
+          quoteRefundState(quote) === 'partial'
+            ? `<span class="pill refund" title="${esc(money(quoteRefunded(quote), 'usd'))} refunded">Part refund</span>`
+            : ''
+        }</td>
       <td class="c-weight num soft nowrap" data-label="Weight">&mdash;</td>
       <td class="c-total num strong" data-label="Total">${esc(money(quoteGrandTotal(quote), 'usd'))}</td>
       <td class="shipcell">
         <button type="button" class="btn tiny qhanded"
           data-id="${esc(quote.id)}" data-what="${esc(quote.title)}">Mark handed over</button>
+        <button type="button" class="btn tiny ghost qrefund"
+          data-id="${esc(quote.id)}" data-what="${esc(quote.title)}"
+          data-left="${(quoteGrandTotal(quote) - quoteRefunded(quote)).toFixed(2)}">Refund</button>
       </td>
     </tr>`).join('');
 

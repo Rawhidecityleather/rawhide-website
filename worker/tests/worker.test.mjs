@@ -336,7 +336,17 @@ export default async function run() {
     lines: [{ description: 'Shield', quantity: 1, unitPrice: 90 }],
   }, DASH)).json();
   await post('/dashboard/api/quote/paid', { id: dud.id }, DASH);
+  const queueRow = (html, id) =>
+    section(html, 'queue').split(`data-quote="${id}"`)[1].split('</tr>')[0];
   check('it is on the queue once paid', section(await board(), 'queue').includes(dud.id));
+  check('with a refund button on the row, offering the full amount',
+    queueRow(await board(), dud.id).includes('qrefund')
+    && queueRow(await board(), dud.id).includes('data-left="90.00"'));
+
+  check('a part refund shows on the queue row', (await refund(dud.id, 10)).status === 200
+    && queueRow(await board(), dud.id).includes('Part refund')
+    && queueRow(await board(), dud.id).includes('data-left="80.00"'));
+  await post('/dashboard/api/quote/refund-undo', { id: dud.id }, DASH);
 
   check('refunds add up', (await refund(dud.id, 40)).status === 200
     && (await (await refund(dud.id, 50)).json()).refundedAmount === 90);
