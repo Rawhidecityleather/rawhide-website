@@ -713,6 +713,9 @@ function renderQuotes(quotes, orders, discountRate = 0) {
           ? `<button type="button" class="btn tiny ghost qrefund"
                data-id="${esc(quote.id)}" data-what="${esc(quote.title)}"
                data-left="${(quoteGrandTotal(quote) - quoteRefunded(quote)).toFixed(2)}">Refund</button>`
+          : ''}${cash && quoteRefundState(quote) !== 'none'
+          ? `<button type="button" class="btn tiny ghost qunrefund"
+               data-id="${esc(quote.id)}" data-what="${esc(quote.title)}">Undo refund</button>`
           : ''}`;
 
     const refund = cash ? quoteRefundState(quote) : 'none';
@@ -754,7 +757,8 @@ function renderQuotes(quotes, orders, discountRate = 0) {
       in Snipcart, so the printed sheet is the record &mdash; keep a copy. Once
       it's paid it sits in the Ship queue until you mark it handed over, and it
       shows under All orders. Hand money back on one? Hit <em>Refund</em> on its
-      row so the revenue numbers stop counting it.
+      row so the revenue numbers stop counting it. Typed it wrong? <em>Undo
+      refund</em> takes back the last one.
     </p>
 
     ${discountRate ? `<p class="banner">
@@ -1487,6 +1491,24 @@ export const DASHBOARD_SCRIPT = `
         })
         .catch(function(err){
           refundBtn.disabled = false;
+          toast(err.message, true);
+        });
+      return;
+    }
+
+    var unrefundBtn = event.target.closest('.qunrefund');
+    if (unrefundBtn) {
+      if (!confirm('Undo the last refund on "' + unrefundBtn.getAttribute('data-what') + '"? The money goes back into your revenue numbers.')) return;
+
+      unrefundBtn.disabled = true;
+      post('/dashboard/api/quote/refund-undo', { id: unrefundBtn.getAttribute('data-id') })
+        .then(function(data){
+          toast('Took back the ' + money(data.undone) + ' refund.' +
+            (data.refundedAmount ? ' ' + money(data.refundedAmount) + ' is still refunded.' : ''));
+          setTimeout(function(){ location.reload(); }, 1400);
+        })
+        .catch(function(err){
+          unrefundBtn.disabled = false;
           toast(err.message, true);
         });
       return;

@@ -207,6 +207,9 @@ export function buildQuote(input, { now = Date.now(), discountRate = CHECKOUT_DI
     // a card order; nothing else keeps it for cash.
     refundedAmount: 0,
     refundedAt: null,
+    // One entry per refund, oldest first, so a fat-fingered one can be taken
+    // back without losing the ones before it.
+    refunds: [],
   };
 }
 
@@ -354,9 +357,40 @@ export async function refundCashQuote(env, id, amount, { now = Date.now() } = {}
   if (left <= 0) throw new QuoteError('That job is already fully refunded.');
   if (value > left) throw new QuoteError(`Only $${left.toFixed(2)} of that job is left to refund.`);
 
+  quote.refunds = [...refundLog(quote), { amount: value, at: new Date(now).toISOString() }];
   quote.refundedAmount = round2(quoteRefunded(quote) + value);
   quote.refundedAt = new Date(now).toISOString();
   return putQuote(env, quote);
+}
+
+/**
+ * The refunds on a quote, oldest first. A refund written before the log
+ * existed is only a total, so it reads back as the one entry it was.
+ */
+function refundLog(quote) {
+  if (Array.isArray(quote.refunds) && quote.refunds.length) return quote.refunds;
+  const total = quoteRefunded(quote);
+  return total > 0 ? [{ amount: total, at: quote.refundedAt || null }] : [];
+}
+
+/**
+ * Takes back the most recent refund — the typo, or the customer who changed
+ * their mind again. Returns the quote and what came off, or null for no quote.
+ */
+export async function undoCashRefund(env, id) {
+  const quote = await getQuote(env, id);
+  if (!quote) return null;
+
+  const log = refundLog(quote);
+  if (!log.length) throw new QuoteError('There is no refund on that job to undo.');
+
+  const undone = log[log.length - 1];
+  const kept = log.slice(0, -1);
+  quote.refunds = kept;
+  quote.refundedAmount = round2(kept.reduce((sum, r) => sum + (Number(r.amount) || 0), 0));
+  quote.refundedAt = kept.length ? kept[kept.length - 1].at : null;
+  await putQuote(env, quote);
+  return { quote, undone: Number(undone.amount) || 0 };
 }
 
 export function isQuoteId(id) {

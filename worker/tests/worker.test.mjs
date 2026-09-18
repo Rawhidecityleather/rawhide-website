@@ -250,6 +250,9 @@ export default async function run() {
   const board = () => listQuotes(env).then((quotes) =>
     renderDashboard(analyze([], '30d'), { quotes }));
   const section = (html, id) => html.split(`<section id="${id}"`)[1].split('</section>')[0];
+  // The whole row in the Quotes table, buttons and all.
+  const quoteRow = (html, id) =>
+    section(html, 'quotes').split(`data-quote="${id}"`)[1].split('</tr>')[0];
 
   let boardHtml = await board();
   check('the paid cash job is in the ship queue', section(boardHtml, 'queue').includes(cash.id));
@@ -322,7 +325,7 @@ export default async function run() {
   check('and the button offers what is left',
     section(boardHtml, 'quotes').includes('data-left="1800.00"'));
   check('an unpaid job gets no refund button',
-    !section(boardHtml, 'quotes').split(owed.id)[1].split('</tr>')[0].includes('qrefund'));
+    !quoteRow(boardHtml, owed.id).includes('qrefund'));
 
   const partSheet = await (await get('/dashboard/quote-print?id=' + cash.id, { Authorization: AUTH })).text();
   check('the receipt shows the refund', partSheet.includes('Refunded $126.00') && partSheet.includes('$1,800.00 kept'));
@@ -345,12 +348,49 @@ export default async function run() {
     new RegExp('<tr data-bucket="refunded" data-refund="full" hidden>\\s*<td><a[^>]*' + dud.id)
       .test(section(boardHtml, 'orders')));
   check('its button is gone',
-    !section(boardHtml, 'quotes').split(dud.id)[1].split('</tr>')[0].includes('qrefund'));
+    !quoteRow(boardHtml, dud.id).includes('qrefund'));
   check('the record is still kept for good',
     env.QUOTES._store.get('quote:' + dud.id).expiration === null);
   check('metadata is still under the cap with a refund on it',
     (await env.QUOTES.list({ prefix: 'quote:' })).keys
       .every((k) => JSON.stringify(k.metadata).length < 1024));
+
+  suite('worker — undoing a refund');
+
+  const undo = (id, headers = DASH) => post('/dashboard/api/quote/refund-undo', { id }, headers);
+
+  check('an undo demands a login', (await undo(dud.id, {})).status === 401);
+  check('and the dashboard header', (await undo(dud.id, { Authorization: AUTH })).status === 403);
+  check('nothing to undo is refused', (await undo(owed.id)).status === 409);
+  check('an unknown quote is a 404', (await undo('zzzzzzzzzzzz')).status === 404);
+  check('a refunded row offers the undo',
+    quoteRow(boardHtml, dud.id).includes('qunrefund'));
+  check('a clean row does not',
+    !quoteRow(boardHtml, owed.id).includes('qunrefund'));
+
+  // dud was refunded $40 then $50. Only the $50 comes off.
+  const firstUndo = await (await undo(dud.id)).json();
+  check('only the last refund comes off', firstUndo.undone === 50 && firstUndo.refundedAmount === 40);
+
+  boardHtml = await board();
+  check('no longer fully refunded, it is back on the ship queue',
+    section(boardHtml, 'queue').includes(dud.id));
+  check('and can be refunded again',
+    quoteRow(boardHtml, dud.id).includes('data-left="50.00"'));
+
+  const secondUndo = await (await undo(dud.id)).json();
+  check('a second undo clears the one before', secondUndo.undone === 40 && secondUndo.refundedAmount === 0);
+  check('a third has nothing left', (await undo(dud.id)).status === 409);
+  check('the tag is gone',
+    !quoteRow(await board(), dud.id).includes('pill refund'));
+
+  // A refund written before the log existed is only a total on the record.
+  const legacy = JSON.parse(await env.QUOTES.get('quote:' + cash.id));
+  delete legacy.refunds;
+  env.QUOTES._store.get('quote:' + cash.id).value = JSON.stringify(legacy);
+  const legacyUndo = await (await undo(cash.id)).json();
+  check('a refund from before the log still undoes, in one go',
+    legacyUndo.undone === 126 && legacyUndo.refundedAmount === 0);
 
   let scriptOk = true;
   try { new Function(DASHBOARD_SCRIPT); } catch (err) { scriptOk = err.message; }

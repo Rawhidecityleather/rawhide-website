@@ -438,8 +438,13 @@ the revenue figures and shows in the "refunded" note on the Net revenue tile,
 the row gets a **Refunded** or **Part refund** tag, and the receipt reprints
 with the refund on it. Refund a job in full and it drops off the ship queue and
 out of the order count, the same as a fully refunded Snipcart order. Amounts
-add up, so two part refunds are two clicks. There is no undo, so check the
-number before you hit OK. A card quote refunds in Snipcart, not here.
+add up, so two part refunds are two clicks. A card quote refunds in Snipcart,
+not here.
+
+Typed the wrong number? **Undo refund** on the same row takes back the last
+refund recorded — only the last one, so a job with two part refunds takes two
+clicks to clear — and the money goes back into the figures. A job that was
+refunded in full goes back on the ship queue if it hadn't been handed over.
 
 ## Custom stamp artwork
 
