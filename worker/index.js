@@ -15,6 +15,7 @@
  *   POST /dashboard/api/quote        build a custom-job quote, get a link
  *   POST /dashboard/api/quote/void   kill a quote link
  *   POST /dashboard/api/quote/paid   stamp a cash quote collected
+ *   POST /dashboard/api/quote/handed-over   take a paid cash job off the queue
  *   GET  /dashboard/quote-print?id=… printable quote / cash invoice
  *   POST /dashboard/api/promo        save the sale banner, push the rule to Snipcart
  *   GET  /api/promo                  PUBLIC. The live sale, for the cart script.
@@ -86,7 +87,7 @@ import { handleInquiry } from './inquiry.js';
 import {
   buildQuote, putQuote, getQuote, listQuotes, voidQuote, markQuotePaid,
   renderQuotePage, quoteStatus, isQuoteId, QuoteError, QUOTE_ITEM_PREFIX,
-  markQuoteCashPaid,
+  markQuoteCashPaid, markQuoteHandedOver,
 } from './quote.js';
 import { storeUpload, handleReceiptFetch, deleteReceipt } from './receipts.js';
 import {
@@ -424,6 +425,7 @@ async function route(path, request, env, url) {
     if (path === '/dashboard/api/quote') return await handleQuoteCreate(request, env);
     if (path === '/dashboard/api/quote/void') return await handleQuoteVoid(request, env);
     if (path === '/dashboard/api/quote/paid') return await handleQuoteCashPaid(request, env);
+    if (path === '/dashboard/api/quote/handed-over') return await handleQuoteHandedOver(request, env);
     if (path === '/dashboard/quote-print') return await handleQuotePrint(env, url);
     if (path === '/dashboard/api/promo') return await handlePromoSave(request, env);
     if (path === '/dashboard/products') return await handleProductsPage(request, env, url);
@@ -841,6 +843,29 @@ async function handleQuoteCashPaid(request, env) {
     const quote = await markQuoteCashPaid(env, id, { method: body.method });
     if (!quote) return json({ error: 'No quote with that id.' }, 404);
     return json({ ok: true, id, paidAt: quote.paidAt, paidMethod: quote.paidMethod });
+  } catch (err) {
+    if (err instanceof QuoteError) return json({ error: err.message }, 409);
+    throw err;
+  }
+}
+
+/**
+ * A paid cash job is out the door. It has no Snipcart order to mark Shipped,
+ * so this stamp is what clears it from the ship queue.
+ */
+async function handleQuoteHandedOver(request, env) {
+  if (!fromDashboard(request)) return json({ error: 'Bad request.' }, 403);
+  const missing = guardQuotes(env);
+  if (missing) return missing;
+
+  const body = await request.json().catch(() => ({}));
+  const id = String(body.id || '');
+  if (!isQuoteId(id)) return json({ error: 'Bad quote id.' }, 400);
+
+  try {
+    const quote = await markQuoteHandedOver(env, id);
+    if (!quote) return json({ error: 'No quote with that id.' }, 404);
+    return json({ ok: true, id, handedOverAt: quote.handedOverAt });
   } catch (err) {
     if (err instanceof QuoteError) return json({ error: err.message }, 409);
     throw err;

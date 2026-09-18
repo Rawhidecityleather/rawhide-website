@@ -419,6 +419,14 @@ Because a cash job has no order behind it, **Mark paid** is the only thing that
 closes it out. Leave it and the quote sits open until it expires on work that
 was paid for weeks ago.
 
+Once it's marked paid the job shows up at the bottom of the **Ship queue** and
+under **All orders**, next to the Snipcart orders, so paid work can't hide in
+the Quotes table. It has no address and no tracking number, so its button is
+**Mark handed over** — that takes it off the queue and flips it to done in the
+order list. A card quote needs none of this: it's already in both as its order.
+Cash jobs are still not in the revenue tiles or the chart; those count Snipcart
+money only.
+
 ## Custom stamp artwork
 
 The fully custom radio strap sells custom stamps as a paid option — one for $15,

@@ -10,7 +10,8 @@
 
 import { suite, check } from './harness.mjs';
 import worker from '../index.js';
-import { CHECKOUT_DISCOUNT } from '../quote.js';
+import { CHECKOUT_DISCOUNT, listQuotes } from '../quote.js';
+import { analyze, renderDashboard, DASHBOARD_SCRIPT } from '../dashboard.js';
 
 /** get/put/list with metadata — the three things quote.js actually uses. */
 function makeKV() {
@@ -237,6 +238,61 @@ export default async function run() {
   }, DASH)).json();
   check('a card quote cannot be stamped by hand',
     (await post('/dashboard/api/quote/paid', { id: cardJob.id }, DASH)).status === 409);
+
+  suite('worker — a paid cash job in the ship queue and the order list');
+
+  // Still unpaid at this point: a cash job on the card-job's side of the line.
+  const owed = await (await post('/dashboard/api/quote', {
+    title: 'Retirement axe plaque', customer: 'Chief Alvarez', payment: 'cash',
+    lines: [{ description: 'Plaque', quantity: 1, unitPrice: 240 }],
+  }, DASH)).json();
+
+  const board = () => listQuotes(env).then((quotes) =>
+    renderDashboard(analyze([], '30d'), { quotes }));
+  const section = (html, id) => html.split(`<section id="${id}"`)[1].split('</section>')[0];
+
+  let boardHtml = await board();
+  check('the paid cash job is in the ship queue', section(boardHtml, 'queue').includes(cash.id));
+  check('with a button to clear it', section(boardHtml, 'queue').includes('qhanded'));
+  check('and no Pirate Ship bar when there is nothing to label',
+    !section(boardHtml, 'queue').includes('csvbtn'));
+  check('it is in the order list as open',
+    section(boardHtml, 'orders').includes(cash.id)
+    && section(boardHtml, 'orders').includes('data-bucket="open"'));
+  check('the rail badge counts it', /Ship queue<span class="railbadge">1</.test(boardHtml));
+  check('an unpaid cash job is in neither',
+    !section(boardHtml, 'queue').includes(owed.id) && !section(boardHtml, 'orders').includes(owed.id));
+  check('a card quote is not doubled up — its order is already there',
+    !section(boardHtml, 'queue').includes(cardJob.id));
+
+  check('handing over demands a login',
+    (await post('/dashboard/api/quote/handed-over', { id: cash.id })).status === 401);
+  check('and the dashboard header',
+    (await post('/dashboard/api/quote/handed-over', { id: cash.id }, { Authorization: AUTH })).status === 403);
+  check('an unpaid job cannot be handed over',
+    (await post('/dashboard/api/quote/handed-over', { id: owed.id }, DASH)).status === 409);
+  check('nor a card quote',
+    (await post('/dashboard/api/quote/handed-over', { id: cardJob.id }, DASH)).status === 409);
+  check('an unknown quote is a 404',
+    (await post('/dashboard/api/quote/handed-over', { id: 'zzzzzzzzzzzz' }, DASH)).status === 404);
+
+  const handed = await post('/dashboard/api/quote/handed-over', { id: cash.id }, DASH);
+  check('the hand-over lands', handed.status === 200 && !!(await handed.json()).handedOverAt);
+  check('twice is refused',
+    (await post('/dashboard/api/quote/handed-over', { id: cash.id }, DASH)).status === 409);
+
+  boardHtml = await board();
+  check('it leaves the ship queue', !section(boardHtml, 'queue').includes(cash.id));
+  check('and stays in the order list, as done',
+    section(boardHtml, 'orders').includes(cash.id)
+    && section(boardHtml, 'orders').includes('data-bucket="shipped"'));
+  check('metadata is still under KV\'s 1 KB cap',
+    (await env.QUOTES.list({ prefix: 'quote:' })).keys
+      .every((k) => JSON.stringify(k.metadata).length < 1024));
+
+  let scriptOk = true;
+  try { new Function(DASHBOARD_SCRIPT); } catch (err) { scriptOk = err.message; }
+  check('the dashboard script still parses', scriptOk === true, String(scriptOk));
 
   suite('worker — security headers');
 

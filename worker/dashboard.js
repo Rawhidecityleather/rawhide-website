@@ -23,6 +23,7 @@ import {
 } from './pirateship.js';
 import {
   quoteStatus, quoteWarnings, findQuoteOrder, quotePayment, quoteGrandTotal,
+  isPaidCashJob,
 } from './quote.js';
 import { renderPromoCard, isLive, quoteDiscountRate } from './promo.js';
 import { renderRecoveryCard } from './recovery-card.js';
@@ -190,9 +191,21 @@ export function renderDashboard(stats, {
 } = {}) {
   const rangeLabel = rangeInfo(stats.rangeKey).label;
 
+  // A card quote is already in the queue and the order list as its Snipcart
+  // order. A cash job never reaches Snipcart, so it gets put there by hand.
+  const cashJobs = quotes.filter(isPaidCashJob);
+  // Same order as the rest of the queue: longest-waiting first.
+  const cashWaiting = cashJobs.filter((q) => !q.handedOverAt)
+    .sort((a, b) => String(a.paidAt).localeCompare(String(b.paidAt)));
+  const { start, end } = rangeBounds(stats.rangeKey);
+  const cashInRange = cashJobs.filter((q) => {
+    const t = Date.parse(q.paidAt) || 0;
+    return t >= start && t <= end;
+  });
+
   return `<div class="shell">
   ${renderRail({
-    queueCount: stats.queue.length,
+    queueCount: stats.queue.length + cashWaiting.length,
     openQuotes: quotes.filter((q) => quoteStatus(q, stats.orders) === 'open').length,
     toCheck,
     saleLive: isLive(promo),
@@ -203,18 +216,18 @@ export function renderDashboard(stats, {
     ${renderTopbar(stats, rangeLabel)}
     <div class="pad">
       ${truncated ? banner('Showing the most recent 2,000 orders. Lifetime totals above that are not counted.') : ''}
-      ${renderKpis(stats, rangeLabel)}
+      ${renderKpis(stats, rangeLabel, cashWaiting.length)}
       <div class="split">
         ${renderChart(stats.months)}
         ${renderProducts(stats.products, rangeLabel)}
       </div>
-      ${renderQueue(stats.queue)}
+      ${renderQueue(stats.queue, cashWaiting)}
       ${renderTrackingPanel()}
       ${renderQuotes(quotes, stats.orders, quoteDiscountRate(promo))}
       ${renderPromoCard(promo, { ready: promoReady, rule: snipcartRule, extra: saleProducts })}
       ${recovery ? renderRecoveryCard(recovery) : ''}
       ${renderCouponCard(coupons, { ready: couponsReady })}
-      ${renderOrders(stats.inRange, rangeLabel)}
+      ${renderOrders(stats.inRange, rangeLabel, cashInRange)}
     </div>
   </main>
 </div>
@@ -287,7 +300,7 @@ function clockTime() {
   });
 }
 
-function renderKpis(stats, rangeLabel) {
+function renderKpis(stats, rangeLabel, cashWaiting = 0) {
   const compare = rangeInfo(stats.rangeKey).compare;
   const revenueDelta = delta(stats.revenue, stats.prevRevenue);
   const countDelta = delta(stats.paidCount, stats.prevCount);
@@ -320,11 +333,12 @@ function renderKpis(stats, rangeLabel) {
       label: 'Awaiting shipment',
       // Amber is for something actually going wrong. A full queue on schedule
       // is just work; a queue with a missed date is the thing to look at.
-      note: !stats.queue.length ? 'nothing waiting'
+      note: !stats.queue.length
+        ? (cashWaiting ? `cash job${cashWaiting === 1 ? '' : 's'} to hand over` : 'nothing waiting')
         : stats.overdue ? `${stats.overdue} past due`
         : stats.nextDue ? `next due ${tinyDate(stats.nextDue)}`
         : 'no dates on file',
-      value: String(stats.queue.length),
+      value: String(stats.queue.length + cashWaiting),
       flag: stats.overdue > 0,
     },
     {
@@ -459,8 +473,8 @@ function attr(value) {
   return esc(value).replace(/\r?\n/g, '&#10;');
 }
 
-function renderQueue(queue) {
-  if (!queue.length) {
+function renderQueue(queue, cashJobs = []) {
+  if (!queue.length && !cashJobs.length) {
     return `<section id="queue" class="card">
       <div class="cardhead"><h2>Ship queue</h2></div>
       <p class="empty">Nothing waiting. Every paid order is out the door.</p>
@@ -498,14 +512,40 @@ function renderQueue(queue) {
     </tr>`;
   }).join('');
 
+  // Paid cash jobs ride at the bottom. There's no address to label and no
+  // catalog lead time to date them by, so the row is just the reminder that
+  // the work is owed, and the button that clears it.
+  const jobRows = cashJobs.map((quote) => `<tr class="cashjob" data-quote="${esc(quote.id)}">
+      <td class="pick"></td>
+      <td class="c-order"><a class="mono" href="/dashboard/quote-print?id=${esc(quote.id)}"
+        target="_blank" rel="noopener noreferrer">${esc(quote.id)}</a></td>
+      <td class="c-placed nowrap">paid ${esc(tinyDate(quote.paidAt))}</td>
+      <td class="c-due nowrap" data-label="Ship by"><span class="soft">&mdash;</span></td>
+      <td class="c-cust">${esc(quote.customer)}${
+        quote.department ? `<span class="soft block">${esc(quote.department)}</span>` : ''
+      }</td>
+      <td class="c-items items">${esc(quote.title)}
+        <span class="pill cash">${quote.paidMethod === 'check' ? 'Check' : 'Cash'}</span></td>
+      <td class="c-weight num soft nowrap" data-label="Weight">&mdash;</td>
+      <td class="c-total num strong" data-label="Total">${esc(money(quoteGrandTotal(quote), 'usd'))}</td>
+      <td class="shipcell">
+        <button type="button" class="btn tiny qhanded"
+          data-id="${esc(quote.id)}" data-what="${esc(quote.title)}">Mark handed over</button>
+      </td>
+    </tr>`).join('');
+
+  const waiting = [
+    queue.length ? `${queue.length} paid order${queue.length === 1 ? '' : 's'} waiting` : '',
+    cashJobs.length ? `${cashJobs.length} cash job${cashJobs.length === 1 ? '' : 's'} to hand over` : '',
+  ].filter(Boolean).join(' &middot; ');
+
   return `<section id="queue" class="card">
     <div class="cardhead">
       <h2>Ship queue</h2>
-      <span class="cardnote">${queue.length} paid order${queue.length === 1 ? '' : 's'} waiting
-        &middot; soonest deadline first</span>
+      <span class="cardnote">${waiting}${queue.length ? ' &middot; soonest deadline first' : ''}</span>
     </div>
 
-    <div class="bulkbar">
+    ${queue.length ? `<div class="bulkbar">
       <label class="allbox"><input type="checkbox" id="selall"> Select all</label>
       <span class="selcount" id="selcount">0 selected</span>
       <span class="spacer"></span>
@@ -522,7 +562,7 @@ function renderQueue(queue) {
       Pirate Ship's spreadsheet screen. Map the columns once, on the first upload.
       <br>
       Weights are estimates &mdash; check them against a scale.
-    </p>
+    </p>` : ''}
 
     <div class="scroll">
       <table class="grid">
@@ -530,7 +570,7 @@ function renderQueue(queue) {
           <th class="pick"></th><th>Order</th><th>Placed</th><th>Ship by</th><th>Customer</th>
           <th>Items</th><th class="num">Weight</th><th class="num">Total</th><th>Tracking</th>
         </tr></thead>
-        <tbody>${rows}</tbody>
+        <tbody>${rows}${jobRows}</tbody>
       </table>
     </div>
   </section>`;
@@ -661,7 +701,9 @@ function renderQuotes(quotes, orders, discountRate = 0) {
     <p class="hint">
       Set it to cash and there's no checkout: print the invoice off the row
       below, hand it over, and mark it paid when the money's in. Nothing lands
-      in Snipcart, so the printed sheet is the record &mdash; keep a copy.
+      in Snipcart, so the printed sheet is the record &mdash; keep a copy. Once
+      it's paid it sits in the Ship queue until you mark it handed over, and it
+      shows under All orders.
     </p>
 
     ${discountRate ? `<p class="banner">
@@ -810,18 +852,41 @@ function statusPill(order) {
 /** Past this many rows the table is scroll fodder, not information. */
 const ORDER_ROW_CAP = 400;
 
-function renderOrders(allOrders, rangeLabel) {
-  if (!allOrders.length) {
+function renderOrders(allOrders, rangeLabel, cashJobs = []) {
+  if (!allOrders.length && !cashJobs.length) {
     return `<section id="orders" class="card">
       <div class="cardhead"><h2>All orders</h2></div>
       <p class="empty">No orders in this window.</p>
     </section>`;
   }
 
-  const orders = allOrders.slice(0, ORDER_ROW_CAP);
-  const hidden = allOrders.length - orders.length;
+  // Paid cash jobs slot in by the day the money came in, so the list still
+  // reads newest first with no second table to check.
+  const entries = [
+    ...allOrders.map((order) => ({ at: placedAt(order), order })),
+    ...cashJobs.map((quote) => ({ at: Date.parse(quote.paidAt) || 0, quote })),
+  ].sort((a, b) => b.at - a.at);
+  const shown = entries.slice(0, ORDER_ROW_CAP);
+  const hidden = entries.length - shown.length;
+  const orders = shown.filter((e) => e.order).map((e) => e.order);
+  const jobs = shown.filter((e) => e.quote).map((e) => e.quote);
 
-  const rows = orders.map((order) => {
+  const jobRow = (quote) => {
+    const done = !!quote.handedOverAt;
+    return `<tr data-bucket="${done ? 'shipped' : 'open'}" data-refund="none">
+      <td><a class="mono" href="/dashboard/quote-print?id=${esc(quote.id)}"
+        target="_blank" rel="noopener noreferrer">${esc(quote.id)}</a></td>
+      <td class="nowrap">${esc(shortDate(quote.paidAt))}</td>
+      <td>${esc(quote.customer)}</td>
+      <td class="num soft">&mdash;</td>
+      <td class="num strong">${esc(money(quoteGrandTotal(quote), 'usd'))}</td>
+      <td><span class="pill ${done ? 'good' : 'warn'}">${done ? 'Handed over' : 'To hand over'}</span></td>
+      <td class="soft">${quote.paidMethod === 'check' ? 'Check' : 'Cash'} &middot; quote</td>
+      <td><span class="soft">&mdash;</span></td>
+    </tr>`;
+  };
+
+  const orderRow = (order) => {
     const a = order.shippingAddress || order.billingAddress || {};
     const refund = refundState(order);
 
@@ -854,25 +919,30 @@ function renderOrders(allOrders, rangeLabel) {
       <td class="soft">${esc((order.paymentStatus || '').replace(/([a-z])([A-Z])/g, '$1 $2'))}</td>
       <td>${tracking}</td>
     </tr>`;
-  }).join('');
+  };
+
+  const rows = shown.map((e) => (e.order ? orderRow(e.order) : jobRow(e.quote))).join('');
 
   // Counts come off the same predicates the rows use, so a chip never promises
   // rows the filter won't show.
   const tally = (test) => orders.filter(test).length;
+  const jobsDone = jobs.filter((q) => q.handedOverAt).length;
   const filters = [
-    ['active', 'Active', tally((o) => !isCancelled(o) && refundState(o) !== 'full')],
-    ['open', 'Needs shipping', tally(needsShipping)],
-    ['shipped', 'Shipped', tally((o) => isShipped(o) && !isCancelled(o) && refundState(o) !== 'full')],
+    ['active', 'Active', tally((o) => !isCancelled(o) && refundState(o) !== 'full') + jobs.length],
+    ['open', 'Needs shipping', tally(needsShipping) + jobs.length - jobsDone],
+    ['shipped', 'Shipped', tally((o) => isShipped(o) && !isCancelled(o) && refundState(o) !== 'full') + jobsDone],
     ['refunded', 'Refunded', tally((o) => refundState(o) !== 'none')],
     ['cancelled', 'Cancelled', tally(isCancelled)],
-    ['all', 'All', orders.length],
+    ['all', 'All', shown.length],
   ];
 
   return `<section id="orders" class="card">
     <div class="cardhead">
       <h2>All orders</h2>
       <span class="cardnote">${allOrders.length} in ${esc(rangeLabel.toLowerCase())}${
-        hidden ? ` &middot; newest ${orders.length} shown` : ''
+        cashJobs.length ? ` &middot; plus ${cashJobs.length} cash job${cashJobs.length === 1 ? '' : 's'}` : ''
+      }${
+        hidden ? ` &middot; newest ${shown.length} shown` : ''
       }</span>
     </div>
     <div class="filters" id="filters">
@@ -1056,7 +1126,7 @@ export const DASHBOARD_SCRIPT = `
       trackingNumber: tracking,
       notify: notify
     })
-      .then(function(){
+      .then(function(data){
         row.classList.add('shipped');
         button.textContent = 'Shipped';
         if (data.emailError) toast('Marked shipped, but the email failed: ' + data.emailError, true);
@@ -1332,6 +1402,24 @@ export const DASHBOARD_SCRIPT = `
         })
         .catch(function(err){
           paidBtn.disabled = false;
+          toast(err.message, true);
+        });
+      return;
+    }
+
+    var handedBtn = event.target.closest('.qhanded');
+    if (handedBtn) {
+      if (!confirm('Mark "' + handedBtn.getAttribute('data-what') + '" handed over? It comes off the ship queue.')) return;
+
+      handedBtn.disabled = true;
+      post('/dashboard/api/quote/handed-over', { id: handedBtn.getAttribute('data-id') })
+        .then(function(){
+          handedBtn.closest('tr').classList.add('shipped');
+          toast('Marked handed over.');
+          setTimeout(function(){ location.reload(); }, 900);
+        })
+        .catch(function(err){
+          handedBtn.disabled = false;
           toast(err.message, true);
         });
       return;

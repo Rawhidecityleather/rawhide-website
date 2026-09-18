@@ -200,6 +200,9 @@ export function buildQuote(input, { now = Date.now(), discountRate = CHECKOUT_DI
     paidOrder: null,
     // 'cash' or 'check' once the shop marks a cash quote collected.
     paidMethod: null,
+    // A cash job has no Snipcart order to flip to Shipped, so this is the stamp
+    // that takes it off the ship queue once the work is in the crew's hands.
+    handedOverAt: null,
   };
 }
 
@@ -232,6 +235,7 @@ function summarize(quote) {
     voidedAt: quote.voidedAt,
     paidAt: quote.paidAt,
     paidMethod: quote.paidMethod || null,
+    handedOverAt: quote.handedOverAt || null,
   };
 }
 
@@ -303,6 +307,23 @@ export async function markQuoteCashPaid(env, id, { method = 'cash', now = Date.n
   return putQuote(env, quote);
 }
 
+/**
+ * Stamps a paid cash job delivered. A card quote is refused: it has a real
+ * order behind it, and that order ships from the queue like any other.
+ */
+export async function markQuoteHandedOver(env, id, { now = Date.now() } = {}) {
+  const quote = await getQuote(env, id);
+  if (!quote) return null;
+  if (quotePayment(quote) !== 'cash') {
+    throw new QuoteError('That quote was paid by card — ship its order from the queue instead.');
+  }
+  if (!quote.paidAt) throw new QuoteError('That quote has not been paid yet.');
+  if (quote.handedOverAt) throw new QuoteError('That job is already marked handed over.');
+
+  quote.handedOverAt = new Date(now).toISOString();
+  return putQuote(env, quote);
+}
+
 export function isQuoteId(id) {
   return typeof id === 'string' && /^[a-z0-9]{10,32}$/.test(id);
 }
@@ -335,6 +356,15 @@ export function quotePayment(quote) {
 /** What's collected, tax included. Falls back for those same older records. */
 export function quoteGrandTotal(quote) {
   return typeof quote?.grandTotal === 'number' ? quote.grandTotal : Number(quote?.total) || 0;
+}
+
+/**
+ * A cash job that's been paid for. These never reach Snipcart, so the ship
+ * queue and the order list have to be told about them — a card quote is
+ * already in both as its order.
+ */
+export function isPaidCashJob(summary) {
+  return quotePayment(summary) === 'cash' && !!summary?.paidAt && !summary.voidedAt;
 }
 
 export function findQuoteOrder(itemId, orders = []) {
