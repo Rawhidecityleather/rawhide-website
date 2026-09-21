@@ -638,6 +638,31 @@
   // the conversion goes unrecorded. Register the listener and also call this
   // directly; the flag guarantees the handlers bind exactly once either way, so
   // nothing is double counted.
+  // The Worker sends Meta its own copy of each sale (worker/meta-capi.js).
+  // Meta needs the buyer's browser details to match it to the ad click, and
+  // the webhook only sees the order, so they ride on the cart as metadata.
+  // Written when checkout opens: the order is made from this cart. Any
+  // failure is swallowed; the checkout must never wait on this.
+  function readCookie(name){
+    var m=document.cookie.match(new RegExp('(?:^|; )'+name+'=([^;]*)'));
+    return m?decodeURIComponent(m[1]):'';
+  }
+  function stampMetaDetails(){
+    try{
+      var cart=Snipcart.store.getState().cart||{};
+      var existing=cart.metadata||{};
+      var md={};
+      for(var k in existing)if(Object.prototype.hasOwnProperty.call(existing,k))md[k]=existing[k];
+      md.ua=navigator.userAgent;
+      md.url=location.origin+location.pathname;
+      var fbp=readCookie('_fbp'),fbc=readCookie('_fbc');
+      if(fbp)md.fbp=fbp;
+      if(fbc)md.fbc=fbc;
+      var p=Snipcart.api.cart.update({metadata:md});
+      if(p&&p.catch)p.catch(function(){});
+    }catch(e){}
+  }
+
   var cartTrackingAttached = false;
   function attachCartTracking(){
     if(cartTrackingAttached) return true;
@@ -666,6 +691,7 @@
       if(!routes||!routes.to||routes.to.indexOf('/checkout')!==0)return;
       if(routes.from&&routes.from.indexOf('/checkout')===0)return;
       if(meta)fbq('track','InitiateCheckout');
+      if(meta)stampMetaDetails();
       if(GA4_ID)gtag('event','begin_checkout');
     });
 
@@ -685,13 +711,15 @@
       // Order id lets both platforms drop duplicate conversions on a page refresh.
       var orderId=(cart&&(cart.invoiceNumber||cart.token))||undefined;
 
+      // eventID matches what the Worker sends Meta from the order webhook
+      // (worker/meta-capi.js), so Meta keeps one of the two, not both.
       if(meta)fbq('track','Purchase',{
         content_type:'product',
         content_ids:ids,
         value:value,
         currency:currency,
         num_items:count
-      });
+      },orderId?{eventID:String(orderId)}:undefined);
       if(GA4_ID)gtag('event','purchase',{
         transaction_id:orderId,
         value:value,

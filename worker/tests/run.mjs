@@ -14,6 +14,7 @@ const SUITES = [
   ['expenses', () => import('./expenses.test.mjs')],
   ['inquiry', () => import('./inquiry.test.mjs')],
   ['lib', () => import('./lib.test.mjs')],
+  ['meta-capi', () => import('./meta-capi.test.mjs')],
   ['mime', () => import('./mime.test.mjs')],
   ['photos', () => import('./photos.test.mjs')],
   ['product-copy', () => import('./product-copy.test.mjs')],

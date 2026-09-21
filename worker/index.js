@@ -86,6 +86,7 @@ import { pirateShipCsv, parseTrackingPaste } from './pirateship.js';
 import { handleLogoUpload, handleLogoFetch } from './uploads.js';
 import { runRecovery } from './recovery.js';
 import { handleInquiry } from './inquiry.js';
+import { sendPurchase } from './meta-capi.js';
 import {
   buildQuote, putQuote, getQuote, listQuotes, voidQuote, markQuotePaid,
   renderQuotePage, quoteStatus, isQuoteId, QuoteError, QUOTE_ITEM_PREFIX,
@@ -1126,7 +1127,12 @@ async function handleWebhook(request, env) {
   const body = await request.json().catch(() => ({}));
 
   if (body.eventName === 'order.completed') {
-    return handleQuotePaid(body.content || {}, env);
+    // Meta first, and it never throws: the quote stamp below decides the
+    // status code Snipcart sees, and a Meta hiccup must not trigger a retry.
+    const meta = await sendPurchase(env, body.content || {}, { mode: body.mode });
+    const res = await handleQuotePaid(body.content || {}, env);
+    if (!meta.sent) console.log('meta capi skipped:', meta.reason);
+    return res;
   }
 
   if (body.eventName !== 'order.trackingNumber.changed') {
