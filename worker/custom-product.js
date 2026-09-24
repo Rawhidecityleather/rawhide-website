@@ -99,7 +99,7 @@ export function categoryFor(key) {
  */
 export const LEAD_TIMES = [
   { key: '1-3-days', label: '1–3 business days', min: 1, max: 3 },
-  { key: '1-3-weeks', label: '1–3 weeks', min: 7, max: 21 },
+  { key: '1-3-weeks', label: '1–3 weeks', min: 5, max: 15 },
   { key: '6-weeks', label: '6 weeks', min: 25, max: 30 },
 ];
 

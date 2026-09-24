@@ -103,8 +103,8 @@
       <g:size>Custom</g:size>
       <g:age_group>adult</g:age_group>
       <g:gender>unisex</g:gender>
-      <g:min_handling_time>7</g:min_handling_time>
-      <g:max_handling_time>21</g:max_handling_time>
+      <g:min_handling_time>5</g:min_handling_time>
+      <g:max_handling_time>15</g:max_handling_time>
     </item>
 
     <item>
@@ -123,8 +123,8 @@
            to sit under, and the American Football chin strap / helmet nodes
            would match this to the wrong sport entirely. -->
       <g:google_product_category>2047</g:google_product_category>
-      <g:min_handling_time>7</g:min_handling_time>
-      <g:max_handling_time>21</g:max_handling_time>
+      <g:min_handling_time>5</g:min_handling_time>
+      <g:max_handling_time>15</g:max_handling_time>
     </item>
 
     <item>
@@ -143,8 +143,8 @@
       <g:identifier_exists>no</g:identifier_exists>
       <g:product_type>Accessories</g:product_type>
       <g:google_product_category>2047</g:google_product_category>
-      <g:min_handling_time>7</g:min_handling_time>
-      <g:max_handling_time>21</g:max_handling_time>
+      <g:min_handling_time>5</g:min_handling_time>
+      <g:max_handling_time>15</g:max_handling_time>
     </item>
 
     <item>
@@ -162,8 +162,8 @@
       <g:identifier_exists>no</g:identifier_exists>
       <g:product_type>Accessories</g:product_type>
       <g:google_product_category>2047</g:google_product_category>
-      <g:min_handling_time>7</g:min_handling_time>
-      <g:max_handling_time>21</g:max_handling_time>
+      <g:min_handling_time>5</g:min_handling_time>
+      <g:max_handling_time>15</g:max_handling_time>
     </item>
 
     <item>
@@ -196,8 +196,8 @@
       <g:size>One size</g:size>
       <g:age_group>adult</g:age_group>
       <g:gender>unisex</g:gender>
-      <g:min_handling_time>7</g:min_handling_time>
-      <g:max_handling_time>21</g:max_handling_time>
+      <g:min_handling_time>5</g:min_handling_time>
+      <g:max_handling_time>15</g:max_handling_time>
     </item>
 
     <item>
@@ -223,8 +223,8 @@
       <g:size>One size</g:size>
       <g:age_group>adult</g:age_group>
       <g:gender>unisex</g:gender>
-      <g:min_handling_time>7</g:min_handling_time>
-      <g:max_handling_time>21</g:max_handling_time>
+      <g:min_handling_time>5</g:min_handling_time>
+      <g:max_handling_time>15</g:max_handling_time>
     </item>
 
     <item>
@@ -253,8 +253,8 @@
       <g:size>One size</g:size>
       <g:age_group>adult</g:age_group>
       <g:gender>unisex</g:gender>
-      <g:min_handling_time>7</g:min_handling_time>
-      <g:max_handling_time>21</g:max_handling_time>
+      <g:min_handling_time>5</g:min_handling_time>
+      <g:max_handling_time>15</g:max_handling_time>
     </item>
 
     <item>
@@ -278,8 +278,8 @@
       <g:size>Custom</g:size>
       <g:age_group>adult</g:age_group>
       <g:gender>unisex</g:gender>
-      <g:min_handling_time>7</g:min_handling_time>
-      <g:max_handling_time>21</g:max_handling_time>
+      <g:min_handling_time>5</g:min_handling_time>
+      <g:max_handling_time>15</g:max_handling_time>
     </item>
 
     <item>
@@ -300,8 +300,8 @@
       <g:identifier_exists>no</g:identifier_exists>
       <g:product_type>Accessories</g:product_type>
       <g:google_product_category>2047</g:google_product_category>
-      <g:min_handling_time>7</g:min_handling_time>
-      <g:max_handling_time>21</g:max_handling_time>
+      <g:min_handling_time>5</g:min_handling_time>
+      <g:max_handling_time>15</g:max_handling_time>
     </item>
 
     <item>
@@ -340,8 +340,8 @@
       <g:identifier_exists>no</g:identifier_exists>
       <g:product_type>Accessories</g:product_type>
       <g:google_product_category>2047</g:google_product_category>
-      <g:min_handling_time>7</g:min_handling_time>
-      <g:max_handling_time>21</g:max_handling_time>
+      <g:min_handling_time>5</g:min_handling_time>
+      <g:max_handling_time>15</g:max_handling_time>
     </item>
 
   </channel>

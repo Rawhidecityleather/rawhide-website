@@ -402,7 +402,7 @@ export default async function run() {
   check('the accessory category is the one the chin strap is in',
     item.includes('<g:google_product_category>2047</g:google_product_category>'));
   check('handling time is the lead time in days',
-    item.includes('<g:min_handling_time>7</g:min_handling_time>'));
+    item.includes('<g:min_handling_time>5</g:min_handling_time>'));
   check('a radio strap gets the six-week handling time',
     feedItemXml(build({ category: 'radio-straps' })).includes('<g:max_handling_time>30</g:max_handling_time>'));
   // Item-level shipping overrides the account settings, which is where the
