@@ -732,8 +732,51 @@
         currency:currency,
         transaction_id:orderId
       });
+      offerReviewSurvey(cart,items,orderId);
     });
     return true;
+  }
+
+  // Google Customer Reviews. After checkout Google asks the buyer, in its own
+  // pop-up, whether they want a short survey once the order arrives; the
+  // answers become the store rating on Google. The survey must not land before
+  // the gear does, so the delivery estimate is the slowest item's build time
+  // (LEAD_RANK, the same table the cart note uses) plus a week in the mail.
+  var GCR_MERCHANT_ID = 5588499938;
+  var GCR_BUILD_DAYS = [3, 21, 42];
+  var GCR_TRANSIT_DAYS = 7;
+  function offerReviewSurvey(cart,items,orderId){
+    try{
+      var email=cart&&cart.email;
+      var addr=(cart&&(cart.shippingAddress||cart.billingAddress))||{};
+      var country=addr.country;
+      if(!email||!country||!orderId)return;
+      var worst=-1;
+      if(items.forEach)items.forEach(function(it){
+        var rank=LEAD_RANK[it.id];
+        if(typeof rank!=='number')rank=2;
+        if(rank>worst)worst=rank;
+      });
+      if(worst<0)worst=2;
+      var d=new Date(Date.now()+(GCR_BUILD_DAYS[worst]+GCR_TRANSIT_DAYS)*86400000);
+      var eta=d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);
+      window.renderOptIn=function(){
+        window.gapi.load('surveyoptin',function(){
+          window.gapi.surveyoptin.render({
+            merchant_id:GCR_MERCHANT_ID,
+            order_id:String(orderId),
+            email:email,
+            delivery_country:String(country).toUpperCase(),
+            estimated_delivery_date:eta,
+            opt_in_style:'CENTER_DIALOG'
+          });
+        });
+      };
+      var s=document.createElement('script');
+      s.src='https://apis.google.com/js/platform.js?onload=renderOptIn';
+      s.async=true;s.defer=true;
+      document.head.appendChild(s);
+    }catch(e){}
   }
   whenSnipcartReady(attachCartTracking);
 
