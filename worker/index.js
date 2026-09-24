@@ -529,8 +529,10 @@ function legacyProductTarget(path) {
 /**
  * The rest of the dead Wix URLs. These never lived under /product-page/, so
  * they share no prefix and there is nothing to fall back to — each is matched
- * exactly or not at all. All five were confirmed 404s in Search Console on
- * 2026-08-28, still being crawled by Google as recently as July.
+ * exactly or not at all. The first five were confirmed 404s in Search Console
+ * on 2026-08-28, still being crawled by Google as recently as July.
+ * /english-refund-policy, Wix's twin of the shipping policy page, was found
+ * 404ing live on 2026-09-24.
  *
  * /category/custom-made-radio-straps is the one that matters: it aims a URL
  * Google already knows at /radio-straps, a page it has never crawled.
@@ -540,6 +542,7 @@ const LEGACY_PATHS = new Map([
   ['/category/custom-made-radio-straps', '/radio-straps'],
   ['/category/untitled-k9', '/shop'],
   ['/english-shipping-policy', '/shipping'],
+  ['/english-refund-policy', '/shipping'],
   ['/contact-8', '/contact'],
 ]);
 

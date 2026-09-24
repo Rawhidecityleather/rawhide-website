@@ -535,6 +535,7 @@ export default async function run() {
     ['/category/custom-made-radio-straps', '/radio-straps'],
     ['/category/untitled-k9', '/shop'],
     ['/english-shipping-policy', '/shipping'],
+    ['/english-refund-policy', '/shipping'],
     ['/contact-8', '/contact'],
   ]) {
     const r = await get(from);
