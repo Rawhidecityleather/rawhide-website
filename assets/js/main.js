@@ -846,6 +846,29 @@
     return worst < 0 ? null : LEAD_TEXT[worst];
   }
 
+  // One buyer ordered a second strap and a Radio Bucket by mistake, on top of
+  // a strap that already ships with both, and $240 went back. The product pages
+  // say the bucket is included, but the cart is the last thing read before
+  // paying, so say it there too, and count the straps while at it.
+  var STRAP_IDS = {'fully-custom-radio-strap':1, 'basic-radio-strap':1, 'smokey-radio-strap':1};
+  function doubleNote(){
+    var state = window.Snipcart && Snipcart.store && Snipcart.store.getState();
+    var cart = state && state.cart;
+    if(!cart) return null;
+    var items = (cart.items && cart.items.items) || cart.items || [];
+    if(!items.length || !items.forEach) return null;
+    var straps = 0, buckets = 0;
+    items.forEach(function(item){
+      var qty = Number(item.quantity) || 1;
+      if(STRAP_IDS[item.id]) straps += qty;
+      else if(item.id === 'radio-bucket') buckets += qty;
+    });
+    var lines = [];
+    if(straps >= 2) lines.push('You have ' + straps + ' radio straps in your cart.');
+    if(straps >= 1 && buckets >= 1) lines.push('Every radio strap already comes with its bucket and sway strap. The Radio Bucket in your cart is an extra one.');
+    return lines.length ? lines.join(' ') : null;
+  }
+
   // A discount nobody typed still sends the buyer hunting for the promo box.
   // The Labor Day rule ran as an automatic "order total" discount while every
   // ad told people to enter LABORDAY15 — so the code did not exist, the promo
@@ -905,8 +928,23 @@
     var host = document.querySelector('.snipcart-cart__footer .snipcart-summary-fees');
     if(!host) return;
 
-    // Painted first and kept first, so it reads as close to the Discounts row
-    // as the footer allows.
+    // Above every other note: a buyer about to pay for more than they meant to
+    // needs to see it before the shipping line, not after.
+    var dbl = doubleNote();
+    var dblLine = host.querySelector('.rc-double-note');
+    if(dbl){
+      if(!dblLine){
+        dblLine = document.createElement('p');
+        dblLine.className = 'rc-double-note';
+        host.insertBefore(dblLine, host.querySelector('.rc-sale-note, .rc-ship-note'));
+      }
+      if(dblLine.textContent !== dbl) dblLine.textContent = dbl;
+    } else if(dblLine){
+      dblLine.remove();
+    }
+
+    // Painted first among the plain notes, so it reads as close to the
+    // Discounts row as the footer allows.
     var sale = autoDiscountNote() || promoCodeNote();
     var saleLine = host.querySelector('.rc-sale-note');
     if(sale){

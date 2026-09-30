@@ -223,6 +223,9 @@ p{margin:0 0 1em}
 .product-media > img:first-child{width:auto;height:auto;max-width:100%;max-height:100cqw;margin:0 auto;display:block;background:var(--c-bg-2);border:1px solid var(--c-line)}
 .product-info h1{margin-bottom:.3em}
 .product-price{font-family:var(--font-stamp);font-size:1.7rem;font-weight:700;color:var(--c-text);margin-bottom:1.8em}
+/* What the price already covers, read before the form. A buyer paid for a
+   second bucket once; the strap pages only said "included" eight bullets down. */
+.product-includes{margin:-2.4rem 0 1.8em;color:var(--c-text-soft);font-size:.9rem;line-height:1.45}
 .product-description{padding-top:28px;border-top:1px solid var(--c-line);margin-top:28px;color:var(--c-text-soft)}
 .product-meta{list-style:none;padding:24px 0 0;margin:24px 0 0;border-top:1px solid var(--c-line);display:grid;gap:8px}
 .product-meta li{font-family:var(--font-display);font-size:.85rem;letter-spacing:.14em;text-transform:uppercase;color:var(--c-text-soft);padding-left:22px;position:relative}
@@ -448,6 +451,9 @@ p{margin:0 0 1em}
 .snipcart-payment__loading>.snipcart-loading-overlay__content>.snipcart-payment-methods-list__container{order:-2}
 .snipcart-payment__loading>.snipcart-loading-overlay__content>.snipcart-form__separator{order:-1}
 .snipcart-payment__form-container::before{content:"Or pay by card";display:block;color:#6B6358;font-size:.85rem;margin:0 0 10px}
+/* The last line read before Place order, for the same stalled buyer. Words
+   must match /shipping#warranty. */
+.snipcart-payment-card-form__container .snipcart-form__footer::before{content:"Career warranty. Any defect in workmanship or materials, we repair it.";display:block;color:#6B6358;font-size:.85rem;line-height:1.4;margin:0 0 10px}
 
 /* Cart shipping line. Snipcart's stock notice says shipping "will be calculated
    at checkout" even once an order has earned free shipping, which is the last
@@ -456,6 +462,9 @@ p{margin:0 0 1em}
 .snipcart-cart__footer .snipcart-summary-fees.rc-ship-fixed .snipcart-summary-fees__notice{display:none}
 .rc-ship-note{color:#0F0F0F;font-size:.85rem;line-height:1.4;margin:2px 0 0}
 .rc-lead-note{color:#6B6358;font-size:.85rem;line-height:1.4;margin:2px 0 0}
+/* A cart holding more than it probably meant to: two straps, or a strap plus
+   a bucket the strap already includes. Painted by main.js, read before paying. */
+.rc-double-note{color:#0F0F0F;font-size:.85rem;line-height:1.4;margin:6px 0 4px;padding:8px 10px;background:#F3EAD3;border-left:3px solid #8A6D1F;font-weight:600}
 
 /* Automatic sale line. Sits above the shipping note and carries the rule's own
    name, because the buyer is looking for somewhere to type that name. */
