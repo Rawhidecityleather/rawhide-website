@@ -88,6 +88,11 @@ import { runRecovery } from './recovery.js';
 import { handleInquiry } from './inquiry.js';
 import { sendPurchase } from './meta-capi.js';
 import {
+  handleMethods as handleWalletMethods, handlePayPage as handleWalletPage, handleIntent as handleWalletIntent,
+  handleConfirm as handleWalletConfirm, handleReturn as handleWalletReturn, handleRefund as handleWalletRefund,
+  handleAppleAssociation,
+} from './wallet.js';
+import {
   buildQuote, putQuote, getQuote, listQuotes, voidQuote, markQuotePaid,
   renderQuotePage, quoteStatus, isQuoteId, QuoteError, QUOTE_ITEM_PREFIX,
   markQuoteCashPaid, markQuoteHandedOver, isPaidCashJob, refundCashQuote,
@@ -286,6 +291,29 @@ export default {
       } catch (err) {
         return failure(err, request);
       }
+    }
+
+    // Public on purpose, all of it: Snipcart asks /api/wallet/methods and
+    // /api/wallet/refund from its own servers, the buyer's browser asks the
+    // rest, and none of them can answer a login prompt. What keeps it honest
+    // is the token Snipcart vouches for on every call — see worker/wallet.js.
+    if (path.startsWith('/api/wallet/') || path === '/pay') {
+      try {
+        if (path === '/api/wallet/methods') return await handleWalletMethods(request, env, url.origin);
+        if (path === '/api/wallet/intent') return await handleWalletIntent(request, env);
+        if (path === '/api/wallet/confirm') return await handleWalletConfirm(request, env, url.origin);
+        if (path === '/api/wallet/return') return await handleWalletReturn(request, env, url.origin);
+        if (path === '/api/wallet/refund') return await handleWalletRefund(request, env);
+        if (path === '/pay') return await handleWalletPage(request, env, url.origin);
+        return json({ error: 'Not found.' }, 404);
+      } catch (err) {
+        return failure(err, request);
+      }
+    }
+
+    // Apple Pay proves the domain by fetching this before it will show a button.
+    if (path === '/.well-known/apple-developer-merchantid-domain-association') {
+      return await handleAppleAssociation();
     }
 
     // Public on purpose. Snipcart's crawler fetches this page to check the

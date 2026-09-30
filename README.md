@@ -580,6 +580,7 @@ npx wrangler secret put SNIPCART_SECRET
 | Secret | What it's for |
 |---|---|
 | `SNIPCART_SECRET` | Snipcart **secret** API key. Reads orders, writes tracking and status. Never sent to the browser. |
+| `SNIPCART_GATEWAY_KEY` | The custom payment gateway's API key, from Snipcart's custom gateway page. Signs wallet payment confirmations only. |
 | `SLIP_USER` | Dashboard username |
 | `SLIP_PASS` | Dashboard password |
 | `BREVO_KEY` | Outbound email. Brevo API key — free to 300/day. Why Brevo: header comment in `worker/mailer.js`. |
@@ -1343,6 +1344,54 @@ npx wrangler r2 object delete "rawhide-receipts/<key>.jpg" --remote
 ```
 
 `--remote` is not optional here either — see the artwork section above.
+
+## Google Pay and Apple Pay
+
+`worker/wallet.js`. Snipcart has no wallet support of its own, so the
+wallets come in through its custom payment gateway: on the payment step
+Snipcart POSTs `/api/wallet/methods` and we list one method, "Google Pay /
+Apple Pay", which is a link to `/pay` on this site. That page reads the
+amount from Snipcart's payment session, shows Stripe's Express Checkout
+buttons for exactly that amount, takes the payment through the shop's own
+Stripe account, and then tells Snipcart the session is paid. Snipcart makes
+the order as normal, so the webhook, Meta, the quotes and the dashboard see
+nothing new. The hook only fires after Snipcart's address step, so this
+replaces typing a card number, not the address form.
+
+Rules the code holds to: the amount always comes from Snipcart, never the
+browser; an order is recorded only for an intent Stripe says succeeded, for
+that session, for that amount; a session settles once (a day's memory under
+`wallet:settled:` in `QUOTES`); a refund from the Snipcart dashboard reaches
+`/api/wallet/refund`, needs Snipcart's request token (or a public token
+Snipcart vouches for) and can only touch an intent this gateway made. With
+either Stripe key or `SNIPCART_GATEWAY_KEY` missing the methods list is empty and checkout is exactly
+what it was. Apple Pay's domain file is proxied from Stripe at
+`/.well-known/apple-developer-merchantid-domain-association`.
+
+### Setting it up
+
+1. `npx wrangler secret put STRIPE_SECRET_KEY` and
+   `npx wrangler secret put STRIPE_PUBLISHABLE_KEY` — test keys first, then
+   the live pair. Deploy.
+2. Snipcart dashboard → Store configurations → Payment gateway → custom
+   gateway: payment methods URL
+   `https://rawhidecityleather.com/api/wallet/methods`. There is no refund
+   box: the refund URL (`/api/wallet/refund`) goes to Snipcart with every
+   payment, in `links.refunds`. Copy the primary API key from that same
+   page into `npx wrangler secret put SNIPCART_GATEWAY_KEY`. Confirming a
+   payment is signed with that key; `SNIPCART_SECRET` is refused there.
+3. Stripe dashboard → Settings → Payment methods: Apple Pay and Google Pay
+   on; under Apple Pay add the domain `rawhidecityleather.com` (the file it
+   checks for is already served).
+4. With the test keys in, place an order through the wallet from a phone.
+   Stripe's test mode takes a real Google Pay or Apple Pay wallet and charges
+   nothing; the Snipcart order it makes is real and gets cancelled by hand.
+   Then swap in the live keys and deploy again.
+
+If Snipcart refuses the payment after Stripe has charged, the buyer sees the
+intent id and the shop address, the log says `PAID BUT NOT PLACED`, and the
+intent in Stripe carries the session id — match it up by hand and refund or
+make the order.
 
 ## Tests
 

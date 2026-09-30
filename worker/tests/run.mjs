@@ -29,6 +29,7 @@ const SUITES = [
   ['slip', () => import('./slip.test.mjs')],
   ['tracking-in', () => import('./tracking-in.test.mjs')],
   ['uploads', () => import('./uploads.test.mjs')],
+  ['wallet', () => import('./wallet.test.mjs')],
   ['worker', () => import('./worker.test.mjs')],
 ];
 
