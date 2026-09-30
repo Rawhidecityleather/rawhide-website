@@ -1386,6 +1386,10 @@ what it was. Apple Pay's domain file is proxied from Stripe at
 4. With the test keys in, place an order through the wallet from a phone.
    Stripe's test mode takes a real Google Pay or Apple Pay wallet and charges
    nothing; the Snipcart order it makes is real and gets cancelled by hand.
+   While `STRIPE_SECRET_KEY` is an `sk_test_` key the wallet is offered only
+   when the checkout email is `rawhidecityleather@gmail.com` (or
+   `WALLET_TEST_EMAIL` if set), so a real customer never gets a free order;
+   live keys lift the rule on their own.
    Then swap in the live keys and deploy again.
 
 If Snipcart refuses the payment after Stripe has charged, the buyer sees the

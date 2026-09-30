@@ -64,6 +64,27 @@ const APPLE_ASSOCIATION_URL =
 const SETTLED_PREFIX = 'wallet:settled:';
 const SETTLED_TTL = 24 * 60 * 60;
 
+/**
+ * While Stripe holds TEST keys a wallet payment charges nothing, but the
+ * Snipcart order it makes is real. So on test keys the wallet is offered only
+ * to the shop's own test order, matched on the checkout email; everyone else
+ * gets the normal card checkout. Live keys switch the rule off by themselves.
+ * No email on the session counts as not ours — it fails closed.
+ */
+const DEFAULT_TEST_EMAIL = 'rawhidecityleather@gmail.com';
+
+export function stripeInTestMode(env) {
+  return String((env && env.STRIPE_SECRET_KEY) || '').startsWith('sk_test_');
+}
+
+export function testModeAllows(env, rawSession) {
+  if (!stripeInTestMode(env)) return true;
+  const inv = rawSession && rawSession.invoice;
+  const email = String((inv && inv.email) || '').trim().toLowerCase();
+  const allowed = String((env && env.WALLET_TEST_EMAIL) || DEFAULT_TEST_EMAIL).trim().toLowerCase();
+  return !!email && email === allowed;
+}
+
 export function walletConfigured(env) {
   return !!(env && env.STRIPE_SECRET_KEY && env.STRIPE_PUBLISHABLE_KEY && env.SNIPCART_SECRET && env.SNIPCART_GATEWAY_KEY);
 }
@@ -195,6 +216,11 @@ export async function handleMethods(request, env, origin) {
   if (!token) return json({ error: 'No public token.' }, 400);
   if (!(await validatePublicToken(token))) return json({ error: 'Invalid public token.' }, 401);
 
+  if (stripeInTestMode(env)) {
+    const raw = await paymentSession(token).catch(() => null);
+    if (!testModeAllows(env, raw)) return json([]);
+  }
+
   return json([{
     id: METHOD_ID,
     name: METHOD_NAME,
@@ -251,7 +277,11 @@ export async function handleIntent(request, env) {
     return json({ error: 'This payment link is not valid any more.' }, 401);
   }
 
-  const session = readSession(await paymentSession(token));
+  const raw = await paymentSession(token);
+  if (!testModeAllows(env, raw)) {
+    return json({ error: 'Google Pay and Apple Pay are not available for this order. Go back and pay by card.' }, 403);
+  }
+  const session = readSession(raw);
   const intent = await stripe(env, 'POST', '/payment_intents', {
     amount: String(session.cents),
     currency: session.currency,

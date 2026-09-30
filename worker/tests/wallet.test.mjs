@@ -16,6 +16,7 @@ import worker from '../index.js';
 import {
   handleMethods, handlePayPage, handleIntent, handleConfirm, handleReturn,
   handleRefund, handleAppleAssociation, settle, readSession, walletConfigured, METHOD_ID,
+  stripeInTestMode, testModeAllows,
 } from '../wallet.js';
 
 const ORIGIN = 'https://rawhidecityleather.com';
@@ -38,6 +39,7 @@ function session(extra = {}) {
     invoice: {
       amount: 176.55,
       currency: 'USD',
+      email: 'RawhideCityLeather@gmail.com',
       items: [
         { type: 'Item', name: 'Fully Custom Adjustable Radio Strap', quantity: 1, amount: 165 },
         { type: 'Tax', name: 'Sales tax', quantity: 1, amount: 11.55 },
@@ -151,6 +153,30 @@ export default async function run() {
     check('one method comes back', methods.length === 1 && methods[0].id === METHOD_ID);
     check('named for what the buyer sees', methods[0].name === 'Google Pay / Apple Pay');
     check('pointing at our pay page with the token on it', methods[0].checkoutUrl === ORIGIN + '/pay?publicToken=good');
+
+    suite('wallet — test keys only serve the shop');
+
+    const live = { ...env, STRIPE_SECRET_KEY: 'sk_live_never' };
+    const stranger = session();
+    stranger.invoice = { ...stranger.invoice, email: 'buyer@example.com' };
+    check('sk_test_ is test mode', stripeInTestMode(env) === true);
+    check('sk_live_ is not', stripeInTestMode(live) === false);
+    check('the shop email passes, whatever its case', testModeAllows(env, session()) === true);
+    check('a customer email does not', testModeAllows(env, stranger) === false);
+    check('no email at all does not', testModeAllows(env, session({ invoice: { amount: 5 } })) === false);
+    check('WALLET_TEST_EMAIL overrides the default', testModeAllows({ ...env, WALLET_TEST_EMAIL: 'buyer@example.com' }, stranger) === true);
+    check('live keys let everyone through', testModeAllows(live, stranger) === true);
+
+    const saved = state.session;
+    state.session = stranger;
+    const hidden = await (await handleMethods(post('/api/wallet/methods', { publicToken: 'good' }), env, ORIGIN)).json();
+    check('on test keys a customer is offered nothing', Array.isArray(hidden) && hidden.length === 0);
+    const beforeStripe = stripeCalls();
+    const refusedIntent = await handleIntent(post('/api/wallet/intent', { publicToken: 'good' }), env);
+    check('and cannot make a charge by going to /pay directly', refusedIntent.status === 403 && stripeCalls() === beforeStripe);
+    const liveMethods = await (await handleMethods(post('/api/wallet/methods', { publicToken: 'good' }), live, ORIGIN)).json();
+    check('on live keys the same customer is offered the wallet', liveMethods.length === 1);
+    state.session = saved;
 
     suite('wallet — the pay page');
 
@@ -307,7 +333,7 @@ export default async function run() {
     const a = await via(get('/.well-known/apple-developer-merchantid-domain-association'));
     check('Apple can fetch the domain file', a.status === 200 && (await a.text()) === 'APPLE-FILE');
     check('an unknown wallet path is a 404', (await via(get('/api/wallet/nothing'))).status === 404);
-    state.session = session({ invoice: { amount: 0 } });
+    state.session = session({ invoice: { amount: 0, email: 'rawhidecityleather@gmail.com' } });
     const broken = await via(post('/api/wallet/intent', { publicToken: 'good' }));
     check('a session with no amount is an error the browser can show', broken.status === 502 && (await broken.json()).error.includes('no amount'));
     state.session = session();
