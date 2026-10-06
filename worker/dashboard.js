@@ -28,6 +28,7 @@ import {
 import { renderPromoCard, isLive, quoteDiscountRate } from './promo.js';
 import { renderRecoveryCard } from './recovery-card.js';
 import { renderCouponCard } from './coupon.js';
+import { renderTodoCard } from './todo.js';
 
 const RANGES = [
   { key: '30d', label: 'Last 30 days', compare: 'vs prior 30 days' },
@@ -226,6 +227,7 @@ function topProducts(orders) {
 export function renderDashboard(stats, {
   truncated, quotes = [], toCheck = 0, promo = null, promoReady = true, snipcartRule = null,
   recovery = null, coupons = null, couponsReady = true, saleProducts = [],
+  todos = null, todosReady = true, todoMailReady = true,
 } = {}) {
   const rangeLabel = rangeInfo(stats.rangeKey).label;
 
@@ -249,12 +251,14 @@ export function renderDashboard(stats, {
     toCheck,
     saleLive: isLive(promo),
     leftCarts: recovery ? recovery.carts.length : 0,
+    openTodos: todos ? todos.items.filter((i) => !i.done).length : 0,
     active: 'orders',
   })}
   <main class="main">
     ${renderTopbar(stats, rangeLabel)}
     <div class="pad">
       ${truncated ? banner('Showing the most recent 2,000 orders. Lifetime totals above that are not counted.') : ''}
+      ${renderTodoCard(todos, { ready: todosReady, mailReady: todoMailReady })}
       ${renderKpis(stats, rangeLabel, cashWaiting.length)}
       <div class="split">
         ${renderChart(stats.months)}
@@ -282,7 +286,8 @@ export function renderDashboard(stats, {
  * from anywhere else, so they work from both.
  */
 export function renderRail({
-  queueCount = 0, openQuotes = 0, toCheck = 0, saleLive = false, leftCarts = 0, active = 'orders',
+  queueCount = 0, openQuotes = 0, toCheck = 0, saleLive = false, leftCarts = 0, openTodos = 0,
+  active = 'orders',
 } = {}) {
   const link = (href, label, badge, key = 'orders') =>
     `<a href="${href}"${key === active ? ' class="on" aria-current="page"' : ''}>${esc(label)}${
@@ -297,6 +302,7 @@ export function renderRail({
       <p class="railname">Rawhide City<br>Leather</p>
     </div>
     <nav class="railnav">
+      ${link(base + '#todo', 'LWFD to-do', openTodos || null)}
       ${link(base + '#overview', 'Overview')}
       ${link(base + '#queue', 'Ship queue', queueCount || null)}
       ${link(base + '#tracking', 'Add tracking')}

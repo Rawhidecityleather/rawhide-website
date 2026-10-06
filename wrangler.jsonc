@@ -111,7 +111,9 @@
     { "binding": "RECOVERY", "id": "be611b5493984061803449b43657eec4" },
     { "binding": "EXPENSES", "id": "ccebdcbdddf74b93ab4c528138271837" },
     { "binding": "PROMO", "id": "afdfd46049a34d20818709850dc77cc0" },
-    { "binding": "CATALOG", "id": "3aeaabea3d394ce980e18047caab4b65" }
+    { "binding": "CATALOG", "id": "3aeaabea3d394ce980e18047caab4b65" },
+    // The LWFD to-do list on the dashboard. See worker/todo.js.
+    { "binding": "TODOS", "id": "b402df0c7f0245d6b367716385c1d1ca" }
   ],
   // LOGOS    — customer artwork for custom stamp work. Created with
   //             wrangler r2 bucket create rawhide-logo-uploads

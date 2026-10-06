@@ -27,6 +27,8 @@
  *   POST /dashboard/api/expense/delete   drop a row and its photo
  *   GET  /dashboard/expenses.csv     the year's receipts as a spreadsheet
  *   GET  /dashboard/expenses/report  the printable year-end packet
+ *   POST /dashboard/api/todo         the LWFD to-do list: add, tick, remove, email settings
+ *   POST /dashboard/api/todo/send    email the open list now
  *   POST /dashboard/hooks/snipcart   webhook: tracking -> Shipped, paid -> quote
  *   GET  /packing-slip?token=…       printable slip / build sheet
  *   GET  /logo/<key>                 customer artwork for a custom stamp
@@ -120,6 +122,10 @@ import {
 import {
   recentCoupons, handleCouponCreate, COUPON_STYLES, COUPON_SCRIPT,
 } from './coupon.js';
+import {
+  getTodos, handleTodoChange, handleTodoSendNow, runTodoMail, TODO_STYLES, TODO_SCRIPT,
+} from './todo.js';
+import { mailerConfigured } from './mailer.js';
 import { handlePhotoUpload, handlePhotoFetch } from './photos.js';
 import {
   withCatalog, getCatalog, customProductPage, extraSaleProducts,
@@ -188,6 +194,20 @@ export default {
         })
         .catch((err) => {
           console.error('sale rule sync failed', err?.message || err);
+        })
+    );
+
+    // The LWFD to-do email. One KV read an hour; a send only at the hour on
+    // the card, once a day, and only while something is open. See worker/todo.js.
+    ctx.waitUntil(
+      runTodoMail(env)
+        .then((report) => {
+          if (report.sent || report.why === 'send-failed') {
+            console.log('todo email', JSON.stringify(report));
+          }
+        })
+        .catch((err) => {
+          console.error('todo email failed', err?.message || err);
         })
     );
 
@@ -469,6 +489,8 @@ async function route(path, request, env, url) {
     if (path === '/dashboard/api/photo-upload') return await handlePhotoPost(request, env);
     if (path === '/dashboard/api/recovery/send') return await handleRecoveryPost(request, env);
     if (path === '/dashboard/api/coupon') return await handleCouponPost(request, env);
+    if (path === '/dashboard/api/todo') return await handleTodoPost(request, env);
+    if (path === '/dashboard/api/todo/send') return await handleTodoSendPost(request, env);
     if (path === '/packing-slip') return await handleSlip(request, env, url);
     return notFound();
   } catch (err) {
@@ -632,7 +654,7 @@ async function handleDashboard(request, env, url) {
   if (request.method !== 'GET') return json({ error: 'Use GET.' }, 405);
 
   const range = url.searchParams.get('range') || DEFAULT_RANGE;
-  const [{ orders, truncated }, quotes, receipts, promo, catalog] = await Promise.all([
+  const [{ orders, truncated }, quotes, receipts, promo, catalog, todos] = await Promise.all([
     getAllOrders(env),
     // A missing KV binding shouldn't take the whole dashboard down — the
     // quotes card just renders empty until it's wired up.
@@ -645,6 +667,8 @@ async function handleDashboard(request, env, url) {
     // For the sale picker: the products the shop added itself are not in
     // PRODUCTS, and a sale that cannot name one is a sale with a hole in it.
     getCatalog(env),
+    // The LWFD list. Never throws - see getTodos.
+    getTodos(env),
   ]);
   const saleProducts = extraSaleProducts(catalog);
   // Snipcart's copy of the sale rule, so the card shows what is really there.
@@ -672,9 +696,12 @@ async function handleDashboard(request, env, url) {
     coupons,
     couponsReady: Boolean(env.SNIPCART_SECRET),
     saleProducts,
+    todos,
+    todosReady: Boolean(env.TODOS),
+    todoMailReady: mailerConfigured(env),
   }), {
-    styles: DASHBOARD_STYLES + PROMO_STYLES + RECOVERY_STYLES + COUPON_STYLES,
-    script: DASHBOARD_SCRIPT + promoScript(saleProducts) + RECOVERY_SCRIPT + COUPON_SCRIPT,
+    styles: DASHBOARD_STYLES + TODO_STYLES + PROMO_STYLES + RECOVERY_STYLES + COUPON_STYLES,
+    script: DASHBOARD_SCRIPT + TODO_SCRIPT + promoScript(saleProducts) + RECOVERY_SCRIPT + COUPON_SCRIPT,
   });
 }
 
@@ -789,6 +816,17 @@ async function handleProductDelete(request, env) {
 async function handleRecoveryPost(request, env) {
   if (!fromDashboard(request)) return json({ error: 'Bad request.' }, 403);
   return await handleRecoverySend(request, env);
+}
+
+/** The LWFD to-do list. Every change is one action on the stored record. */
+async function handleTodoPost(request, env) {
+  if (!fromDashboard(request)) return json({ error: 'Bad request.' }, 403);
+  return await handleTodoChange(request, env);
+}
+
+async function handleTodoSendPost(request, env) {
+  if (!fromDashboard(request)) return json({ error: 'Bad request.' }, 403);
+  return await handleTodoSendNow(request, env);
 }
 
 /** A one-off code for one person. Mints it; sending it is the shop's own job. */

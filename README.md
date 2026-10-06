@@ -1145,6 +1145,43 @@ expired state comes from. The same trick the sale banner uses on its own rule.
 available was talking him through clearing and rebuilding his cart. A code would
 have taken one click.
 
+## The LWFD to-do list
+
+**LWFD to-do**, the first card on the dashboard. A plain list for the fire
+department side of things - newsletter items due on the 25th, a form, a call
+to make - anything with a date on it that otherwise lives nowhere you look
+every day. Type it, add a due date if it has one, press Add. Tick the box when
+it is done. Ticked items drop into a "done" fold under the list until you press
+Clear done; the x on a row takes it off outright.
+
+Dates colour themselves: amber within three days or due today, red once past.
+The rail link carries the open count so it shows from any dashboard page.
+
+**The daily email.** Every day there is something open, the open list is
+emailed at the hour on the card - 7 am Eastern by default, to the shop inbox.
+Change the address, the hour, or switch it off under "Daily email" on the card;
+"Send me a copy now" sends it on the spot whatever the clock says. Nothing open
+means no email, on purpose: an empty reminder is the kind that teaches you to
+ignore the sender. It goes out through the same Brevo sender as the cart
+recovery mail, as transactional mail (no unsubscribe header - it is addressed
+to you), so it needs the same three secrets: `BREVO_KEY`, `RECOVERY_FROM`,
+`RECOVERY_POSTAL_ADDRESS`. Until those are set the card says "Email off" and
+the list still works.
+
+It rides the hourly cron. The send is recorded against the day before Brevo is
+called, so two overlapping runs cannot produce two emails; a failed send clears
+the mark and the next hour tries again. Logged as `todo email {...}` only when
+it sends or fails - a quiet hour logs nothing.
+
+**Where it lives.** `worker/todo.js` is all of it: the record, the actions, the
+card, the email and the cron step. One JSON record, key `lwfd`, in the `TODOS`
+KV namespace (id `b402df0c7f0245d6b367716385c1d1ca`, created Oct 6 2026). The
+whole list is read and written as one thing, which is what keeps the card, the
+email and the badge from ever disagreeing. Routes are `POST /dashboard/api/todo`
+(one action per call: `add`, `toggle`, `edit`, `remove`, `clear-done`,
+`settings`) and `POST /dashboard/api/todo/send`. Both sit behind the dashboard
+login and the dashboard header like every other write.
+
 ## Receipts and the year-end expense report
 
 `/dashboard/expenses` — photograph a receipt, it gets read, filed and totalled,
@@ -1419,6 +1456,7 @@ node worker/tests/run.mjs slip
 | `expenses` | the ledger: categories, edits and what blocks checking a row off, KV round-trip, year and undated handling, totals, the CSV including Excel formula injection, both pages' HTML escaping, and every way reading a receipt can fail |
 | `mime` | the hand-written email parser: folded headers, encoded subjects and filenames, base64 and quoted-printable, nested and prefix-clashing boundaries, a message forwarded as an attachment, HTML flattened to text |
 | `email-in` | receipts by email: who may file and every way a message is refused, picking the real attachment out of the letterhead, the fallbacks from sender and subject, and the promises that must hold on a bad day — always forwarded, never bounced, an unreadable receipt still becomes a row |
+| `todo` | the LWFD list: every action and what it refuses, due-date states, the email, the cron step (right hour, once a day, nothing open, mail unset, a failed send retries), the card, and both routes through the real Worker |
 | `worker` | routes through the real fetch handler — auth, the quote API, the public quote page, voiding, the printable sheet, marking a cash job paid, the webhook |
 
 `worker` swaps in a KV shim and a stub asset router, so it needs neither
