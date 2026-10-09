@@ -1,0 +1,17 @@
+# Response headers for the static asset router. Only /assets/* reaches it
+# (wrangler.jsonc run_worker_first excludes that prefix); HTML pages go through
+# the Worker, and nothing here touches them.
+#
+# Filenames under /assets are not fingerprinted, so a replaced photo with the
+# same name can show stale for up to the max-age in a returning browser. A
+# deploy purges the Cloudflare edge, not the visitor. Keep images at a week,
+# CSS and JS at an hour so a style change lands the same day.
+
+/assets/img/*
+  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+
+/assets/css/*
+  Cache-Control: public, max-age=3600, stale-while-revalidate=86400
+
+/assets/js/*
+  Cache-Control: public, max-age=3600, stale-while-revalidate=86400

@@ -185,7 +185,7 @@ p{margin:0 0 1em}
 /* Newsletter */
 .newsletter{padding:90px 0;background:var(--c-bg-2);border-top:1px solid var(--c-line);text-align:center}
 .newsletter-inner{max-width:600px;margin:0 auto}
-.newsletter h3{font-size:1.8rem;margin-bottom:.4em}
+.newsletter h2{font-size:1.8rem;letter-spacing:.05em;margin-bottom:.4em}
 .newsletter p{color:var(--c-text-soft);margin-bottom:1.8em}
 .newsletter-form{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
 .newsletter-form input{flex:1;min-width:240px;padding:14px 16px;background:var(--c-surface);border:1px solid var(--c-line-strong);color:var(--c-text);font-family:var(--font-body);font-size:1rem;border-radius:var(--radius)}
@@ -200,7 +200,7 @@ p{margin:0 0 1em}
 .footer-logo{max-width:180px;height:auto;filter:invert(1) brightness(2);margin-bottom:18px}
 .footer-brand .tagline{font-family:var(--font-stamp);font-style:italic;color:var(--c-cream);font-size:1rem}
 .footer-meta{font-size:.85rem;letter-spacing:.15em;text-transform:uppercase;color:var(--c-muted)}
-.site-footer h3{color:var(--c-cream);margin-bottom:18px;font-size:.95rem;letter-spacing:.14em}
+.site-footer h2{color:var(--c-cream);margin-bottom:18px;font-size:.95rem;letter-spacing:.14em}
 .footer-col ul{list-style:none;padding:0;margin:0}
 .footer-col li{margin-bottom:10px}
 .footer-col a{font-size:.95rem;color:var(--c-text-soft)}
