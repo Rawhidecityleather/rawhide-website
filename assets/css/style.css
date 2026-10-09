@@ -543,6 +543,10 @@ p{margin:0 0 1em}
 .guide-lead{font-size:1.12rem;color:var(--c-text);margin:0 0 1.4em}
 .guide-callout{background:var(--c-bg-2);border-left:3px solid var(--c-accent);padding:16px 20px;margin:0 0 1.6em}
 .guide-callout p{margin:0;color:var(--c-text-soft)}
+.guide-figure{margin:0 0 1.6em}
+.guide-figure img{display:block;width:100%;height:auto;border:1px solid var(--c-line)}
+.guide-figure.portrait img{max-width:440px;margin:0 auto}
+.guide-figure figcaption{font-family:var(--font-stamp);font-size:.72rem;letter-spacing:.12em;color:var(--c-muted);margin-top:10px;text-align:center}
 .guide-next{border-top:1px solid var(--c-line);margin-top:56px;padding-top:28px}
 .guide-next h2{font-size:1.05rem;margin:0 0 16px}
 
