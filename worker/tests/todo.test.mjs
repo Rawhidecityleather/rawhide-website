@@ -271,8 +271,10 @@ export default async function run() {
   check('needs a login', (await post('/dashboard/api/todo', { action: 'add', text: 'x' })).status === 401);
   check('needs the dashboard header', (await post('/dashboard/api/todo', { action: 'add', text: 'x' }, { Authorization: AUTH })).status === 403);
   check('send needs the header too', (await post('/dashboard/api/todo/send', {}, { Authorization: AUTH })).status === 403);
-
-  let res = await post('/dashboard/api/todo', { action: 'add', text: 'Turn in the inspection sheet', due: '2026-10-08' }, DASH);
+  // The route reads the real clock, so the due date has to stay ahead of it:
+  // a fixed date went overdue three days after this was written and the note
+  // grew ", 1 overdue".
+  let res = await post('/dashboard/api/todo', { action: 'add', text: 'Turn in the inspection sheet', due: new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10) }, DASH);
   let data = await res.json();
   check('add answers with the count, the note and the list', res.status === 200 && data.ok === true &&
     data.open === 1 && data.note === '1 open' && data.list.includes('Turn in the inspection sheet'));
