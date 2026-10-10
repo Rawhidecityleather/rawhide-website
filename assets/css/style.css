@@ -543,6 +543,11 @@ p{margin:0 0 1em}
 .guide-lead{font-size:1.12rem;color:var(--c-text);margin:0 0 1.4em}
 .guide-callout{background:var(--c-bg-2);border-left:3px solid var(--c-accent);padding:16px 20px;margin:0 0 1.6em}
 .guide-callout p{margin:0;color:var(--c-text-soft)}
+/* Buy box for a zero-option product inside a guide (leather butter on the care guide). */
+.guide-buy{background:var(--c-bg-2);border:1px solid var(--c-line);padding:18px 20px;margin:0 0 1.6em}
+.guide-buy p{margin:0 0 4px}
+.guide-buy .guide-buy-name{font-family:var(--font-display);font-size:1.05rem;letter-spacing:.04em;color:var(--c-text)}
+.guide-buy .card-buy{max-width:340px}
 .guide-figure{margin:0 0 1.6em}
 .guide-figure img{display:block;width:100%;height:auto;border:1px solid var(--c-line)}
 .guide-figure.portrait img{max-width:440px;margin:0 auto}
