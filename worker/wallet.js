@@ -397,6 +397,16 @@ export async function handleReturn(request, env, origin) {
  * nobody's money moves. The payment must also be one of ours — an intent
  * carrying a Snipcart session id — so this cannot be pointed at any other
  * charge in the account.
+ *
+ * A public token on its own proves nothing about who is calling: every buyer
+ * holds one, in the /pay link of their own checkout. So a public token only
+ * counts when its payment session is the very session that paid for this
+ * intent. A token from some other checkout, which is all a stranger can get
+ * by starting one, is refused. The amount is capped at what the intent took.
+ *
+ * Snipcart's docs disagree on whether this call carries the header, the body
+ * token, or both, so which proof arrived is logged (never the values) until a
+ * real refund settles it.
  */
 export async function handleRefund(request, env) {
   if (request.method !== 'POST') return json({ error: 'Use POST.' }, 405);
@@ -404,9 +414,17 @@ export async function handleRefund(request, env) {
 
   const body = await readJson(request);
   const headerToken = request.headers.get('X-Snipcart-RequestToken');
-  const vouched = (await validateRequestToken(env, headerToken))
-    || (!!body.publicToken && await validatePublicToken(body.publicToken));
-  if (!vouched) return json({ error: 'Could not prove this came from Snipcart.' }, 401);
+  console.log('wallet: refund call', JSON.stringify({
+    header: !!headerToken,
+    bodyKeys: Object.keys(body || {}).sort(),
+    queryKeys: [...new URL(request.url).searchParams.keys()].sort(),
+  }));
+
+  const byHeader = await validateRequestToken(env, headerToken);
+  const publicToken = !byHeader && body && typeof body.publicToken === 'string' ? body.publicToken : '';
+  if (!byHeader && !(publicToken && await validatePublicToken(publicToken))) {
+    return json({ error: 'Could not prove this came from Snipcart.' }, 401);
+  }
 
   const paymentId = body && body.paymentId;
   const amount = Number(body && body.amount);
@@ -420,7 +438,18 @@ export async function handleRefund(request, env) {
     return json({ error: 'That payment was not made through this gateway.' }, 404);
   }
 
+  if (!byHeader) {
+    const raw = await paymentSession(publicToken).catch(() => null);
+    if (!raw || !raw.id || String(raw.id) !== String(intent.metadata.snipcart_session)) {
+      console.error('wallet: refund refused, public token is for another session', intent.id);
+      return json({ error: 'Could not prove this came from Snipcart.' }, 401);
+    }
+  }
+
   const cents = Math.round(amount * 100);
+  const taken = Number(intent.amount_received || intent.amount || 0);
+  if (cents > taken) return json({ error: 'That is more than this payment took.' }, 400);
+
   const refund = await stripe(env, 'POST', '/refunds', {
     payment_intent: intent.id,
     amount: String(cents),

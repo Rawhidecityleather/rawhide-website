@@ -302,8 +302,24 @@ export default async function run() {
     check('in cents', state.refundBody.get('amount') === '2500');
     check('and cannot be run twice by a retry', state.refundHeaders['Idempotency-Key'] === 'wallet-refund-pi_ok-2500');
     state.refundBody = null;
+    const tooMuch = await handleRefund(post('/api/wallet/refund', { paymentId: 'pi_ok', amount: 176.56 }, okHeaders), env);
+    check('more than the payment took is a 400', tooMuch.status === 400 && !state.refundBody);
+    const all = await handleRefund(post('/api/wallet/refund', { paymentId: 'pi_ok', amount: 176.55 }, okHeaders), env);
+    check('but the whole payment can come back', all.status === 200 && state.refundBody.get('amount') === '17655');
+    state.refundBody = null;
     const viaPublic = await handleRefund(post('/api/wallet/refund', { paymentId: 'pi_ok', amount: 10, publicToken: 'good' }), env);
-    check('a public token Snipcart vouches for is enough too', viaPublic.status === 200 && state.refundBody.get('amount') === '1000');
+    check('a public token for the session that paid is enough too', viaPublic.status === 200 && state.refundBody.get('amount') === '1000');
+    state.refundBody = null;
+    // The attack the security scan found: a buyer starts a second checkout,
+    // takes the live public token from that /pay link, and asks for their
+    // first order's money back. Snipcart vouches for the token, but it is for
+    // another session, so nothing moves.
+    state.session = session({ id: 'sess_other' });
+    const stolen = await handleRefund(post('/api/wallet/refund', { paymentId: 'pi_ok', amount: 176.55, publicToken: 'good' }), env);
+    check('a live public token from a different checkout is a 401', stolen.status === 401);
+    check('and Stripe was never asked', !state.refundBody);
+    check('even with the request-token header forged alongside it', (await handleRefund(post('/api/wallet/refund', { paymentId: 'pi_ok', amount: 5, publicToken: 'good' }, { 'X-Snipcart-RequestToken': 'forged' }), env)).status === 401 && !state.refundBody);
+    state.session = session();
 
     suite('wallet — Apple Pay domain file');
 
