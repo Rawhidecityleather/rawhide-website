@@ -245,6 +245,16 @@ export default {
 
     const path = canonical.pathname.replace(/\/+$/, '') || '/';
 
+    // The Worker also answers on its workers.dev address, which Cloudflare
+    // Access on rawhidecityleather.com does not cover. Anything behind the
+    // login is sent to the real domain, so the only way in is through Access.
+    // The Snipcart webhook stays where Snipcart calls it.
+    if (canonical.hostname.endsWith('.workers.dev') && isBehindLogin(path)) {
+      canonical.hostname = SITE_HOST;
+      canonical.port = '';
+      canonical.protocol = 'https:';
+    }
+
     // Dead URLs from the Wix store, still holding the site's Google rankings.
     // Listed in `run_worker_first` so they reach this line instead of the
     // asset router's 404 page.
@@ -1271,6 +1281,22 @@ const EXPENSE_PATHS = new Set([
 
 function isExpensePath(path) {
   return EXPENSE_PATHS.has(path);
+}
+
+const SITE_HOST = 'rawhidecityleather.com';
+
+/**
+ * Everything the dashboard login guards, which is also what Cloudflare Access
+ * guards on the real domain. The Snipcart webhook lives under /dashboard but
+ * is called by Snipcart's servers, which can't sign in, so it is not on this
+ * list and Access has a bypass for it.
+ */
+export function isBehindLogin(path) {
+  if (path === '/dashboard/hooks/snipcart') return false;
+  return path === '/dashboard' || path.startsWith('/dashboard/')
+    || path === '/packing-slip'
+    || path.startsWith('/logo/')
+    || path.startsWith('/receipt/');
 }
 
 async function routeExpenses(path, request, env, url) {

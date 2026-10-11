@@ -425,6 +425,27 @@ export default async function run() {
   check('a 404 gets the same headers',
     missing.status === 404 && missing.headers.get('x-content-type-options') === 'nosniff');
 
+  suite('worker — the workers.dev address cannot reach the dashboard');
+
+  // Cloudflare Access guards the dashboard on the real domain only, so the
+  // workers.dev address must not be a way round it.
+  const DEV = 'https://quiet-firefly-3711.rawhidecityleather.workers.dev';
+  const fromDev = (path, init) => worker.fetch(new Request(DEV + path, init), env);
+  for (const path of ['/dashboard', '/dashboard/products', '/dashboard/api/coupon', '/dashboard/expenses.csv', '/packing-slip?token=x', '/logo/abc.png', '/receipt/2026/a.pdf']) {
+    const res = await fromDev(path);
+    check(`workers.dev ${path} goes to the real domain`,
+      res.status === 301 && res.headers.get('location') === ORIGIN + path,
+      `${res.status} → ${res.headers.get('location')}`);
+  }
+  const devPost = await fromDev('/dashboard/api/ship', { method: 'POST', body: '{}' });
+  check('a dashboard POST there is sent on with its method kept', devPost.status === 308);
+  const devHook = await fromDev('/dashboard/hooks/snipcart', { method: 'POST', body: '{}' });
+  check('but the Snipcart webhook is answered where Snipcart calls it', devHook.status !== 301 && devHook.status !== 308, String(devHook.status));
+  const devShop = await fromDev('/shop');
+  check('and the shop pages are left alone', devShop.status !== 301 && devShop.status !== 308, String(devShop.status));
+  const apexDash = await worker.fetch(new Request(ORIGIN + '/dashboard'), env);
+  check('the real domain still asks for the login', apexDash.status === 401, String(apexDash.status));
+
   suite('worker — www to apex');
 
   const WWW = 'https://www.rawhidecityleather.com';
