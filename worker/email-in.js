@@ -15,8 +15,9 @@
  * What happens to one message:
  *   1. It is forwarded to the shop inbox, whatever else goes right or wrong.
  *      Nothing here is allowed to be the only copy of a receipt.
- *   2. The sender is checked against RECEIPT_SENDERS. Anything else is
- *      forwarded and dropped — this address files rows into the shop's books.
+ *   2. The From: header is checked against RECEIPT_SENDERS, and Cloudflare's
+ *      DMARC verdict must pass for it. Anything else is forwarded and dropped —
+ *      this address files rows into the shop's books.
  *   3. Real attachments — a PDF invoice, a photographed receipt — are stored
  *      and read, one ledger row each.
  *   4. With no attachment worth filing, the body is the receipt: it gets
@@ -33,7 +34,7 @@
  *                        Email Routing destination address.
  */
 
-import { parseEmail, binaryFrom, htmlToText } from './mime.js';
+import { parseEmail, binaryFrom, htmlToText, dmarcPassFor, edgeVerdict } from './mime.js';
 import { detect } from './uploads.js';
 import { storeReceipt, storeBody, readText, cleanDate, cleanVendor } from './receipts.js';
 import { buildExpense, putExpense, guessCategory } from './expenses.js';
@@ -82,28 +83,32 @@ export function senderAllowed(from, allowed) {
 }
 
 /**
- * Whether the message is who it says it is.
+ * Whether the message really comes from the From address it shows.
  *
- * The From header is a claim anyone can write, so the allowlist alone is not a
- * check. Email Routing verifies SPF, DKIM and DMARC at the edge and writes the
- * verdict into Authentication-Results, which is what this reads.
+ * The allowlist is checked against the From: header, the address a person
+ * reads, and this proves that header: Cloudflare's own DMARC verdict has to be
+ * a pass for that address's domain. Gmail signs everything the shop sends, so
+ * a receipt forwarded from the shop's Gmail passes. A stranger can put the
+ * shop's Gmail address on a message but cannot get Gmail to sign it.
  *
- * A message with no such header is let through. The address is private, the
- * row lands unchecked, and the worst an unauthenticated forgery achieves is a
- * junk line on the expenses page — while failing closed on a header that isn't
- * there would mean the whole feature silently files nothing.
+ * Until Oct 2026 this checked the envelope sender instead, accepted a DMARC
+ * pass for any domain, and let a message with no verdict through on the
+ * strength of the address being private. The address turned out to be in the
+ * public repo's tests, and the envelope sender is something any mail server
+ * can set, so none of that held. No verdict now files nothing; the message is
+ * still forwarded to the shop, so nothing is lost but the automatic row.
  */
-export function authPassed(message) {
-  let results = '';
-  try {
-    results = String(message?.headers?.get('authentication-results') || '').toLowerCase();
-  } catch {
-    return true;
-  }
+export function authPassed(message, fromAddress) {
+  return dmarcPassFor(authResults(message), fromAddress);
+}
 
-  if (!results) return true;
-  if (/dmarc=pass/.test(results)) return true;
-  return /spf=pass/.test(results) && /dkim=pass/.test(results);
+/** The joined Authentication-Results, or '' when there is none to read. */
+export function authResults(message) {
+  try {
+    return String(message?.headers?.get('authentication-results') || '');
+  } catch {
+    return '';
+  }
 }
 
 /* ------------------------------------------------------------- attachments */
@@ -318,15 +323,14 @@ export async function handleEmail(message, env) {
 
 async function file(message, env, report) {
   const allowed = allowedSenders(env);
+  if (!allowed.length) {
+    report.why = 'RECEIPT_SENDERS is not set';
+    return 0;
+  }
 
-  if (!senderAllowed(message.from, allowed)) {
-    report.why = allowed.length ? 'sender not on the list' : 'RECEIPT_SENDERS is not set';
-    return 0;
-  }
-  if (!authPassed(message)) {
-    report.why = 'failed SPF, DKIM and DMARC';
-    return 0;
-  }
+  // Which proof arrived, without anything personal, so a receipt that did not
+  // file can be explained from the log alone.
+  report.auth = edgeVerdict(authResults(message)) || 'no cloudflare verdict';
 
   const raw = await readRaw(message, MAX_EMAIL_BYTES);
   if (!raw) {
@@ -334,7 +338,20 @@ async function file(message, env, report) {
     return 0;
   }
 
+  // The From: header, not message.from. message.from is the envelope sender,
+  // which any mail server can set to anything and nothing checks; the header
+  // is what DMARC proves.
   const parsed = parseEmail(raw);
+  report.from = String(parsed.from || '').toLowerCase();
+  if (!senderAllowed(parsed.from, allowed)) {
+    report.why = 'sender not on the list';
+    return 0;
+  }
+  if (!authPassed(message, parsed.from)) {
+    report.why = 'DMARC did not pass for the From address';
+    return 0;
+  }
+
   report.subject = parsed.subject;
 
   let filed = 0;

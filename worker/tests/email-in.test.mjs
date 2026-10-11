@@ -115,8 +115,15 @@ function fakeMessage(raw, { from = SHOP, headers = {}, rawSize } = {}) {
   };
 }
 
-const PASS = { 'authentication-results': 'mx.cloudflare.net; dkim=pass; spf=pass; dmarc=pass' };
-const FAIL = { 'authentication-results': 'mx.cloudflare.net; dkim=fail; spf=fail; dmarc=fail' };
+// Shaped like the header Cloudflare Email Routing really writes, read off a
+// routed message in Oct 2026: its server name first, and the DMARC result
+// naming the From domain it checked.
+const verdict = (dmarc, domain) =>
+  `mx.cloudflare.net; dkim=pass header.i=@${domain} header.s=s1 header.b=abc; ` +
+  `dmarc=${dmarc} header.from=${domain} policy.dmarc=none; spf=pass smtp.mailfrom=${domain}`;
+const PASS = { 'authentication-results': verdict('pass', 'gmail.com') };
+const FAIL = { 'authentication-results': verdict('fail', 'gmail.com') };
+const PASS_META = { 'authentication-results': verdict('pass', 'meta.com') };
 
 function withPdf({ from = 'Rob <' + SHOP + '>', subject = 'Fwd: Tandy order 88213' } = {}) {
   return wire(
@@ -169,16 +176,25 @@ export default async function run() {
     senderAllowed('rob@nottandyleather.com.evil.com', ['@tandyleather.com']) === false);
   check('a missing sender is refused', senderAllowed('', ALLOWED) === false);
 
-  check('a passing DMARC is accepted',
-    authPassed({ headers: { get: () => PASS['authentication-results'] } }));
-  check('SPF and DKIM together are accepted',
-    authPassed({ headers: { get: () => 'spf=pass; dkim=pass; dmarc=none' } }));
+  const said = (value) => ({ headers: { get: () => value } });
+  check('Cloudflare passing DMARC for the From domain is accepted',
+    authPassed(said(PASS['authentication-results']), SHOP));
   check('a failing message is refused',
-    authPassed({ headers: { get: () => FAIL['authentication-results'] } }) === false);
-  check('SPF alone is not enough',
-    authPassed({ headers: { get: () => 'spf=pass; dkim=fail; dmarc=fail' } }) === false);
-  check('no header at all is let through — the feature must not die silently',
-    authPassed({ headers: { get: () => null } }));
+    authPassed(said(FAIL['authentication-results']), SHOP) === false);
+  // The scan's attack: the shop's Gmail in From, a domain the attacker owns
+  // signing it. DMARC passes, but for the attacker's domain, not gmail.com.
+  check('a DMARC pass for some other domain is refused',
+    authPassed(said(verdict('pass', 'evil.example')), SHOP) === false);
+  check('SPF and DKIM passing without DMARC are no longer enough',
+    authPassed(said('mx.cloudflare.net; spf=pass; dkim=pass; dmarc=none'), SHOP) === false);
+  check('no header at all is refused — the address is not a secret any more',
+    authPassed(said(null), SHOP) === false);
+  check('a verdict another server wrote is ignored',
+    authPassed(said('example.net; dmarc=pass header.from=gmail.com'), SHOP) === false);
+  check("and one the sender added below Cloudflare's cannot outvote it",
+    authPassed(said(FAIL['authentication-results'] + ', mx.cloudflare.net; dmarc=pass header.from=gmail.com'), SHOP) === false);
+  check('with no From address there is nothing to prove',
+    authPassed(said(PASS['authentication-results']), '') === false);
 
   suite('receipts by email — what counts as a receipt');
 
@@ -285,7 +301,7 @@ export default async function run() {
     RECEIPT_SENDERS: ALLOWED.join(',') + ',@meta.com',
     AI: fakeAI('{"vendor":"Meta","date":"2026-08-17","total":114.02,"category":"advertising","summary":"ads billing"}'),
   });
-  const htmlReport = await handleEmail(fakeMessage(HTML_ONLY, { from: 'billing@meta.com', headers: PASS }), htmlEnv);
+  const htmlReport = await handleEmail(fakeMessage(HTML_ONLY, { from: 'billing@meta.com', headers: PASS_META }), htmlEnv);
 
   check('the body itself becomes a row', htmlReport.filed === 1);
   const [htmlRow] = htmlEnv.EXPENSES.records();
@@ -306,7 +322,7 @@ export default async function run() {
   // purchase, and no fallback is better than a wrong month.
   const forwardBody = (subject, separator) => wire(
     `From: Rob <${SHOP}>\n` +
-    'To: receipts-k7f2q9@rawhidecityleather.com\n' +
+    'To: receipts@example.com\n' +
     `Subject: ${subject}\n` +
     'Date: Wed, 19 Aug 2026 18:03:00 +0000\n' +
     'Content-Type: text/html; charset="utf-8"\n' +
@@ -364,7 +380,29 @@ export default async function run() {
   const forged = fakeEnv();
   const forgedReport = await handleEmail(fakeMessage(withPdf(), { headers: FAIL }), forged);
   check('a forged From files nothing', forgedReport.filed === 0);
-  check('and says so', forgedReport.why === 'failed SPF, DKIM and DMARC');
+  check('and says so', forgedReport.why === 'DMARC did not pass for the From address');
+  check('and the log shows what Cloudflare said', forgedReport.auth.dmarc === 'fail');
+
+  // The envelope sender is the shop's Gmail, which any mail server can claim;
+  // the From line is the attacker's own domain, which they can sign for.
+  const spoofed = fakeEnv();
+  const spoofedReport = await handleEmail(
+    fakeMessage(withPdf({ from: 'billing@evil.example' }), { from: SHOP, headers: { 'authentication-results': verdict('pass', 'evil.example') } }),
+    spoofed);
+  check("a forged envelope sender with someone else's From files nothing", spoofedReport.filed === 0);
+  check('because the From line is what is checked', spoofedReport.why === 'sender not on the list');
+
+  const hijack = fakeEnv();
+  const hijackReport = await handleEmail(
+    fakeMessage(withPdf(), { headers: { 'authentication-results': verdict('pass', 'evil.example') } }), hijack);
+  check("the shop's address in From, signed by another domain, files nothing", hijackReport.filed === 0);
+  check('nothing reaches the ledger either way', spoofed.EXPENSES.store.size === 0 && hijack.EXPENSES.store.size === 0);
+
+  const bare = fakeEnv();
+  const bareMessage = fakeMessage(withPdf(), { headers: {} });
+  const bareReport = await handleEmail(bareMessage, bare);
+  check('a message with no verdict files nothing', bareReport.filed === 0);
+  check('but the shop still gets it', bareMessage.forwarded[0] === SHOP);
 
   const unset = fakeEnv({ RECEIPT_SENDERS: '' });
   const unsetReport = await handleEmail(fakeMessage(withPdf(), { headers: PASS }), unset);

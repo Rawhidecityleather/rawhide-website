@@ -118,7 +118,14 @@ function trackingMail({ to = CUSTOMER, tracking = USPS, from = SENDER } = {}) {
 }
 
 /** What Email Routing writes on a message that checked out at the edge. */
-const PASS = { 'authentication-results': 'mx.cloudflare.net; dmarc=pass; spf=pass; dkim=pass' };
+// Shaped like Cloudflare's real header: its server name first, and the DMARC
+// result naming the From domain it checked. Pirate Ship signs the shop's
+// tracking mail with the shop domain's own Postmark key, so DMARC passes for
+// rawhidecityleather.com.
+const verdict = (dmarc, domain) =>
+  `mx.cloudflare.net; dkim=pass header.i=@${domain} header.s=pm header.b=abc; ` +
+  `dmarc=${dmarc} header.from=${domain} policy.dmarc=none; spf=pass smtp.mailfrom=pm-bounces.${domain}`;
+const PASS = { 'authentication-results': verdict('pass', 'rawhidecityleather.com') };
 
 function fakeMessage(raw, { from = ENVELOPE, to = INBOX, headers = PASS } = {}) {
   const bytes = new TextEncoder().encode(raw);
@@ -188,7 +195,7 @@ export default async function run() {
   check('casing and spacing do not matter',
     isTrackingAddress({ to: '  ' + INBOX.toUpperCase() + ' ' }, fakeEnv()) === true);
   check('the receipts address is left to the receipts handler',
-    isTrackingAddress({ to: 'receipts-k7f2q9@rawhidecityleather.com' }, fakeEnv()) === false);
+    isTrackingAddress({ to: 'receipts@example.com' }, fakeEnv()) === false);
   check('with no inbox configured nothing is a tracking email',
     isTrackingAddress({ to: INBOX }, fakeEnv({ TRACKING_INBOX: '' })) === false);
 
@@ -219,21 +226,27 @@ export default async function run() {
 
   suite('tracking in — proving it came from Pirate Ship');
 
-  check('a message the edge vouched for passes', authStrict({
-    headers: { get: () => 'mx.cloudflare.net; dmarc=pass; spf=pass; dkim=pass' },
-  }) === true);
-  check('SPF and DKIM together are enough without DMARC', authStrict({
-    headers: { get: () => 'mx.cloudflare.net; spf=pass; dkim=pass' },
-  }) === true);
-  check('a failed verdict does not', authStrict({
-    headers: { get: () => 'mx.cloudflare.net; dmarc=fail; spf=fail; dkim=fail' },
-  }) === false);
+  const said = (value) => ({ headers: { get: () => value } });
+  check('a DMARC pass for the From domain passes',
+    authStrict(said(PASS['authentication-results']), SENDER) === true);
+  // The scan's attack: a stranger's own server and own DKIM key, the shop's
+  // address in From. SPF and DKIM pass for the stranger; DMARC fails.
+  check('SPF and DKIM passing for some other domain are no longer enough',
+    authStrict(said('mx.cloudflare.net; spf=pass smtp.mailfrom=evil.example; dkim=pass header.i=@evil.example; dmarc=fail header.from=rawhidecityleather.com'), SENDER) === false);
+  check('a DMARC pass for another domain does not count',
+    authStrict(said(verdict('pass', 'evil.example')), SENDER) === false);
+  check('a failed verdict does not',
+    authStrict(said(verdict('fail', 'rawhidecityleather.com')), SENDER) === false);
   check('SPF alone does not — that is forgeable by anyone who can send mail',
-    authStrict({ headers: { get: () => 'mx.cloudflare.net; spf=pass' } }) === false);
-  check('and NO verdict fails closed, unlike the receipt path',
-    authStrict({ headers: { get: () => null } }) === false);
+    authStrict(said('mx.cloudflare.net; spf=pass'), SENDER) === false);
+  check('a verdict another server wrote is ignored',
+    authStrict(said('example.net; dmarc=pass header.from=rawhidecityleather.com'), SENDER) === false);
+  check("and one the sender added below Cloudflare's cannot outvote it",
+    authStrict(said(verdict('fail', 'rawhidecityleather.com') + ', mx.cloudflare.net; dmarc=pass header.from=rawhidecityleather.com'), SENDER) === false);
+  check('and NO verdict fails closed',
+    authStrict(said(null), SENDER) === false);
   check('a header bag that throws fails closed too',
-    authStrict({ headers: { get() { throw new Error('nope'); } } }) === false);
+    authStrict({ headers: { get() { throw new Error('nope'); } } }, SENDER) === false);
 
   suite('tracking in — finding the order');
 
@@ -307,7 +320,7 @@ export default async function run() {
     repeat.shipped === false && repeat.why === 'already on the order', repeat.why);
 
   const forged = await ship(fakeEnv(), orders, fakeMessage(trackingMail(), {
-    headers: { 'authentication-results': 'mx.cloudflare.net; dmarc=fail; spf=fail; dkim=fail' },
+    headers: { 'authentication-results': 'mx.cloudflare.net; spf=pass smtp.mailfrom=evil.example; dkim=pass header.i=@evil.example; dmarc=fail header.from=rawhidecityleather.com' },
   }));
   check('a forged From that says Pirate Ship ships nothing',
     forged.shipped === false && forged.why === 'could not prove who sent it',

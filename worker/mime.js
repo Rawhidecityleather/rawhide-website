@@ -110,6 +110,48 @@ export function headerValue(headers, name) {
 }
 
 /**
+ * The verdict Cloudflare Email Routing wrote on the way in, and nothing else.
+ *
+ * Cloudflare puts its own Authentication-Results header on top of the message,
+ * marked with its server name. A sender can add more headers of the same name
+ * further down, saying whatever they like, and Headers.get() joins them all
+ * with ", ". So only the first one counts, only when it is Cloudflare's, and
+ * it is cut off where the next one begins.
+ *
+ * `value` is that joined header. Returns null when Cloudflare's is not first.
+ */
+export const EDGE_AUTHSERV = 'mx.cloudflare.net';
+
+export function edgeVerdict(value) {
+  const text = String(value || '').trim().toLowerCase();
+  if (!text.startsWith(EDGE_AUTHSERV + ';')) return null;
+
+  const rest = text.slice(EDGE_AUTHSERV.length + 1);
+  const next = rest.search(/,\s*[a-z0-9.-]+\s*;/);
+  const own = next < 0 ? rest : rest.slice(0, next);
+  const dmarc = own.split(';').map((part) => part.trim()).find((part) => part.startsWith('dmarc=')) || '';
+
+  return {
+    dmarc: (dmarc.match(/^dmarc=([a-z]+)/) || [])[1] || 'none',
+    dmarcFrom: (dmarc.match(/header\.from=([^\s;,]+)/) || [])[1] || '',
+  };
+}
+
+/**
+ * Whether Cloudflare's DMARC check passed for the domain in this From address.
+ *
+ * DMARC is the one result tied to the From line a person reads: it passes only
+ * when the domain in From itself signed the mail or sent it from its own
+ * servers. A pass for some other domain, or bare SPF and DKIM passes for
+ * whoever relayed it, prove nothing about the address being allowlisted.
+ */
+export function dmarcPassFor(value, fromAddress) {
+  const verdict = edgeVerdict(value);
+  const domain = String(fromAddress || '').trim().toLowerCase().split('@')[1] || '';
+  return !!(verdict && domain && verdict.dmarc === 'pass' && verdict.dmarcFrom === domain);
+}
+
+/**
  * A Content-Type or Content-Disposition, split into its value and parameters.
  *
  * RFC 2231 continuations (`filename*0=`, `filename*=utf-8''…`) are folded back
@@ -354,6 +396,36 @@ const ENTITIES = {
   ndash: '-', mdash: '-', rsquo: "'", lsquo: "'", ldquo: '"', rdquo: '"', middot: '·',
 };
 
+const HTML_TEXT_LIMIT = 500_000;
+
+/**
+ * `text` with every block from `open` to `close` swapped for a space, matched
+ * without regard to case. One forward pass with indexOf, never a regex, so it
+ * stays linear however many unclosed `open`s the text holds. An unclosed block
+ * runs to the end, which is what a browser would do with it too.
+ */
+function dropBetween(text, open, close) {
+  const lower = text.toLowerCase();
+  let out = '';
+  let at = 0;
+  let from = 0;
+  for (;;) {
+    const start = lower.indexOf(open, from);
+    if (start < 0) break;
+    // '<head' must not catch '<header>': a tag name ends at a non-name character.
+    if (/[a-z]$/.test(open) && /[a-z0-9-]/.test(lower.charAt(start + open.length))) {
+      from = start + 1;
+      continue;
+    }
+    out += text.slice(at, start) + ' ';
+    const end = lower.indexOf(close, start + open.length);
+    if (end < 0) return out;
+    at = end + close.length;
+    from = at;
+  }
+  return out + text.slice(at);
+}
+
 /**
  * An HTML receipt as plain text, for the model to read.
  *
@@ -363,14 +435,20 @@ const ENTITIES = {
  * flattened to lines reads well enough for the numbers to be found.
  */
 export function htmlToText(html) {
-  return String(html || '')
-    .replace(/<(script|style|head)\b[\s\S]*?<\/\1>/gi, ' ')
-    .replace(/<!--[\s\S]*?-->/g, ' ')
-    .replace(/<br\b[^>]*>/gi, '\n')
+  // Every step here is one pass over the text. The old tag patterns rescanned
+  // to the end of the message from every '<' that had no '>' after it, so a
+  // body made of nothing but '<' ran the Worker to its CPU limit. A receipt is
+  // a few hundred KB at most, so anything past that is dropped first.
+  let text = String(html || '').slice(0, HTML_TEXT_LIMIT);
+  for (const [open, close] of [['<script', '</script>'], ['<style', '</style>'], ['<head', '</head>'], ['<!--', '-->']]) {
+    text = dropBetween(text, open, close);
+  }
+  return text
+    .replace(/<br\b[^<>]*>/gi, '\n')
     .replace(/<\/(p|div|tr|li|h[1-6]|table)\s*>/gi, '\n')
     // Cells run together into "Total$41.20" without something between them.
     .replace(/<\/(td|th)\s*>/gi, ' ')
-    .replace(/<[^>]+>/g, '')
+    .replace(/<[^<>]+>/g, '')
     .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
     .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCharCode(parseInt(code, 16)))
     .replace(/&([a-z]+);/gi, (whole, name) => ENTITIES[name.toLowerCase()] ?? whole)

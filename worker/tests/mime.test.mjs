@@ -238,4 +238,18 @@ export default function run() {
     htmlToText('100&deg; in the shop') === '100&deg; in the shop');
   check('runs of blank lines collapse', htmlToText('<p>a</p><p></p><p>b</p>') === 'a\nb');
   check('nothing in, nothing out', htmlToText('') === '');
+  check('a <header> tag is not mistaken for <head> and the receipt survives',
+    htmlToText('<header>Rawhide</header><p>Total $9</p>').includes('Total $9'));
+  check('script and style in any case are dropped',
+    htmlToText('<SCRIPT>bad()</SCRIPT><Style>p{}</Style><p>ok</p>') === 'ok');
+  check('an unclosed comment hides only what follows it',
+    htmlToText('<p>Total $9</p><!-- never closed <p>junk</p>') === 'Total $9');
+  check('a stray < in text does not swallow the next tag', htmlToText('a < b <b>c</b>').includes('a < b c'));
+  // The scan's CPU attack: a body of nothing but '<', and of unclosed '<script'.
+  // The old patterns rescanned to the end from every one; these are one pass.
+  const started = Date.now();
+  htmlToText('<'.repeat(2_000_000));
+  htmlToText('<script'.repeat(200_000));
+  htmlToText('<!--'.repeat(300_000));
+  check('a crafted body of millions of < is read in well under a second', Date.now() - started < 1000, (Date.now() - started) + 'ms');
 }

@@ -40,7 +40,7 @@
  *                      ship@pirateship.com with the real address as reply-to.
  */
 
-import { parseEmail, htmlToText } from './mime.js';
+import { parseEmail, htmlToText, dmarcPassFor, edgeVerdict } from './mime.js';
 import { findTrackingNumber } from './pirateship.js';
 import { getAllOrders, putJson, trackingUrlFor, isShipped, isCancelled } from './snipcart.js';
 
@@ -86,23 +86,25 @@ export function senderAllowed(from, allowed) {
  * front of the customer. Email Routing checks SPF, DKIM and DMARC at the edge
  * and writes the verdict into Authentication-Results; this reads it.
  *
- * Stricter than the receipt path, which lets a message with no such header
- * through. There, an unauthenticated forgery is a junk row nobody has to act
- * on. Here it reaches a customer, so no header is no shipment — and the cost of
- * being wrong is small, because the mail is still forwarded to the shop and the
- * paste box is still there.
+ * Only Cloudflare's own verdict counts, and only a DMARC pass for the domain in
+ * this From address. Pirate Ship sends the shop's tracking mail through
+ * Postmark, signed with the shop domain's own Postmark key, so a real one
+ * passes. Until Oct 2026 a bare SPF pass plus a DKIM pass was also accepted,
+ * but those can belong to any domain: a stranger signing mail from their own
+ * domain with the shop's address in From got both. No verdict, or any other
+ * verdict, is no shipment — and the cost of being wrong is small, because the
+ * mail is still forwarded to the shop and the paste box is still there.
  */
-export function authStrict(message) {
-  let results = '';
-  try {
-    results = String(message?.headers?.get('authentication-results') || '').toLowerCase();
-  } catch {
-    return false;
-  }
+export function authStrict(message, fromAddress) {
+  return dmarcPassFor(authResults(message), fromAddress);
+}
 
-  if (!results) return false;
-  if (/dmarc=pass/.test(results)) return true;
-  return /spf=pass/.test(results) && /dkim=pass/.test(results);
+function authResults(message) {
+  try {
+    return String(message?.headers?.get('authentication-results') || '');
+  } catch {
+    return '';
+  }
 }
 
 /**
@@ -144,7 +146,10 @@ export function matchOrder(email, orders) {
 export async function handleTrackingEmail(message, env, readRaw, limit) {
   const report = { from: String(message?.from || '').toLowerCase(), shipped: false, why: '' };
 
-  if (!authStrict(message)) {
+  // Which proof arrived, so a tracking email that didn't ship anything can be
+  // explained from the log alone. Domains and pass/fail only.
+  report.auth = edgeVerdict(authResults(message)) || 'no cloudflare verdict';
+  if (!report.auth.dmarc) {
     report.why = 'could not prove who sent it';
     return report;
   }
@@ -172,6 +177,10 @@ export async function handleTrackingEmail(message, env, readRaw, limit) {
   report.from = parsed.from;
   if (!senderAllowed(parsed.from, allowed)) {
     report.why = allowed.length ? 'sender not on the list' : 'TRACKING_SENDERS is not set';
+    return report;
+  }
+  if (!authStrict(message, parsed.from)) {
+    report.why = 'could not prove who sent it';
     return report;
   }
   const body = [parsed.text, htmlToText(parsed.html), parsed.subject]
