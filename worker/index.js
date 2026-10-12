@@ -92,7 +92,7 @@ import { sendPurchase } from './meta-capi.js';
 import {
   handleMethods as handleWalletMethods, handlePayPage as handleWalletPage, handleIntent as handleWalletIntent,
   handleConfirm as handleWalletConfirm, handleReturn as handleWalletReturn, handleRefund as handleWalletRefund,
-  handleAppleAssociation,
+  handleAppleAssociation, sendWalletReceipt,
 } from './wallet.js';
 import {
   buildQuote, putQuote, getQuote, listQuotes, voidQuote, markQuotePaid,
@@ -1209,8 +1209,12 @@ async function handleWebhook(request, env) {
     // Meta first, and it never throws: the quote stamp below decides the
     // status code Snipcart sees, and a Meta hiccup must not trigger a retry.
     const meta = await sendPurchase(env, body.content || {}, { mode: body.mode });
+    // Same rule: an Apple Pay / Google Pay buyer's confirmation email, which
+    // Snipcart does not send on its own for this gateway. Never throws.
+    const receipt = await sendWalletReceipt(env, body.content || {});
     const res = await handleQuotePaid(body.content || {}, env);
     if (!meta.sent) console.log('meta capi skipped:', meta.reason);
+    console.log('wallet receipt', JSON.stringify(receipt));
     return res;
   }
 

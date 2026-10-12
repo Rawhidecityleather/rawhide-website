@@ -16,7 +16,7 @@ import worker from '../index.js';
 import {
   handleMethods, handlePayPage, handleIntent, handleConfirm, handleReturn,
   handleRefund, handleAppleAssociation, settle, readSession, walletConfigured, METHOD_ID,
-  stripeInTestMode, testModeAllows,
+  stripeInTestMode, testModeAllows, sendWalletReceipt, findPaymentIntentId,
 } from '../wallet.js';
 
 const ORIGIN = 'https://rawhidecityleather.com';
@@ -76,6 +76,17 @@ function fakeNet(state) {
     }
     if (url.includes('app.snipcart.com/api/requestvalidation/')) {
       return new Response('{}', { status: url.endsWith('/valid-token') ? 200 : 404 });
+    }
+    if (url.includes('app.snipcart.com/api/orders/') && url.endsWith('/notifications')) {
+      state.notifyAuth = init.headers.Authorization;
+      if (method === 'GET') return jsonRes({ items: state.notifications });
+      const sent = JSON.parse(init.body);
+      state.notifyPosts.push(sent);
+      const made = state.notifyEmailFails
+        ? { ...sent, deliveryMethod: 'None', sentOn: null }
+        : { ...sent, sentOn: '2026-10-11T12:00:00Z' };
+      state.notifications.push(made);
+      return jsonRes(made);
     }
     if (url === 'https://api.stripe.com/v1/payment_intents' && method === 'POST') {
       state.intentBody = new URLSearchParams(init.body);
@@ -320,6 +331,45 @@ export default async function run() {
     check('and Stripe was never asked', !state.refundBody);
     check('even with the request-token header forged alongside it', (await handleRefund(post('/api/wallet/refund', { paymentId: 'pi_ok', amount: 5, publicToken: 'good' }, { 'X-Snipcart-RequestToken': 'forged' }), env)).status === 401 && !state.refundBody);
     state.session = session();
+
+    suite('wallet — the buyer\'s confirmation email');
+
+    state.notifications = []; state.notifyPosts = []; state.notifyEmailFails = false;
+    state.intents.pi_card = { id: 'pi_card', status: 'succeeded', amount: 14850, currency: 'usd', metadata: { snipcart_payment_session_id: 'x' } };
+    check('the intent id is found on the order', findPaymentIntentId({ token: 't', transactionId: 'pi_ok' }) === 'pi_ok');
+    check('or one level down', findPaymentIntentId({ token: 't', paymentDetails: { id: 'pi_ok' } }) === 'pi_ok');
+    check('and nothing else is mistaken for one', findPaymentIntentId({ token: 't', note: 'pi_ in a sentence', id: 'ch_1' }) === '');
+
+    const walletOrder = { token: 'ord-1', invoiceNumber: 'SNIP-1027', transactionId: 'pi_ok' };
+    const first = await sendWalletReceipt(env, walletOrder);
+    check('a wallet order gets its confirmation emailed', first.sent === true, JSON.stringify(first));
+    check('as Snipcart\'s own invoice email to the customer',
+      state.notifyPosts.length === 1 && state.notifyPosts[0].type === 'Invoice' && state.notifyPosts[0].deliveryMethod === 'Email');
+    check('signed with the store secret', state.notifyAuth === 'Basic ' + btoa('snip-secret:'));
+    const retried = await sendWalletReceipt(env, walletOrder);
+    check('a webhook retry does not send it twice', retried.sent === false && state.notifyPosts.length === 1, retried.reason);
+
+    state.notifications = [];
+    const card = await sendWalletReceipt(env, { token: 'ord-2', transactionId: 'pi_card' });
+    check('a card order is left to Snipcart', card.sent === false && state.notifyPosts.length === 1, card.reason);
+    const none = await sendWalletReceipt(env, { token: 'ord-3', invoiceNumber: 'SNIP-2000' });
+    check('an order with no Stripe payment is left alone', none.sent === false && state.notifyPosts.length === 1, none.reason);
+    check('so is one with no token', (await sendWalletReceipt(env, { transactionId: 'pi_ok' })).sent === false);
+
+    state.notifications = [{ type: 'Invoice', deliveryMethod: 'Email', sentOn: '2026-10-11T11:00:00Z' }];
+    const already = await sendWalletReceipt(env, walletOrder);
+    check('if Snipcart already sent one, nothing more goes out', already.sent === false && state.notifyPosts.length === 1, already.reason);
+
+    state.notifications = []; state.notifyEmailFails = true;
+    const bounced = await sendWalletReceipt(env, walletOrder);
+    check('an email Snipcart could not send is reported, not counted', bounced.sent === false && bounced.reason === 'Snipcart did not email it', bounced.reason);
+    state.notifyEmailFails = false;
+
+    const off = await sendWalletReceipt({}, walletOrder);
+    check('with the wallet switched off nothing is asked of anyone', off.sent === false && state.notifyPosts.length === 2, off.reason);
+    state.intents.pi_gone = undefined;
+    const stripeDown = await sendWalletReceipt(env, { token: 'ord-4', transactionId: 'pi_gone' });
+    check('a Stripe error never throws', stripeDown.sent === false && stripeDown.reason.startsWith('error:'), stripeDown.reason);
 
     suite('wallet — Apple Pay domain file');
 

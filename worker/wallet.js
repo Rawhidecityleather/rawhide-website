@@ -460,6 +460,85 @@ export async function handleRefund(request, env) {
 }
 
 /**
+ * The buyer's order confirmation, for an order paid through this gateway.
+ *
+ * A card order gets Snipcart's "Order SNIP-… on Rawhide City Leather LLC"
+ * email by itself. An order paid here did not: a buyer said so in Oct 2026,
+ * and the shop's own Google Pay test order, placed with the shop's Gmail as
+ * the customer, never got one either. Snipcart will send that same invoice
+ * email when asked through its notifications API, so on order.completed this
+ * asks — but only for an order Stripe says this gateway took, and only if
+ * Snipcart has not already sent an invoice for it, so a webhook retry or a
+ * future Snipcart fix never sends the buyer two.
+ *
+ * Never throws: the webhook's status code belongs to the quote stamp, and a
+ * missed confirmation must not make Snipcart retry the whole event.
+ */
+export async function sendWalletReceipt(env, order) {
+  try {
+    if (!walletConfigured(env)) return { sent: false, reason: 'wallet not set up' };
+    const token = order && order.token;
+    if (!token) return { sent: false, reason: 'no order token' };
+
+    const paymentId = findPaymentIntentId(order);
+    if (!paymentId) return { sent: false, reason: 'no Stripe payment on the order' };
+    const intent = await stripe(env, 'GET', '/payment_intents/' + encodeURIComponent(paymentId));
+    if (!intent.metadata || intent.metadata.method !== METHOD_ID) {
+      return { sent: false, reason: 'not paid through the wallet gateway' };
+    }
+
+    const path = '/orders/' + encodeURIComponent(token) + '/notifications';
+    const listed = await snipcartApi(env, 'GET', path);
+    const items = Array.isArray(listed) ? listed : (listed && Array.isArray(listed.items) ? listed.items : []);
+    if (items.some((n) => n && n.type === 'Invoice' && n.sentOn)) {
+      return { sent: false, reason: 'Snipcart already sent the invoice' };
+    }
+
+    const made = await snipcartApi(env, 'POST', path, { type: 'Invoice', deliveryMethod: 'Email' });
+    // Snipcart keeps a notification whose email failed, but resets it to
+    // deliveryMethod None with no sentOn. That is a failure, not a send.
+    if (!made || made.deliveryMethod !== 'Email' || !made.sentOn) {
+      return { sent: false, reason: 'Snipcart did not email it' };
+    }
+    return { sent: true, order: order.invoiceNumber || token };
+  } catch (err) {
+    return { sent: false, reason: 'error: ' + String(err && err.message || err).slice(0, 200) };
+  }
+}
+
+/**
+ * The Stripe PaymentIntent id on a Snipcart order. The gateway hands Snipcart
+ * the intent id as the transaction id, but which field Snipcart stores it in
+ * isn't documented, so this looks for a pi_ value in the order's own fields
+ * and the objects one level down. Stripe then decides whether it is ours.
+ */
+export function findPaymentIntentId(order) {
+  const looks = (v) => typeof v === 'string' && /^pi_[A-Za-z0-9]+$/.test(v);
+  if (!order || typeof order !== 'object') return '';
+  for (const value of Object.values(order)) {
+    if (looks(value)) return value;
+  }
+  for (const value of Object.values(order)) {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      for (const inner of Object.values(value)) {
+        if (looks(inner)) return inner;
+      }
+    }
+  }
+  return '';
+}
+
+/** Snipcart's order API, signed with the store's secret key. */
+async function snipcartApi(env, method, path, body) {
+  const headers = { Authorization: 'Basic ' + btoa(env.SNIPCART_SECRET + ':'), Accept: 'application/json' };
+  if (body) headers['content-type'] = 'application/json';
+  const res = await fetch(SNIPCART_APP + path, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`Snipcart returned ${res.status}`);
+  return data;
+}
+
+/**
  * Apple Pay checks the domain by fetching this file over HTTPS. Stripe hosts
  * the current one; serving it from here means nothing to keep in the repo
  * and nothing to update when Stripe rotates it.
