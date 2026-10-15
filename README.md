@@ -1458,6 +1458,7 @@ node worker/tests/run.mjs slip
 | `email-in` | receipts by email: who may file and every way a message is refused, picking the real attachment out of the letterhead, the fallbacks from sender and subject, and the promises that must hold on a bad day — always forwarded, never bounced, an unreadable receipt still becomes a row |
 | `todo` | the LWFD list: every action and what it refuses, due-date states, the email, the cron step (right hour, once a day, nothing open, mail unset, a failed send retries), the card, and both routes through the real Worker |
 | `worker` | routes through the real fetch handler — auth, the quote API, the public quote page, voiding, the printable sheet, marking a cash job paid, the webhook |
+| `site-content` | the static pages against each other and against CLAUDE.md: no artwork upload is ever `required`; every priced `<select>`'s `data-options` equals the hidden Snipcart button's `customN-options` (Snipcart validates against the button, not the dropdown — a colour added to one and not the other fails at checkout); every stitch list offers the same nine colours and no paint list offers Purple or Grey; form, button, JSON-LD and the visible price agree, and the shop/hats/crews cards charge the product-page price; each product states its lead time; nothing says hand-stitched, leather balm, "only color currently offered" or "both straps"; the red star matches the `required` flag; JSON-LD parses; a snippet names only colours the page offers; the sitemap lists every public page |
 
 `worker` swaps in a KV shim and a stub asset router, so it needs neither
 Cloudflare nor a Snipcart key. Anything that calls Snipcart directly — the
@@ -1470,6 +1471,27 @@ untested and broke every packing slip in production; `renderSlip` and
 
 What the suites can't tell you: whether Snipcart accepts a real quote order.
 That's a live checkout, and nothing here mocks it.
+
+Because of `site-content`, **run the suite before deploying a page edit too**,
+not only Worker changes. It was built on 2026-10-15, the day a customer was
+blocked at checkout by an artwork upload that was supposed to be optional and a
+pass over every page turned up twenty more lines that disagreed with the form
+beside them.
+
+### Weekly live check
+
+```bash
+node scripts/site-check.mjs
+```
+
+The suite reads the repo; this reads the **live site**, and catches what only
+the live site can show — a photo that stopped loading, a dead link, a sitemap
+entry that errors, the dashboard's product override drifting a dropdown away
+from its Snipcart button, the sale banner missing from a page, a protected
+route that stopped asking for a login. About fifteen seconds, no install. It
+prints a plain report and exits 1 on problems; `--quiet` prints nothing when
+clean. A scheduled task runs it every Sunday at 11am and emails the shop only
+when it finds something.
 
 ## Deploying
 
