@@ -32,6 +32,7 @@ const SUITES = [
   ['uploads', () => import('./uploads.test.mjs')],
   ['wallet', () => import('./wallet.test.mjs')],
   ['worker', () => import('./worker.test.mjs')],
+  ['site-content', () => import('./site-content.test.mjs')],
 ];
 
 const filter = process.argv[2];
