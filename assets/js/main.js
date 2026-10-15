@@ -413,7 +413,6 @@
 
         var picker = slot.querySelector('[data-logo-upload]');
         var field = slot.querySelector('input[name]');
-        if(picker) picker.required = on;
 
         // Clearing on the way down matters: picking two stamps, uploading both,
         // then dropping back to one would otherwise ship a second URL the
