@@ -140,6 +140,9 @@
   // modifiers, where a total on the button would be wrong the moment someone
   // ticks the leather butter add-on.
   function submitLabel(form){
+    // The contact form shares the upload picker, which puts this label back
+    // when an upload finishes.
+    if(form&&form.hasAttribute('data-inquiry-form'))return 'Send It';
     if(!form||!form.hasAttribute('data-live-total'))return 'Add to Cart';
     var price=parseFloat(form.getAttribute('data-snipcart-price')||'0')||0;
     var total=price*readQty(form);
@@ -346,6 +349,8 @@
     var slot = picker.closest('[data-logo-slot]');
     var field = document.getElementById(picker.getAttribute('data-logo-target'));
     var status = slot ? slot.querySelector('[data-logo-status]') : null;
+    // On the contact form there is no order to come after.
+    var later = form && form.hasAttribute('data-inquiry-form') ? '' : ' after ordering';
 
     function say(message, bad){
       if(!status)return;
@@ -362,7 +367,7 @@
       // one second instead of after the whole upload.
       if(file.size > LOGO_MAX){
         picker.value = '';
-        say('That file is over 8 MB. Send a smaller export, or email it after ordering.', true);
+        say('That file is over 8 MB. Send a smaller export, or email it' + later + '.', true);
         return;
       }
 
@@ -391,7 +396,7 @@
           picker.value = '';
           if(field) field.value = '';
           say((err.message || 'Upload failed.') +
-            ' You can also email it to rawhidecityleather@gmail.com after ordering.', true);
+            ' You can also email it to rawhidecityleather@gmail.com' + later + '.', true);
         })
         .then(function(){ uploadPending(form, -1); });
     });

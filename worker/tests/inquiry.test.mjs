@@ -10,7 +10,7 @@
 import { suite, check } from './harness.mjs';
 import {
   handleInquiry, parseInquiry, renderInquiryEmail, looksLikeEmail,
-  safeHeaderValue, clean,
+  safeHeaderValue, clean, parsePhoto,
 } from '../inquiry.js';
 
 const ADDRESS = 'PO Box 1234, Lakeland, FL 33801';
@@ -173,4 +173,30 @@ export default async function run() {
     check('an oversized body is refused before anything is parsed', res.status === 413);
     check('and sends nothing', calls.length === 0);
   }
+  suite('inquiry — photo');
+
+  const KEY = '0123456789abcdef0123456789abcdef.jpg';
+  const UPLOADED = `station 12 memorial.jpg - https://rawhidecityleather.com/logo/${KEY}`;
+  {
+    const withPhoto = parseInquiry(new URLSearchParams(body({ ...GOOD, 'fields[photo]': UPLOADED })));
+    check('a photo is optional and does not block the inquiry', withPhoto.errors.length === 0);
+    const m = renderInquiryEmail(withPhoto.inquiry);
+    check('the photo link reaches the text part',
+      m.text.includes(`Photo: station 12 memorial.jpg - https://rawhidecityleather.com/logo/${KEY}`));
+    check('the photo link reaches the html part',
+      m.html.includes(`href="https://rawhidecityleather.com/logo/${KEY}"`));
+    check('no photo means no photo row', !renderInquiryEmail(inquiry).text.includes('Photo:'));
+  }
+  check('a link on another site is dropped',
+    parsePhoto(`x.jpg - https://evil.example/phish`) === null);
+  check('a made-up key is dropped',
+    parsePhoto('x.jpg - https://rawhidecityleather.com/logo/not-a-key.jpg') === null);
+  check('another host with a real-looking key is rebuilt on our own origin',
+    parsePhoto(`x.jpg - https://evil.example/logo/${KEY}`)?.url === `https://rawhidecityleather.com/logo/${KEY}`);
+  check('the file name cannot inject markup into the email',
+    !renderInquiryEmail(parseInquiry(new URLSearchParams(body({ ...GOOD,
+      'fields[photo]': `<img src=x onerror=alert(1)> - https://rawhidecityleather.com/logo/${KEY}` }))).inquiry)
+      .html.includes('<img src=x'));
+  check('a bad photo field still lets the inquiry through',
+    parseInquiry(new URLSearchParams(body({ ...GOOD, 'fields[photo]': 'garbage' }))).errors.length === 0);
 }

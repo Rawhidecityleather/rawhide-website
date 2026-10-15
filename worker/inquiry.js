@@ -22,6 +22,9 @@
 
 import { json } from './lib.js';
 import { sendMail, mailerConfigured, UNSUBSCRIBE_TO } from './mailer.js';
+import { isLogoKey } from './uploads.js';
+
+const SITE = 'https://rawhidecityleather.com';
 
 /** Long enough for a detailed custom build, short enough to bound abuse. */
 const MAX_FIELD = 4000;
@@ -58,6 +61,18 @@ export function safeHeaderValue(value) {
   return String(value || '').replace(/[\r\n]/g, ' ').trim();
 }
 
+/**
+ * The photo field holds what /api/logo-upload handed back: "name - url". Only
+ * the key is trusted, and the link is rebuilt on our own origin, so the email
+ * in the shop inbox can never carry a link someone typed in by hand. Anything
+ * else is dropped and the inquiry still goes through.
+ */
+export function parsePhoto(value) {
+  const m = /^(.*) - \S+\/logo\/([^/\s]+)$/.exec(clean(value, 400));
+  if (!m || !isLogoKey(m[2])) return null;
+  return { name: m[1].slice(0, 60) || 'photo', url: `${SITE}/logo/${m[2]}` };
+}
+
 export function parseInquiry(form) {
   const get = (k) => clean(form.get(k));
 
@@ -68,6 +83,7 @@ export function parseInquiry(form) {
     department: clean(form.get('fields[department]'), 200),
     neededBy: clean(form.get('fields[needed_by]'), 200),
     details: get('fields[details]'),
+    photo: parsePhoto(form.get('fields[photo]')),
   };
 
   const errors = [];
@@ -91,9 +107,11 @@ export function renderInquiryEmail(inquiry) {
     ['Department or station', inquiry.department],
     ['Need it by', inquiry.neededBy],
   ].filter(([, v]) => v);
+  const photo = inquiry.photo;
 
   const text = [
     ...rows.map(([k, v]) => `${k}: ${v}`),
+    ...(photo ? [`Photo: ${photo.name} - ${photo.url}`] : []),
     '',
     'Details:',
     inquiry.details,
@@ -120,6 +138,10 @@ ${rows.map(([k, v]) => `<tr>
 <td style="padding:4px 12px 4px 0;color:#6B6358;white-space:nowrap;vertical-align:top;">${esc(k)}</td>
 <td style="padding:4px 0;color:#0F0F0F;">${esc(v)}</td>
 </tr>`).join('')}
+${photo ? `<tr>
+<td style="padding:4px 12px 4px 0;color:#6B6358;white-space:nowrap;vertical-align:top;">Photo</td>
+<td style="padding:4px 0;"><a href="${esc(photo.url)}" style="color:#0F0F0F;text-decoration:underline;">${esc(photo.name)}</a></td>
+</tr>` : ''}
 </table>
 <p style="margin:18px 0 6px 0;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#6B6358;">Details</p>
 <div style="background:#EBE8E1;border-left:3px solid #0F0F0F;padding:14px 16px;font-family:Georgia,'Times New Roman',serif;font-size:15px;line-height:1.65;white-space:pre-wrap;">${esc(inquiry.details)}</div>
