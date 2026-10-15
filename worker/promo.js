@@ -277,7 +277,11 @@ export async function putPromo(env, promo) {
  * or a quiet week all pass straight through untouched.
  */
 export async function withPromoBanner(response, request, env) {
-  if (request.method !== 'GET' || response.status !== 200) return response;
+  // A 404 is still a page someone is reading — an old link off social during
+  // a sale should show the sale line like any other page. Everything else
+  // (redirects, errors, API answers) is left alone.
+  if (request.method !== 'GET') return response;
+  if (response.status !== 200 && response.status !== 404) return response;
   const type = response.headers.get('content-type') || '';
   if (!type.includes('text/html')) return response;
 

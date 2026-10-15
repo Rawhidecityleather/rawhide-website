@@ -359,7 +359,10 @@ export default async function run() {
       (await pubRes.json()).code === 'FALL15' && pubRes.headers.get('cache-control') === 'public, max-age=60');
     const page = await (await get('/shop')).text();
     check('a page now carries the sale line', page.includes('Fall sale · Use code FALL15 at checkout') && page.includes('announcement sale'));
-    check('a 404 page is left alone', !(await (await get('/nope')).text()).includes('Fall sale'));
+    const nope = await get('/nope');
+    const nopeBody = await nope.text();
+    check('a 404 page carries the sale line too', nopeBody.includes('Fall sale · Use code FALL15 at checkout'));
+    check('and it is still a 404', nope.status === 404);
     check('a stylesheet is left alone', (await (await get('/assets/css/style.css')).text()) === '.announcement{}');
     check('a POST to a page is left alone',
       !(await (await worker.fetch(new Request(ORIGIN + '/shop', { method: 'POST' }), env)).text()).includes('Fall sale'));
