@@ -120,6 +120,7 @@ src="https://www.facebook.com/tr?id=1579558768885977&ev=PageView&noscript=1"/></
     } else {
       msg.textContent = 'We could not recognize that tracking number format. Use your carrier below, or check the number and try again.';
       input.value = n;
+      form.hidden = false;
       showCarrierLinks(n);
     }
   }
