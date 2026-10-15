@@ -156,7 +156,7 @@ export function shippedHtml(order, trackingNumber, now) {
               <tr>
                 <td style="padding:20px 36px 8px 36px;">
                   <p style="margin:0 0 10px 0;font-family:Arial,Helvetica,sans-serif;font-weight:bold;font-size:13px;letter-spacing:3px;text-transform:uppercase;color:#0F0F0F;">Built for the long haul</p>
-                  <p style="margin:0 0 12px 0;font-family:Georgia,'Times New Roman',serif;font-size:15px;line-height:1.65;color:#3A3833;">Leather is a natural material, and yours was built to earn character. An occasional pass of leather balm will keep it strong shift after shift. Every piece carries our career warranty: if workmanship or materials ever fail you, we will make it right. <a href="${SITE}/shipping#warranty" target="_blank" style="color:#0F0F0F;text-decoration:underline;">Read the warranty</a>.</p>
+                  <p style="margin:0 0 12px 0;font-family:Georgia,'Times New Roman',serif;font-size:15px;line-height:1.65;color:#3A3833;">Leather is a natural material, and yours was built to earn character. An occasional pass of <a href="${SITE}/product-leather-butter" target="_blank" style="color:#0F0F0F;text-decoration:underline;">Leather Butter</a> will keep it strong shift after shift. Every piece carries our career warranty: if workmanship or materials ever fail you, we will make it right. <a href="${SITE}/shipping#warranty" target="_blank" style="color:#0F0F0F;text-decoration:underline;">Read the warranty</a>.</p>
                 </td>
               </tr>
               <tr>
