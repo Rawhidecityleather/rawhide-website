@@ -17,12 +17,13 @@
  *
  *   1. List carts abandoned in the last week.
  *   2. Keep the ones aged past 24 hours that we have not already emailed.
- *   3. Mint a single-use code and create the discount in Snipcart.
- *   4. Send the email ourselves.
- *   5. Write a KV marker so the next run leaves that cart alone.
+ *   3. Drop anyone who has paid for an order since they walked away.
+ *   4. Mint a single-use code and create the discount in Snipcart.
+ *   5. Send the email ourselves.
+ *   6. Write a KV marker so the next run leaves that cart alone.
  */
 
-import { getJson, postJson } from './snipcart.js';
+import { getJson, postJson, countsAsSale } from './snipcart.js';
 import { sendMail, mailerConfigured, MailError, UNSUBSCRIBE_TO } from './mailer.js';
 import { automaticStoreRate } from './promo-sync.js';
 
@@ -617,6 +618,77 @@ export async function markMailed(env, email, now) {
   });
 }
 
+/* ------------------------------------------------------ bought it anyway */
+
+/** Snipcart's page size tops out at 50. */
+const ORDER_PAGE_SIZE = 50;
+
+/**
+ * Bounded like the cart listing. 500 orders reaches back further than a week
+ * at any volume this shop has seen; running out of pages before reaching the
+ * oldest cart is treated as a failed lookup, not a partial answer.
+ */
+const ORDER_PAGES = 10;
+
+/** When the money landed. Completion first, the order's creation as a fallback. */
+export function orderPlacedAt(order) {
+  return parseDate(order?.completionDate) || parseDate(order?.creationDate);
+}
+
+/**
+ * Everyone who has paid for an order at or after `since`, as email -> the time
+ * of their latest one.
+ *
+ * A cart walked away from and then paid for in a second cart minutes later is
+ * still an abandoned cart to Snipcart, and nothing else here knew the difference:
+ * a buyer who ordered eight minutes after leaving a cart on 2026-10-10 was mailed
+ * a 15% code for it the next day.
+ *
+ * Snipcart's /orders cannot be filtered by address (`placedBy` is the buyer's
+ * name), so this reads recent orders newest first and stops at the first page
+ * that reaches back past `since`. Normally one request.
+ *
+ * Paid means a sale that still stands, the same predicate every dashboard count
+ * runs through: an unpaid, cancelled or fully refunded order does not count.
+ *
+ * Throws rather than answer in part. A lookup that could not see every order
+ * since the oldest cart would mail someone who has already paid.
+ */
+export async function paidBuyersSince(env, since) {
+  const buyers = new Map();
+
+  for (let page = 0; page < ORDER_PAGES; page++) {
+    const offset = page * ORDER_PAGE_SIZE;
+    const res = await getJson(env, `/orders?limit=${ORDER_PAGE_SIZE}&offset=${offset}`);
+    const orders = res.items || [];
+
+    let oldest = Infinity;
+    for (const order of orders) {
+      const at = orderPlacedAt(order);
+      if (at && at < oldest) oldest = at;
+      if (!at || !countsAsSale(order)) continue;
+
+      const email = normalizeEmail(order.email);
+      if (email && at > (buyers.get(email) || 0)) buyers.set(email, at);
+    }
+
+    const total = Number(res.totalItems);
+    if (orders.length < ORDER_PAGE_SIZE) return buyers;
+    if (Number.isFinite(total) && offset + orders.length >= total) return buyers;
+    if (oldest < since) return buyers;
+  }
+
+  throw new Error(
+    `more than ${ORDER_PAGES * ORDER_PAGE_SIZE} orders since the oldest cart, so not all of them could be checked`
+  );
+}
+
+/** True when this cart's buyer paid for an order after walking away from it. */
+export function orderedSince(buyers, cart) {
+  const at = abandonedAt(cart);
+  return (buyers.get(normalizeEmail(cart.email)) || 0) > at;
+}
+
 /* --------------------------------------------------------------- the run */
 
 /**
@@ -627,7 +699,7 @@ export async function markMailed(env, email, now) {
  * send, so a send that fails leaves a record holding the code — the retry
  * reuses it instead of minting a second discount for the same person.
  */
-export async function recoverCart(env, cart, now, { mailedEmails } = {}) {
+export async function recoverCart(env, cart, now, { mailedEmails, buyers } = {}) {
   // Checked before anything is minted. Creating the discount first and
   // discovering the mailer is unconfigured second would leave a trail of live
   // 15% codes in Snipcart that nobody was ever told about.
@@ -638,6 +710,20 @@ export async function recoverCart(env, cart, now, { mailedEmails } = {}) {
 
   if (record?.sentAt) return { token, status: 'already-sent' };
   if (record && record.attempts >= MAX_ATTEMPTS) return { token, status: 'given-up' };
+
+  // They bought anyway. Ahead of the per-buyer cooldown because it is the
+  // better answer: someone who was mailed last week and has since paid is a
+  // customer, not a duplicate. The run hands in one lookup shared by every cart;
+  // a cart sent by hand from the dashboard looks up its own. A lookup that fails
+  // throws, before anything is minted or sent.
+  if (!buyers) {
+    try {
+      buyers = await paidBuyersSince(env, abandonedAt(cart));
+    } catch (err) {
+      throw new Error('Could not check whether this buyer has already ordered: ' + (err?.message || err));
+    }
+  }
+  if (orderedSince(buyers, cart)) return { token, status: 'already-ordered' };
 
   // One coupon per buyer. Checked before anything is minted, so a duplicate
   // cart costs nothing in Snipcart either.
@@ -780,6 +866,34 @@ export async function runRecovery(env, now = Date.now()) {
     };
   }
 
+  // Who has paid since walking away. One read for the whole batch, reaching
+  // back to the oldest cart in it, and only when something is due — a quiet
+  // hour costs no extra request.
+  //
+  // If it fails, the whole run holds. This is the opposite of the sale check
+  // above, and on purpose: a missed sale check costs a coupon nobody needed,
+  // a missed order check mails a 15% code to someone who just paid full price.
+  // Nothing is written, so every cart keeps its place for the next hour.
+  let buyers = new Map();
+  if (due.length) {
+    try {
+      buyers = await paidBuyersSince(env, Math.min(...due.map(abandonedAt)));
+    } catch (err) {
+      const error = String(err?.message || err).slice(0, 300);
+      console.error('cart recovery: order lookup failed, holding this run.', error);
+      return {
+        scanned: carts.length,
+        due: due.length,
+        reasons,
+        ageSpread,
+        counts: {},
+        results: [],
+        skipped: 'order-lookup-failed',
+        error,
+      };
+    }
+  }
+
   // Shared across the whole batch so two carts belonging to one buyer cannot
   // both send, in the window where KV would not yet report the first. See the
   // note in recoverCart.
@@ -788,7 +902,7 @@ export async function runRecovery(env, now = Date.now()) {
   const results = [];
   for (const cart of due) {
     try {
-      results.push(await recoverCart(env, cart, now, { mailedEmails }));
+      results.push(await recoverCart(env, cart, now, { mailedEmails, buyers }));
     } catch (err) {
       results.push({
         token: cart.token || cart.id,

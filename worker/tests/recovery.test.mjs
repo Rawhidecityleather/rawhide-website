@@ -11,7 +11,7 @@ import { suite, check } from './harness.mjs';
 import {
   makeCode, isDue, cartUrl, renderRecoveryEmail, runRecovery, recoverCart,
   SEND_AFTER_HOURS, MAX_AGE_HOURS, MAX_PER_RUN, DISCOUNT_RATE, CODE_TTL_DAYS,
-  dueReason, backfillTokens,
+  dueReason, backfillTokens, paidBuyersSince,
 } from '../recovery.js';
 
 const HOUR = 3600 * 1000;
@@ -27,6 +27,21 @@ function cart(overrides = {}) {
     billingAddress: { fullName: 'Dana Reyes' },
     items: [{ name: 'Fully Custom Radio Strap', quantity: 1, totalPrice: 165 }],
     summary: { total: 165 },
+    ...overrides,
+  };
+}
+
+/** A paid order from the same buyer, minutes after cart() was walked away from. */
+function order(overrides = {}) {
+  const placed = new Date(NOW - 80 * HOUR + 8 * 60 * 1000).toISOString();
+  return {
+    token: 'order-' + (overrides.token || '1'),
+    email: 'firefighter@example.com',
+    status: 'Processed',
+    paymentStatus: 'Paid',
+    grandTotal: 165,
+    creationDate: placed,
+    completionDate: placed,
     ...overrides,
   };
 }
@@ -56,12 +71,28 @@ function fakeKV() {
  * Stands in for both Snipcart and SendGrid. Records every call so the tests can
  * assert on what was actually sent, and can be told to fail the mail leg.
  */
-function fakeFetch({ carts = [], failMail = false, liveDiscounts = [] } = {}) {
-  const calls = { discounts: [], mail: [], cartPages: 0, discountLists: 0 };
+function fakeFetch({ carts = [], failMail = false, liveDiscounts = [], orders = [], failOrders = false } = {}) {
+  const calls = { discounts: [], mail: [], cartPages: 0, discountLists: 0, orderPages: 0 };
 
   const fetch = async (url, init = {}) => {
     const href = String(url);
     const body = init.body ? JSON.parse(init.body) : null;
+
+    // Paged the way Snipcart pages it: newest first, by offset and limit, with
+    // the grand total alongside.
+    if (href.includes('/orders')) {
+      calls.orderPages++;
+      if (failOrders) return new Response('nope', { status: 500, statusText: 'Server Error' });
+      const params = new URL(href).searchParams;
+      const offset = Number(params.get('offset')) || 0;
+      const limit = Number(params.get('limit')) || 20;
+      return new Response(JSON.stringify({
+        items: orders.slice(offset, offset + limit),
+        totalItems: orders.length,
+        offset,
+        limit,
+      }), { headers: { 'content-type': 'application/json' } });
+    }
 
     if (href.includes('/carts/abandoned')) {
       calls.cartPages++;
@@ -122,6 +153,17 @@ async function withFetch(fake, fn) {
     return await fn();
   } finally {
     globalThis.fetch = original;
+  }
+}
+
+/** Mutes the error a held run logs on purpose, so it doesn't read as a failure. */
+async function quiet(fn) {
+  const original = console.error;
+  console.error = () => {};
+  try {
+    return await fn();
+  } finally {
+    console.error = original;
   }
 }
 
@@ -544,7 +586,187 @@ export default async function run() {
     check('a quiet hour reports no sale skip at all', !report.skipped && calls.mail.length === 0);
   }
 
+  suite('recovery — not after they bought');
+
+  {
+    // The 2026-10-10 case, reproduced: a cart walked away from, and the same
+    // buyer paying for another one eight minutes later. The coupon still went
+    // out the next day.
+    const env = fakeEnv();
+    const { fetch, calls } = fakeFetch({ carts: [cart()], orders: [order()] });
+    const report = await withFetch(fetch, () => runRecovery(env, NOW));
+
+    check('a buyer who paid after walking away gets no coupon',
+      calls.mail.length === 0, `sent ${calls.mail.length}`);
+    check('and it costs nothing in Snipcart',
+      calls.discounts.length === 0, `minted ${calls.discounts.length}`);
+    check('the run says why',
+      report.counts['already-ordered'] === 1, JSON.stringify(report.counts));
+
+    const later = fakeFetch({ carts: [cart()], orders: [order()] });
+    await withFetch(later.fetch, () => runRecovery(env, NOW + HOUR));
+    check('and an hour later they are still left alone', later.calls.mail.length === 0);
+  }
+
+  {
+    const env = fakeEnv();
+    const { fetch, calls } = fakeFetch({
+      carts: [cart()],
+      orders: [order({ email: ' FIREFIGHTER@Example.com ' })],
+    });
+    await withFetch(fetch, () => runRecovery(env, NOW));
+    check('the order matches the cart in any casing', calls.mail.length === 0, `sent ${calls.mail.length}`);
+  }
+
+  {
+    // A repeat customer: bought something last month, walked away from a cart
+    // this week. That cart is still worth a coupon.
+    const lastMonth = new Date(NOW - 30 * 24 * HOUR).toISOString();
+    const env = fakeEnv();
+    const { fetch, calls } = fakeFetch({
+      carts: [cart()],
+      orders: [order({ creationDate: lastMonth, completionDate: lastMonth })],
+    });
+    const report = await withFetch(fetch, () => runRecovery(env, NOW));
+    check('an order from before the cart was left does not stop the coupon',
+      calls.mail.length === 1, `sent ${calls.mail.length} ${JSON.stringify(report.counts)}`);
+  }
+
+  {
+    const anHourBefore = new Date(NOW - 81 * HOUR).toISOString();
+    const env = fakeEnv();
+    const { fetch, calls } = fakeFetch({
+      carts: [cart()],
+      orders: [order({ creationDate: anHourBefore, completionDate: anHourBefore })],
+    });
+    await withFetch(fetch, () => runRecovery(env, NOW));
+    check('nor does one paid an hour before it', calls.mail.length === 1, `sent ${calls.mail.length}`);
+  }
+
+  {
+    // Orders that are not money in the bank.
+    const cases = [
+      ['an unpaid order', order({ paymentStatus: 'Pending' })],
+      ['a failed payment', order({ paymentStatus: 'Failed' })],
+      ['a cancelled order', order({ status: 'Cancelled' })],
+      ['a fully refunded order', order({ paymentStatus: 'Refunded' })],
+      ['someone else\'s order', order({ email: 'someone-else@example.com' })],
+    ];
+    for (const [label, o] of cases) {
+      const env = fakeEnv();
+      const { fetch, calls } = fakeFetch({ carts: [cart()], orders: [o] });
+      await withFetch(fetch, () => runRecovery(env, NOW));
+      check(`${label} after the cart does not count as bought`,
+        calls.mail.length === 1, `sent ${calls.mail.length}`);
+    }
+  }
+
+  {
+    const env = fakeEnv();
+    const { fetch } = fakeFetch({ orders: [order({ paymentStatus: 'PaidDeferred' })] });
+    const buyers = await withFetch(fetch, () => paidBuyersSince(env, 0));
+    check('a deferred payment that has landed counts as paid', buyers.has('firefighter@example.com'));
+  }
+
+  {
+    // One read of the orders for the whole batch, not one per cart.
+    const env = fakeEnv();
+    const { fetch, calls } = fakeFetch({
+      carts: [
+        cart({ token: 'a', email: 'a@example.com' }),
+        cart({ token: 'b', email: 'b@example.com' }),
+        cart({ token: 'c', email: 'c@example.com' }),
+      ],
+      orders: [order({ email: 'b@example.com' })],
+    });
+    const report = await withFetch(fetch, () => runRecovery(env, NOW));
+    check('three carts, one order lookup', calls.orderPages === 1, `read ${calls.orderPages} pages`);
+    check('and only the buyer who paid is left out',
+      calls.mail.length === 2 && report.counts['already-ordered'] === 1, JSON.stringify(report.counts));
+  }
+
+  {
+    const env = fakeEnv();
+    const { fetch, calls } = fakeFetch({ carts: [] });
+    await withFetch(fetch, () => runRecovery(env, NOW));
+    check('a quiet hour does not read the orders at all', calls.orderPages === 0);
+  }
+
+  {
+    // 120 orders, one an hour, newest first. The cart was left 80 hours ago, so
+    // the answer is on the first two pages and the third is never needed.
+    const hourly = Array.from({ length: 120 }, (_, i) => {
+      const at = new Date(NOW - (i + 1) * HOUR).toISOString();
+      return order({ token: 'h' + i, email: `buyer${i}@example.com`, creationDate: at, completionDate: at });
+    });
+    // buyer69 paid 70 hours ago: after the cart, but on the second page.
+    const env = fakeEnv();
+    const { fetch, calls } = fakeFetch({ carts: [cart({ email: 'buyer69@example.com' })], orders: hourly });
+    await withFetch(fetch, () => runRecovery(env, NOW));
+    check('a buyer on the second page of orders is still found', calls.mail.length === 0, `sent ${calls.mail.length}`);
+    check('and paging stops once it reaches back past the cart', calls.orderPages === 2, `read ${calls.orderPages} pages`);
+  }
+
+  suite('recovery — when the order lookup fails');
+
+  {
+    // Snipcart down for the orders read. Unlike the sale check, this one does
+    // not fail open: the cost of guessing wrong is a coupon to someone who just
+    // paid full price.
+    const env = fakeEnv();
+    const failing = fakeFetch({ carts: [cart()], failOrders: true });
+    const report = await quiet(() => withFetch(failing.fetch, () => runRecovery(env, NOW)));
+
+    check('a failed order lookup sends nothing', failing.calls.mail.length === 0, `sent ${failing.calls.mail.length}`);
+    check('and mints nothing', failing.calls.discounts.length === 0, `minted ${failing.calls.discounts.length}`);
+    check('the run says it held', report.skipped === 'order-lookup-failed', report.skipped);
+    check('and the cart is still counted as due', report.due === 1);
+    check('nothing is written', env.RECOVERY.store.size === 0, `${env.RECOVERY.store.size} records`);
+
+    const retry = fakeFetch({ carts: [cart()] });
+    await withFetch(retry.fetch, () => runRecovery(env, NOW + HOUR));
+    check('the cart keeps its place and goes out once the lookup works',
+      retry.calls.mail.length === 1, `sent ${retry.calls.mail.length}`);
+  }
+
+  {
+    // More orders since the cart than the lookup will page through. It holds
+    // rather than assume the buyer is not on a page it never read.
+    const flood = Array.from({ length: 520 }, (_, i) => {
+      const at = new Date(NOW - (i + 1) * 60 * 1000).toISOString();
+      return order({ token: 'f' + i, email: `f${i}@example.com`, creationDate: at, completionDate: at });
+    });
+    const env = fakeEnv();
+    const { fetch, calls } = fakeFetch({ carts: [cart()], orders: flood });
+    const report = await quiet(() => withFetch(fetch, () => runRecovery(env, NOW)));
+    check('too many orders to check holds the run', report.skipped === 'order-lookup-failed', report.skipped);
+    check('and sends nothing', calls.mail.length === 0, `sent ${calls.mail.length}`);
+  }
+
   suite('recovery — one cart by hand');
+
+  {
+    // The dashboard's Send it now has no run around it, so it looks up for itself.
+    const env = fakeEnv();
+    const { fetch, calls } = fakeFetch({ orders: [order()] });
+    const result = await withFetch(fetch, () => recoverCart(env, cart(), NOW));
+    check('a cart sent by hand checks the orders itself',
+      result.status === 'already-ordered' && calls.orderPages === 1, JSON.stringify(result));
+    check('and sends nothing to a buyer who has paid', calls.mail.length === 0 && calls.discounts.length === 0);
+  }
+
+  {
+    const env = fakeEnv();
+    const { fetch, calls } = fakeFetch({ failOrders: true });
+    let error = '';
+    try {
+      await withFetch(fetch, () => recoverCart(env, cart(), NOW));
+    } catch (err) {
+      error = String(err?.message || err);
+    }
+    check('a failed lookup by hand stops before anything is minted',
+      error.includes('already ordered') && calls.discounts.length === 0 && calls.mail.length === 0, error);
+  }
 
   {
     const env = fakeEnv();

@@ -306,8 +306,9 @@ export function renderRecoveryCard(stats) {
  * One coupon, sent by hand, to a cart on the card.
  *
  * `recoverCart` is the same call the hourly run makes, and it already holds the
- * guards that matter: a cart that has had a coupon gets nothing, and neither
- * does a buyer who has had one on another cart in the last week. What it does
+ * guards that matter: a cart that has had a coupon gets nothing, neither does a
+ * buyer who has paid for an order since leaving it, and neither does a buyer
+ * who has had one on another cart in the last week. What it does
  * not hold is the age window — the 24-hour floor and the 7-day ceiling live in
  * the run loop — which is exactly why it can be used for a cart that is only
  * two hours old.
@@ -351,6 +352,7 @@ export async function handleRecoverySend(request, env, now = Date.now()) {
 const SEND_SAID = {
   sent: 'Sent.',
   'already-sent': 'That cart has already had one.',
+  'already-ordered': 'That buyer has paid for an order since leaving this cart. No coupon.',
   'duplicate-email': 'That buyer already had a coupon this week, on this cart or another one.',
   'given-up': 'This one failed too many times. The address is probably bad.',
   failed: 'The email would not send. Try again in a minute.',

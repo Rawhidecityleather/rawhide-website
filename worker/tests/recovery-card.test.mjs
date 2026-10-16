@@ -45,7 +45,7 @@ function fakeKV(records = []) {
   };
 }
 
-function fakeFetch({ carts = [], discounts = [], failCarts = false, failDiscounts = false, failMail = false } = {}) {
+function fakeFetch({ carts = [], discounts = [], orders = [], failCarts = false, failDiscounts = false, failMail = false, failOrders = false } = {}) {
   const sentMail = [];
   const fn = async function (url, init) {
     const href = String(url);
@@ -70,7 +70,8 @@ function fakeFetch({ carts = [], discounts = [], failCarts = false, failDiscount
       });
     }
     if (href.includes('/orders')) {
-      return new Response(JSON.stringify({ items: [], totalItems: 0 }), {
+      if (failOrders) return new Response('nope', { status: 500, statusText: 'Server Error' });
+      return new Response(JSON.stringify({ items: orders, totalItems: orders.length }), {
         headers: { 'content-type': 'application/json' },
       });
     }
@@ -325,6 +326,37 @@ export default async function run() {
     check('a second cart from the same buyer is refused', second.ok === false);
     check('and only one email ever went', fetcher.sentMail.length === 1);
     check('the reason names the buyer, not the cart', second.said.includes('that buyer') || second.said.includes('That buyer'));
+  }
+
+  {
+    // Bought anyway: the buyer left this cart and paid for another an hour later.
+    const e = env();
+    const paidAt = new Date(NOW - 47 * HOUR).toISOString();
+    const fetcher = fakeFetch({
+      carts: [cart({ token: 'left' })],
+      orders: [{ email: 'someone@example.com', status: 'Processed', paymentStatus: 'Paid', grandTotal: 165, creationDate: paidAt, completionDate: paidAt }],
+    });
+    const res = await withFetch(fetcher, () => handleRecoverySend(
+      new Request('https://x/', { method: 'POST', body: JSON.stringify({ token: 'left' }) }), e, NOW
+    ));
+    const body = await res.json();
+
+    check('a buyer who has since paid is refused by hand too', body.ok === false && fetcher.sentMail.length === 0);
+    check('and the card says they ordered', body.status === 'already-ordered' && body.said.includes('paid for an order'), body.said);
+  }
+
+  {
+    // The orders could not be read: refuse, and say so, rather than guess.
+    const e = env();
+    const fetcher = fakeFetch({ carts: [cart({ token: 'left' })], failOrders: true });
+    const res = await withFetch(fetcher, () => handleRecoverySend(
+      new Request('https://x/', { method: 'POST', body: JSON.stringify({ token: 'left' }) }), e, NOW
+    ));
+    const body = await res.json();
+
+    check('an unreadable order list refuses the send', res.status === 502 && fetcher.sentMail.length === 0);
+    check('and says what it could not check', String(body.error).includes('already ordered'), body.error);
+    check('nothing was minted', e.RECOVERY.store.size === 0);
   }
 
   {
