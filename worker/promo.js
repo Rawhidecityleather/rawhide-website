@@ -295,10 +295,34 @@ export async function withPromoBanner(response, request, env) {
  * typed. HTMLRewriter is a Workers global; outside the runtime (the tests, a
  * Node preview) the page goes back as it came unless a shim is installed.
  */
+/**
+ * Crew tiers on hats and patches are Snipcart rules of their own. Every rule
+ * this repo writes is non-combinable, so while an automatic sale is taking
+ * money off a hat, Snipcart applies the sale and the tiers never fire — a
+ * 20-hat order got 10%, not 20%, in a test cart on 2026-10-15. The pages
+ * carry a hidden note under each crew-pricing box; this decides when it shows.
+ */
+const CREW_TIER_IDS = ['leather-patch-hat', 'my-wife-beats-me-hat', 'scream-for-daddy-hat', 'velcro-patch'];
+export function saleBlocksCrewTiers(promo) {
+  if (!promo || promo.kind !== 'auto') return false;
+  const deal = promo.deal;
+  if (!deal || deal.type === 'none') return false;
+  if (deal.scope !== 'products') return true;
+  return (deal.productIds || []).some((id) => CREW_TIER_IDS.includes(id));
+}
+
 export function applyPromoBanner(response, promo) {
   if (typeof HTMLRewriter === 'undefined') return response;
   const text = bannerText(promo);
-  return new HTMLRewriter()
+  const rewriter = new HTMLRewriter();
+  if (saleBlocksCrewTiers(promo)) {
+    rewriter.on('[data-crew-sale-note]', {
+      element(el) {
+        el.removeAttribute('hidden');
+      },
+    });
+  }
+  return rewriter
     .on('.announcement', {
       element(el) {
         const classes = (el.getAttribute('class') || '').split(/\s+/).filter(Boolean);

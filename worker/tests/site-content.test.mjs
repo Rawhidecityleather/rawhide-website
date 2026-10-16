@@ -251,6 +251,16 @@ export default async function run() {
   }
 
   // -------------------------------------------------------------------------
+  // The tiers are Snipcart rules the sale rule blocks (see worker/promo.js).
+  // Wherever a page advertises them it must carry the note the Worker reveals.
+  suite('site content — crew-tier pages carry the sale note');
+
+  for (const f of PUBLIC) {
+    if (!/or more hats|or more patches|crew discount/i.test(PAGES[f])) continue;
+    check(`${f}: carries data-crew-sale-note`, PAGES[f].includes('data-crew-sale-note'));
+  }
+
+  // -------------------------------------------------------------------------
   suite('site content — sitemap lists every public page');
 
   const sitemap = read('sitemap.xml');

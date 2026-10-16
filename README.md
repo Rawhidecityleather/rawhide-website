@@ -513,15 +513,25 @@ The tier copy is in the repo. **The discount itself is not** — it's a Snipcart
 dashboard rule keyed to the product id, and nothing here can see it. Change one
 without the other and the site advertises a number the cart never takes off.
 
-Patch hats (`leather-patch-hat`), $25 each:
+Patch hats (`leather-patch-hat`), from $30 each:
 
 | Quantity | Off  | Each   |
 | -------- | ---- | ------ |
-| 5+       | 10%  | $22.50 |
-| 10+      | 15%  | $21.25 |
-| 20+      | 20%  | $20.00 |
+| 5+       | 10%  | $27.00 |
+| 10+      | 15%  | $25.50 |
+| 20+      | 20%  | $24.00 |
 
 Velcro patches (`velcro-patch`), $7 each: 10 or more, 10% off.
+
+**While an automatic sale is live the tiers do not fire.** Every rule this
+repo writes is non-combinable, and Snipcart lets a non-combinable discount
+shut the others out — a test cart on 2026-10-15 with 20 hats under the 10%
+Early Black Friday sale took 10%, not 20%. So each crew-pricing box carries a
+hidden `<p data-crew-sale-note>`; `applyPromoBanner` removes `hidden` whenever
+`saleBlocksCrewTiers(promo)` says the live sale reaches a hat or a patch, and
+the line sends 10+ orders to a crew quote. It disappears with the sale. The
+`site-content` suite insists every page that advertises the tiers carries the
+note.
 
 The copy lives on `product-leather-patch-hat.html`, `crews.html`, `shop.html`
 and `hats.html`. Grep for `or more hats` to find every one of them.

@@ -8,7 +8,7 @@ import { suite, check, throws } from './harness.mjs';
 import { installHTMLRewriterShim } from './html-rewriter-shim.mjs';
 import worker from '../index.js';
 import {
-  buildPromo, promoState, isLive, bannerText, publicPromo, localDate, endOfDayUtc,
+  buildPromo, promoState, isLive, bannerText, publicPromo, localDate, endOfDayUtc, saleBlocksCrewTiers,
   renderPromoCard, applyPromoBanner, stateSentence, snipcartSentence, dealSentence,
   quoteDiscountRate, DEFAULT_ANNOUNCEMENT, HEADLINE_MAX, PRODUCTS,
 } from '../promo.js';
@@ -75,7 +75,7 @@ function stubSnipcart() {
 
 const PAGE = `<!doctype html><html><body>
 <div class="announcement"><div class="container"><p>${DEFAULT_ANNOUNCEMENT}</p></div></div>
-<main>shop</main></body></html>`;
+<main>shop <p data-crew-sale-note hidden>sale note</p></main></body></html>`;
 
 export default async function run() {
   installHTMLRewriterShim();
@@ -207,7 +207,8 @@ export default async function run() {
   const live = await html(sale);
   check('the bar text is swapped', live.includes('<p>Fall sale · No code needed</p>') && !live.includes(DEFAULT_ANNOUNCEMENT));
   check('the bar picks up the sale class', live.includes('<div class="announcement sale">'));
-  check('the rest of the page is untouched', live.includes('<main>shop</main>'));
+  check('the rest of the page is untouched, bar the crew note the sale reveals',
+    live.includes('<main>shop <p data-crew-sale-note>sale note</p></main>'));
   const nasty = await html({ ...sale, headline: '<img src=x onerror=alert(1)> off' });
   check('a headline is text, never markup', nasty.includes('&lt;img') && !nasty.includes('<img'));
 
@@ -359,6 +360,7 @@ export default async function run() {
       (await pubRes.json()).code === 'FALL15' && pubRes.headers.get('cache-control') === 'public, max-age=60');
     const page = await (await get('/shop')).text();
     check('a page now carries the sale line', page.includes('Fall sale · Use code FALL15 at checkout') && page.includes('announcement sale'));
+    check('a code sale leaves the crew-tier note hidden (the buyer chooses to type it)', page.includes('<p data-crew-sale-note hidden>'));
     const nope = await get('/nope');
     const nopeBody = await nope.text();
     check('a 404 page carries the sale line too', nopeBody.includes('Fall sale · Use code FALL15 at checkout'));
@@ -470,5 +472,22 @@ export default async function run() {
     check('without a Snipcart key the sync steps aside', noKey.changed === false && noKey.skipped === 'no Snipcart key');
   } finally {
     api.restore();
+  }
+  suite('promo — the crew-tier note under a sale');
+  {
+    const live = { enabled: true, kind: 'auto', code: '', starts: '2020-01-01', ends: '' };
+    const store = { ...live, deal: { type: 'percent', value: 10, scope: 'store', productIds: [] } };
+    const hats = { ...live, deal: { type: 'percent', value: 10, scope: 'products', productIds: ['leather-patch-hat'] } };
+    const straps = { ...live, deal: { type: 'percent', value: 10, scope: 'products', productIds: ['basic-radio-strap'] } };
+    const bannerOnly = { ...live, deal: { type: 'none', value: 0, scope: 'store', productIds: [] } };
+    const code = { ...live, kind: 'code', code: 'FALL15', deal: store.deal };
+    check('a storewide automatic sale blocks the tiers', saleBlocksCrewTiers(store));
+    check('an automatic sale on a hat blocks the tiers', saleBlocksCrewTiers(hats));
+    check('an automatic sale on straps alone does not', !saleBlocksCrewTiers(straps));
+    check('a banner with no discount does not', !saleBlocksCrewTiers(bannerOnly));
+    check('a code sale does not', !saleBlocksCrewTiers(code));
+    const render = async (promo) => (await applyPromoBanner(new Response(PAGE, { headers: { 'content-type': 'text/html' } }), { ...promo, headline: 'Sale' })).text();
+    check('the note is shown under a storewide sale', (await render(store)).includes('<p data-crew-sale-note>'));
+    check('the note stays hidden under a straps-only sale', (await render(straps)).includes('<p data-crew-sale-note hidden>'));
   }
 }
