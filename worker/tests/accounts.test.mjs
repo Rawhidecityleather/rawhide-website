@@ -15,7 +15,7 @@ import {
 } from '../accounts.js';
 import {
   welcomeDiscount, birthdayDiscount, addressKey, couponList, runBirthdays,
-  WELCOME_RATE, BIRTHDAY_RATE,
+  WELCOME_RATE, WELCOME_DAYS, BIRTHDAY_RATE,
 } from '../account-coupons.js';
 import { todayEastern, endOfEasternDay, addDays } from '../account-store.js';
 import { savedCardOffer } from '../account-cards.js';
@@ -333,9 +333,9 @@ export default async function run() {
     check('one use', welcome.maxNumberOfUsages === 1);
     check('does not stack', welcome.combinable === false);
     const today = todayEastern().date;
-    const yearOn = addDays(today, 365);
-    check('good for a year, through midnight Eastern',
-      welcome.expires === endOfEasternDay(yearOn) && goodThrough(welcome.expires) === goodThrough(endOfEasternDay(yearOn)));
+    const monthOn = addDays(today, WELCOME_DAYS);
+    check('good for 30 days, through midnight Eastern', WELCOME_DAYS === 30 &&
+      welcome.expires === endOfEasternDay(monthOn) && goodThrough(welcome.expires) === goodThrough(endOfEasternDay(monthOn)));
     check('named for Rob\'s Snipcart list, with no email in it', /^Account welcome: Rob C\. \(a_[0-9a-f]+\)$/.test(welcome.name));
     check('the account keeps the code', account.welcome.code === welcome.code && account.welcome.discountId === 'disc-1');
     const welcomeMail = net.mail[net.mail.length - 1];
@@ -351,7 +351,7 @@ export default async function run() {
     check('with the name', meBody.account.firstName === 'Rob');
     check('without anything internal', !('stripeCustomerId' in meBody.account) && !('id' in meBody.account) && !('welcome' in meBody.account) && !('passwordHash' in meBody.account));
     check('with the sign-up code, ready', meBody.coupons.length === 1 && meBody.coupons[0].status === 'ready' && meBody.coupons[0].code === welcome.code);
-    check('and the day it runs out', meBody.coupons[0].goodThrough === goodThrough(endOfEasternDay(yearOn)));
+    check('and the day it runs out', meBody.coupons[0].goodThrough === goodThrough(endOfEasternDay(monthOn)));
 
     const anon = await call(env, get('/api/account/me'));
     check('signed out, /me is a 401', anon.status === 401);

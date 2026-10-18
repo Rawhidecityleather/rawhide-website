@@ -1,7 +1,7 @@
 /**
  * The two codes an account earns.
  *
- *   Sign-up    20% off one order, good for a year from the day the account is
+ *   Sign-up    20% off one order, good for 30 days from the day the account is
  *              made. One per email and one per street address, ever.
  *   Birthday   15% off one order, good for 30 days from the birthday. One a
  *              year, made by the hourly cron on the morning of the day.
@@ -34,7 +34,7 @@ import {
 } from './account-store.js';
 
 export const WELCOME_RATE = 20;
-export const WELCOME_DAYS = 365;
+export const WELCOME_DAYS = 30;
 export const BIRTHDAY_RATE = 15;
 export const BIRTHDAY_DAYS = 30;
 

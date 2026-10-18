@@ -14,7 +14,7 @@
  *     Pirate Ship tracking email all write — so a tracking number shows up
  *     here the moment it is saved, with nothing to keep in step.
  *   - a card on file, kept by Stripe. See worker/account-cards.js.
- *   - 20% off one order for signing up, good for a year, and 15% off one
+ *   - 20% off one order for signing up, good for a month, and 15% off one
  *     order on their birthday, good for a month. Both are one-use Snipcart
  *     codes made non-combinable, so they never stack with each other or a
  *     store sale. See worker/account-coupons.js.

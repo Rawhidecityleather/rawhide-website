@@ -233,7 +233,7 @@ export function welcomeEmail(firstName, welcome) {
   if (welcome && welcome.code) {
     return renderShopEmail({
       subject: `Your account is set. Here is 20% off, good through ${goodThrough(welcome.expiresAt)}`,
-      preheader: '20% off one order, good for a year.',
+      preheader: '20% off one order, good for a month.',
       headline: 'Welcome to the shop',
       greeting: firstName ? `Hey ${firstName},` : 'Hey,',
       blocks: [...blocks, 'Here is 20% off one order for signing up.'],

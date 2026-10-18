@@ -1423,7 +1423,7 @@ What a customer gets at **/account**:
   signed in and the card's CVC.
 - **Their email and address filled in at checkout** (`assets/js/main.js`), only
   into a cart that has no email yet.
-- **20% off one order for signing up**, good for a year. One per email and one
+- **20% off one order for signing up**, good for 30 days. One per email and one
   per street address, ever.
 - **15% off one order on their birthday**, good for 30 days. The hourly cron
   makes it from 9am Eastern on the day and emails it if the account has the
