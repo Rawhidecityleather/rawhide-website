@@ -534,7 +534,7 @@ export function renderQuotePage(quote, { status }) {
   const action = closed
     ? `<div class="q-closed"><p class="q-closed-head">${closedNote[0]}</p><p>${closedNote[1]}</p></div>`
     : cash ? cashPanel
-    : `<button type="button" class="btn btn-primary btn-full snipcart-add-item"
+    : `<button type="button" id="q-pay" class="btn btn-primary btn-full snipcart-add-item"
         data-item-id="${esc(quote.itemId)}"
         data-item-price="${esc(quote.listPrice.toFixed(2))}"
         data-item-url="/quote/${esc(quote.id)}"
@@ -558,7 +558,8 @@ export function renderQuotePage(quote, { status }) {
         quote.discountRate
           ? ` Checkout shows the shop sale applied &mdash; your total stays ${esc(money(quote.total, 'usd'))}.`
           : ''
-      }</p>`;
+      }</p>
+      <p class="q-cartnote" id="q-cartnote" role="status" hidden></p>`;
 
   return `<!doctype html>
 <html lang="en">
@@ -627,10 +628,86 @@ ${cash ? '' : `<link rel="preconnect" href="https://app.snipcart.com">
   </footer>
 </main>
 ${cash ? '' : `<div hidden id="snipcart" data-api-key="${SNIPCART_KEY}" data-config-modal-style="side"></div>
+${closed ? '' : `<script>${QUOTE_CART_GUARD}</script>`}
 <script src="https://cdn.snipcart.com/themes/${SNIPCART_VERSION}/default/snipcart.js"></script>`}
 </body>
 </html>`;
 }
+
+/**
+ * A quote checks out on its own. The Snipcart cart lives in the buyer's
+ * browser, so anything they put in it before the quote link arrived rides
+ * along: a department saw $1,320 at checkout on a $600 quote (Oct 17 2026)
+ * because 25 hats from the shop were still sitting in the cart.
+ *
+ * This takes the click before Snipcart does (window, capture phase, and the
+ * script loads ahead of snipcart.js), clears every other line out of the
+ * cart, adds the quote if it isn't there yet, and opens the cart. The button
+ * keeps snipcart-add-item and its data attributes: Snipcart's crawler reads
+ * them off this page to validate the price at checkout, and the add below is
+ * built from those same attributes so the two can't drift apart.
+ */
+const QUOTE_CART_GUARD = `(function(){
+  var btn = document.getElementById('q-pay');
+  if(!btn) return;
+  var note = document.getElementById('q-cartnote');
+  var quoteId = btn.getAttribute('data-item-id');
+  var busy = false;
+  function snipReady(){
+    return new Promise(function(resolve){
+      if(window.Snipcart && window.Snipcart.store) return resolve();
+      document.addEventListener('snipcart.ready', function(){ resolve(); }, { once: true });
+    });
+  }
+  function cartItems(){
+    var cart = window.Snipcart.store.getState().cart || {};
+    var items = (cart.items && cart.items.items) || cart.items || [];
+    return items.filter ? items : [];
+  }
+  function say(text){
+    if(!note) return;
+    note.textContent = text;
+    note.hidden = false;
+  }
+  window.addEventListener('click', function(e){
+    if(!e.target || !e.target.closest || !e.target.closest('#q-pay')) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    if(busy) return;
+    busy = true;
+    var removed = 0;
+    snipReady().then(function(){
+      var others = cartItems().filter(function(item){ return item.id !== quoteId; });
+      removed = others.length;
+      return others.reduce(function(chain, item){
+        return chain.then(function(){ return window.Snipcart.api.cart.items.remove(item.uniqueId); });
+      }, Promise.resolve());
+    }).then(function(){
+      if(cartItems().some(function(item){ return item.id === quoteId; })) return;
+      return window.Snipcart.api.cart.items.add({
+        id: quoteId,
+        name: btn.getAttribute('data-item-name'),
+        price: Number(btn.getAttribute('data-item-price')),
+        url: btn.getAttribute('data-item-url'),
+        quantity: 1,
+        maxQuantity: 1,
+        taxable: btn.getAttribute('data-item-taxable') === 'true',
+        customFields: [{
+          name: btn.getAttribute('data-item-custom1-name'),
+          type: 'readonly',
+          value: btn.getAttribute('data-item-custom1-value')
+        }]
+      });
+    }).then(function(){
+      if(removed) say('We took ' + removed + (removed === 1 ? ' other item' : ' other items') +
+        ' out of your cart so this quote checks out on its own.');
+      window.Snipcart.api.theme.cart.open();
+    }).catch(function(err){
+      console.error('quote checkout', err);
+      say('Something went wrong opening checkout. Empty your cart and try again, or reply to the email this quote came in on.');
+    }).then(function(){ busy = false; });
+  }, true);
+})();`;
 
 /**
  * Layout only. Colour, type and the button come from the storefront sheet, so a
@@ -678,6 +755,8 @@ const QUOTE_STYLES = `
 
 .q-action{margin-top:32px}
 .q-help{text-align:center;font-size:.82rem;color:var(--c-text-soft);margin:10px 0 0}
+.q-cartnote{text-align:center;font-size:.88rem;margin:10px 0 0;padding:10px 12px;
+  background:var(--c-bg);border:1px solid var(--c-line)}
 .q-closed{text-align:center;padding:24px;background:var(--c-bg);border:1px solid var(--c-line)}
 .q-closed-head{font-family:var(--font-display);text-transform:uppercase;letter-spacing:.18em;
   font-size:.8rem;margin:0 0 8px}

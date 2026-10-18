@@ -136,6 +136,26 @@ export default function run() {
       !page.includes('Checkout shows the shop sale applied'));
   }
 
+  suite('quote — checks out alone');
+
+  // Oct 17 2026: a department's $600 quote showed $1,320 at checkout
+  // because shop items were already in the browser's cart.
+  const guardAt = page.indexOf("getElementById('q-pay')");
+  check('the button carries the id the guard looks for', page.includes('id="q-pay"'));
+  check('the guard ships on an open card quote', guardAt > 0);
+  check('the guard loads before snipcart.js so it sees the click first',
+    guardAt > 0 && guardAt < page.indexOf('snipcart.js"></script>'));
+  check('the guard clears other cart lines', page.includes('cart.items.remove(item.uniqueId)'));
+  check('the guard takes the click in the capture phase',
+    page.includes('stopImmediatePropagation') && /\}, true\);\s*\}\)\(\);/.test(page));
+  check('there is somewhere to tell the buyer', page.includes('id="q-cartnote"'));
+  const guardJs = page.slice(page.indexOf('<script>(function(){') + 8, page.indexOf('})();</script>') + 5);
+  check('the guard script parses', () => { new Function(guardJs); return true; });
+  check('a paid page carries no guard',
+    !renderQuotePage(quote, { status: 'paid' }).includes("getElementById('q-pay')"));
+  check('a cash page carries no guard',
+    !renderQuotePage(buildQuote({ ...base, payment: 'cash' }), { status: 'open' }).includes("getElementById('q-pay')"));
+
   check('a paid page drops the buy button',
     !renderQuotePage(quote, { status: 'paid' }).includes('snipcart-add-item'));
   check('an expired page drops the buy button',
