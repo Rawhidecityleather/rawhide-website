@@ -6,6 +6,9 @@ README.md
 .gitattributes
 .gitignore
 brand-explorations/
+# Shop tooling (the weekly live check). Nothing secret in it, but it is not a
+# storefront file and has no business being served at /scripts/site-check.mjs.
+scripts/
 email/
 .git
 .wrangler/

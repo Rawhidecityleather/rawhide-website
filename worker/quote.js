@@ -627,7 +627,7 @@ ${cash ? '' : `<link rel="preconnect" href="https://app.snipcart.com">
       not NFPA certified.</p>
   </footer>
 </main>
-${cash ? '' : `<div hidden id="snipcart" data-api-key="${SNIPCART_KEY}" data-config-modal-style="side"></div>
+${cash ? '' : `<div hidden id="snipcart" data-api-key="${SNIPCART_KEY}" data-templates-url="inline" data-config-modal-style="side"><payment section="bottom"><p class="rc-terms-note">By purchasing, you agree to our <a href="/terms" target="_blank" rel="noopener">Terms of Service</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</p></payment></div>
 ${closed ? '' : `<script>${QUOTE_CART_GUARD}</script>`}
 <script src="https://cdn.snipcart.com/themes/${SNIPCART_VERSION}/default/snipcart.js"></script>`}
 </body>

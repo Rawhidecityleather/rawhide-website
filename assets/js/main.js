@@ -11,7 +11,7 @@
   //
   // Step-by-step for finding these: see README, "Google tag setup".
   // ---------------------------------------------------------------------------
-  var GA4_ID='';
+  var GA4_ID='G-HMDG49L917';
   var ADS_ID='';
   var ADS_LABEL='';
 
@@ -696,8 +696,24 @@
       if(routes.from&&routes.from.indexOf('/checkout')===0)return;
       if(meta)fbq('track','InitiateCheckout');
       if(meta)stampMetaDetails();
-      if(GA4_ID)gtag('event','begin_checkout');
+      if(GA4_ID)gtag('event','begin_checkout',checkoutForGa());
     });
+
+    // GA4 wants value, currency and items on begin_checkout, or the checkout
+    // step of its funnel reports a count with no money attached. Read off the
+    // cart as it stands; any surprise in the shape sends the bare event instead.
+    function checkoutForGa(){
+      try{
+        var cart=Snipcart.store.getState().cart||{};
+        var list=(cart.items&&cart.items.items)||cart.items||[];
+        var items=[];
+        if(list.forEach)list.forEach(function(it){
+          items.push({item_id:it.id,item_name:it.name,price:it.price,quantity:it.quantity||1});
+        });
+        var value=Math.round((cart.subtotal||cart.total||0)*100)/100;
+        return {currency:cart.currency?String(cart.currency).toUpperCase():'USD',value:value,items:items};
+      }catch(e){return {}}
+    }
 
     Snipcart.events.on('cart.confirmed',function(cart){
       // cart.items is {count,items:[...]} in current SDK builds, a plain array in older ones.

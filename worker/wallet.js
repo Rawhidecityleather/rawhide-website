@@ -489,6 +489,7 @@ function renderPayBody(session, origin) {
     ${lines ? `<table class="w-lines"><tbody>${lines}</tbody></table>` : ''}
     <div id="wallet" class="w-buttons"></div>
     <p id="w-status" class="w-status" aria-live="polite">Loading your payment options&hellip;</p>
+    <p class="w-terms">By purchasing, you agree to our <a href="/terms" target="_blank" rel="noopener">Terms of Service</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</p>
     <p class="w-help"><a href="${esc(back)}">Go back and pay by card instead.</a></p>`;
 }
 
@@ -593,6 +594,8 @@ const WALLET_STYLES = `
 .w-buttons{min-height:52px;margin:0 0 12px}
 .w-status{font-size:.9rem;color:var(--c-text-soft);margin:0 0 18px;text-align:center}
 .w-status.w-bad{color:#8A2E1C;font-weight:600}
+.w-terms{text-align:center;font-size:.85rem;line-height:1.4;color:var(--c-text-soft);margin:0 0 14px}
+.w-terms a{color:var(--c-accent);text-decoration:underline}
 .w-help{text-align:center;font-size:.9rem;margin:0}
 .w-help a{color:var(--c-accent);text-decoration:underline}
 `;

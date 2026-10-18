@@ -277,4 +277,57 @@ export default async function run() {
     const file = slug === '' ? 'index.html' : slug + '.html';
     check(`sitemap entry ${loc} has a page`, file in PAGES);
   }
+
+  // -------------------------------------------------------------------------
+  // A tracker switched on without a line in the privacy policy is the gap this
+  // closes. Google Analytics and Google Ads sit OFF in main.js until an id is
+  // pasted in; the day one is, the deploy fails here until privacy.html says
+  // so. The same goes for every other service the pages load.
+  suite('site content — the privacy policy names what the site runs');
+
+  const privacy = decode(PAGES['privacy.html'] || '');
+  const mainJs = read('assets/js/main.js');
+  const idOf = (name) => (mainJs.match(new RegExp('var ' + name + "='([^']*)'")) || [])[1];
+  check('main.js still declares GA4_ID and ADS_ID', idOf('GA4_ID') !== undefined && idOf('ADS_ID') !== undefined);
+  const anyPage = (re) => Object.values(PAGES).some((html) => re.test(html));
+  const RUNS = [
+    ['Meta Pixel', anyPage(/fbq\('init'/), /Meta Pixel|Meta's pixel/],
+    ['Google Analytics', Boolean(idOf('GA4_ID')), /Google Analytics/],
+    ['Google Ads', Boolean(idOf('ADS_ID')), /Google Ads/],
+    ['Google Fonts', anyPage(/fonts\.googleapis\.com/), /Google Fonts/],
+    ['Kit newsletter', anyPage(/app\.kit\.com/), /\bKit\b/],
+    ['Snipcart', anyPage(/cdn\.snipcart\.com/), /Snipcart/],
+    ['Stripe', /js\.stripe\.com/.test(read('worker/wallet.js')), /Stripe/],
+    ['Google Customer Reviews', /renderOptIn/.test(mainJs), /Google Customer Reviews/],
+  ];
+  for (const [name, on, said] of RUNS) {
+    if (on) check(`privacy policy mentions ${name}`, said.test(privacy));
+  }
+  check('privacy policy answers Do Not Track', /Do Not Track/.test(privacy));
+
+  for (const f of PUBLIC) {
+    check(`${f}: links the privacy policy`, /href="\/privacy"/.test(PAGES[f]));
+    check(`${f}: links the terms`, /href="\/terms"/.test(PAGES[f]));
+  }
+
+  // -------------------------------------------------------------------------
+  // The terms say buying means agreeing to them, so the checkout has to say so
+  // where the buyer pays. Snipcart renders whatever sits in its payment
+  // "bottom" slot under Place order; a page whose #snipcart div lost it checks
+  // out silently. The quote page and the wallet page build their own.
+  //
+  // data-templates-url is load-bearing, odd as "inline" looks. With the legacy
+  // install this site uses (no window.SnipcartSettings), Snipcart 3.7.1 reads
+  // slot templates out of #snipcart only when that attribute is present, and
+  // never fetches the value. Drop it and the slot renders nothing, with no
+  // error. Found by testing on Oct 18 2026.
+  suite('site content — checkout says buying means agreeing to the terms');
+
+  const TERMS_SLOT = /<div hidden id="snipcart"[^>]*\bdata-templates-url="inline"[^>]*><payment section="bottom"><p class="rc-terms-note">By purchasing, you agree to our <a href="\/terms"[^>]*>Terms of Service<\/a>/;
+  for (const f of PUBLIC) {
+    if (!PAGES[f].includes('id="snipcart"')) continue;
+    check(`${f}: checkout carries the terms line`, TERMS_SLOT.test(PAGES[f]));
+  }
+  check('quote page checkout carries the terms line', /<div hidden id="snipcart"[^>]*\bdata-templates-url="inline"[^>]*><payment section="bottom"><p class="rc-terms-note">[^<]*<a href="\/terms"/.test(read('worker/quote.js')));
+  check('wallet page carries the terms line', /class="w-terms">By purchasing, you agree to our <a href="\/terms"/.test(read('worker/wallet.js')));
 }
