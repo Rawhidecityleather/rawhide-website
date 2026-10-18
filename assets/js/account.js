@@ -252,6 +252,8 @@
       body.email = value(form, 'email');
       body.dob = value(form, 'dob');
       body.password = form.elements.password.value;
+      // Kept for "Send a new code": a new code means sending the form again.
+      state.signupBody = body;
       busy(form, true);
       api('/api/account/signup', body).then(function(d){
         askForCode(d.email || body.email);
@@ -272,6 +274,15 @@
     });
 
     $('code-back').addEventListener('click', function(){ showForm('create'); });
+
+    $('code-resend').addEventListener('click', function(){
+      var form = $('form-code'); clearErrors(form);
+      var slot = form.querySelector('[data-error="code"]');
+      if (!state.signupBody) { showForm('create'); return; }
+      api('/api/account/signup', state.signupBody).then(function(){
+        slot.textContent = 'A new code is on its way. The one before it no longer works.';
+      }).catch(function(err){ slot.textContent = err.message; });
+    });
 
     var codeBoxes = ['code-input', 'rs-code', 'pw-code'];
     for (var cb = 0; cb < codeBoxes.length; cb++) {

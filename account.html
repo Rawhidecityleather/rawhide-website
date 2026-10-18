@@ -73,7 +73,8 @@
           </form>
 
           <form id="form-reset" class="acct-form" hidden novalidate>
-            <p class="acct-lede">We sent a 6-digit code to <strong id="reset-email"></strong>. It works for 15 minutes. Check your spam folder if it isn't there in a minute.</p>
+            <p class="acct-lede">We sent a 6-digit code to <strong id="reset-email"></strong>. It works for 15 minutes.</p>
+            <p class="acct-hint acct-tip">Not there in a minute? Check Spam, and in Gmail the <strong>Updates</strong> and <strong>Promotions</strong> tabs, or search your email for &ldquo;Rawhide City Leather.&rdquo;</p>
             <label class="acct-label" for="rs-code">Code<span class="req" aria-hidden="true">*</span></label>
             <input class="acct-input acct-code" id="rs-code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required>
             <p class="acct-error" data-error="code" role="alert"></p>
@@ -125,12 +126,13 @@
           </form>
 
           <form id="form-code" class="acct-form" hidden novalidate>
-            <p class="acct-lede">One last step. We sent a 6-digit code to <strong id="code-email"></strong> to make sure it's yours. It works for 15 minutes. Check your spam folder if it isn't there in a minute.</p>
+            <p class="acct-lede">One last step. We sent a 6-digit code to <strong id="code-email"></strong> to make sure it's yours. It works for 15 minutes.</p>
+            <p class="acct-hint acct-tip">Not there in a minute? Check Spam, and in Gmail the <strong>Updates</strong> and <strong>Promotions</strong> tabs, or search your email for &ldquo;Rawhide City Leather.&rdquo;</p>
             <label class="acct-label" for="code-input">Code<span class="req" aria-hidden="true">*</span></label>
             <input class="acct-input acct-code" id="code-input" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required>
             <p class="acct-error" data-error="code" role="alert"></p>
             <button type="submit" class="btn btn-primary acct-submit">Finish My Account</button>
-            <p class="acct-switch"><button type="button" class="acct-link" id="code-back">Go back to the form</button></p>
+            <p class="acct-switch"><button type="button" class="acct-link" id="code-resend">Send a new code</button> &middot; <button type="button" class="acct-link" id="code-back">Go back to the form</button></p>
           </form>
         </div>
 
@@ -236,7 +238,7 @@
                 <button type="button" class="acct-link" id="pw-change">Change</button>
               </div>
               <form id="form-pw" class="acct-form" hidden novalidate>
-                <p class="acct-fine">We emailed a 6-digit code to <strong id="pw-email"></strong>. Type it here with your new password.</p>
+                <p class="acct-fine">We emailed a 6-digit code to <strong id="pw-email"></strong>. Type it here with your new password. Not there? Check Spam and the Updates tab.</p>
                 <label class="acct-label" for="pw-code">Code<span class="req" aria-hidden="true">*</span></label>
                 <input class="acct-input acct-code" id="pw-code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required>
                 <p class="acct-error" data-error="code" role="alert"></p>
@@ -269,7 +271,7 @@
 </main>
 
 <footer class="site-footer"><div class="container footer-grid"><div class="footer-brand"><img width="480" height="326" src="assets/img/logo.png" alt="Rawhide City Leather" class="footer-logo" onerror="this.style.display='none'"><p class="tagline">"We do not cut corners. We cut leather."</p><p class="footer-meta">Firefighter Owned · Est. 2024 · Lakeland, FL</p></div><div class="footer-col"><h2>Shop</h2><ul><li><a href="/shop">All Products</a></li><li><a href="/radio-straps">Radio Straps</a></li><li><a href="/shop#belts">Belts</a></li><li><a href="/hats">Hats</a></li><li><a href="/crews">Crew Orders</a></li><li><a href="/guides">Guides</a></li></ul></div><div class="footer-col"><h2>About</h2><ul><li><a href="/about">Our Story</a></li><li><a href="/reviews">Reviews</a></li><li><a href="/contact">Contact</a></li><li><a href="/shipping">Shipping</a></li><li><a href="/shipping#warranty">Warranty &amp; Returns</a></li><li><a href="/shipping#use-disclaimer">Use Disclaimer</a></li><li><a href="/privacy">Privacy Policy</a></li><li><a href="/terms">Terms of Service</a></li></ul></div><div class="footer-col"><h2>Get in Touch</h2><p><a href="mailto:rawhidecityleather@gmail.com">rawhidecityleather@gmail.com</a></p><div class="social-links"><a href="https://www.instagram.com/rawhide_city_leather" target="_blank" rel="noopener" aria-label="Instagram"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg></a><a href="https://www.facebook.com/profile.php?id=61575505112987" target="_blank" rel="noopener" aria-label="Facebook"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg></a><a href="https://www.tiktok.com/@rawhidecityleather24" target="_blank" rel="noopener" aria-label="TikTok"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5"/></svg></a></div></div></div><div class="footer-bottom"><div class="container"><p>&copy; <span id="year">2026</span> Rawhide City Leather. All rights reserved.</p></div></div></footer>
-<script src="assets/js/account.js?v=93237f5240" defer></script>
+<script src="assets/js/account.js?v=e42f8488a7" defer></script>
 <script src="assets/js/main.js" defer></script>
 <div hidden id="snipcart" data-api-key="OWM2YjcyNWItMmQ3Ni00NTJlLWI5YTctNDM0NDFhMWNhOTg0NjM5MTgwOTUzMTYwNzQ0MzM5" data-templates-url="inline" data-config-modal-style="side" data-config-add-product-behavior="none"><payment section="bottom"><p class="rc-terms-note">By purchasing, you agree to our <a href="/terms" target="_blank" rel="noopener">Terms of Service</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</p></payment></div>
 <script src="https://cdn.snipcart.com/themes/v3.7.1/default/snipcart.js"></script>
