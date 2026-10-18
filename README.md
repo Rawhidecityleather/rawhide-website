@@ -1392,6 +1392,82 @@ npx wrangler r2 object delete "rawhide-receipts/<key>.jpg" --remote
 
 `--remote` is not optional here either — see the artwork section above.
 
+## Customer accounts
+
+`worker/accounts.js` (sign-in, orders, details), `worker/account-coupons.js`
+(the sign-up and birthday codes), `worker/account-cards.js` (cards on file and
+paying with one), `worker/account-mail.js` (the four emails),
+`worker/account-store.js` (the KV record). The page is `account.html` with
+`assets/js/account.js`. Tests: `worker/tests/accounts.test.mjs`.
+
+What a customer gets at **/account**:
+
+- **Sign in with email and password.** The password is set on the sign-up
+  form (8+ characters, no composition rules) and stored as PBKDF2-SHA256,
+  50,000 rounds, peppered with `ACCOUNT_SECRET` (`worker/account-password.js`;
+  50k fits the free plan's 10ms CPU). Ten wrong passwords per email or thirty
+  per IP in an hour and sign-in waits. Making an account also takes one
+  emailed 6-digit code, which proves the email and so guards the 20% code.
+  "Forgot your password?" (and "Change" on the account page) emails the same
+  kind of code; a reset signs out every other browser on the account. A code
+  works for 15 minutes and five tries; five codes per email and twenty per IP
+  an hour.
+- **Their orders**, every one under that email, newest first, with status,
+  options, lead time while it is on the bench, and the tracking link once it
+  ships. Read live from Snipcart, so tracking saved on the dashboard, by the
+  batch ship box, or by the Pirate Ship BCC shows up on the account the moment
+  it is saved. There is nothing to sync.
+- **A card on file**, kept by Stripe. At checkout Snipcart's payment step lists
+  "Saved card" next to Google Pay / Apple Pay when the checkout email has an
+  account with a card. It opens `/pay?with=card`, which needs that account
+  signed in and the card's CVC.
+- **Their email and address filled in at checkout** (`assets/js/main.js`), only
+  into a cart that has no email yet.
+- **20% off one order for signing up**, good for a year. One per email and one
+  per street address, ever.
+- **15% off one order on their birthday**, good for 30 days. The hourly cron
+  makes it from 9am Eastern on the day and emails it if the account has the
+  birthday email ticked.
+
+Both codes are one-use, `combinable: false` Snipcart codes made for that one
+person, so they never stack with each other or a store sale. During an
+automatic sale the buyer gets Snipcart's "Use this discount instead?" prompt;
+the account page says to tap Yes when the code is bigger than the sale. In
+Snipcart's Discounts list they are named `Account welcome: …` and
+`Account birthday YYYY: …`.
+
+Sign-up needs first and last name, email, date of birth (18 or older) and a
+shipping address in the 50 states, DC, Puerto Rico or the USVI. Phone is
+optional. Email and date of birth cannot be changed from the page — a birthday
+that could be moved would hand out a code every time.
+
+### One-time setup
+
+Nothing shows until all of this exists. Until then the header icon and the
+"have an account?" line on /track are stripped from every page on the way out,
+and /account says accounts are not switched on yet.
+
+1. `npx wrangler kv namespace create ACCOUNTS`, and add the id it prints to
+   `kv_namespaces` in `wrangler.jsonc` as `{ "binding": "ACCOUNTS", "id": "…" }`.
+2. `npx wrangler secret put ACCOUNT_SECRET` — any long random string. It
+   peppers the stored sign-in codes.
+3. Already set for other features: `SNIPCART_SECRET`, `BREVO_KEY`,
+   `RECOVERY_FROM`, `RECOVERY_POSTAL_ADDRESS`. Cards also need
+   `STRIPE_SECRET_KEY` and `STRIPE_PUBLISHABLE_KEY`, and the saved card at
+   checkout needs the wallet gateway (`SNIPCART_GATEWAY_KEY`) set up.
+4. Deploy.
+
+### Things to know
+
+- Deleting an account deletes the Stripe customer, which removes every saved
+  card. If Stripe refuses, nothing is deleted. Orders stay in Snipcart.
+- A deleted account leaves two one-way hashes (`welcomed:` and `addr:`) so the
+  sign-up code cannot be claimed again by deleting and signing up again.
+- The account page does not load the Meta pixel: its automatic matching reads
+  form fields, and this page is nothing but names, birthdays and addresses.
+- Snipcart's customer lookup is by exact email. If it finds nobody, the orders
+  are matched by reading every order without case.
+
 ## Google Pay and Apple Pay
 
 `worker/wallet.js`. Snipcart has no wallet support of its own, so the

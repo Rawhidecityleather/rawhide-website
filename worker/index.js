@@ -36,6 +36,12 @@
  *   POST /api/logo-upload            PUBLIC. Artwork upload from a product page.
  *   POST /api/inquiry                PUBLIC. Contact-form inquiry, emailed to the shop.
  *   GET  /quote/…                    PUBLIC. The crew's quote page.
+ *   GET  /account                    PUBLIC. Customer accounts: sign in, orders,
+ *                                    tracking, cards on file, codes. The page is
+ *                                    account.html; everything it shows comes from
+ *                                    /api/account/*. See worker/accounts.js.
+ *   GET  /pay?with=card              PUBLIC. Checkout with a saved card. See
+ *                                    worker/account-cards.js.
  *
  * Email
  *   the private filing address — a forwarded receipt becomes a row on the
@@ -47,6 +53,8 @@
  *   hourly — abandoned cart recovery, step 3. See worker/recovery.js.
  *   hourly — the sale banner's Snipcart rule goes up on its start date and
  *            comes down after its end date. See worker/promo-sync.js.
+ *   hourly — today's account birthdays get their code, from 9am Eastern. See
+ *            worker/account-coupons.js.
  *
  * Secrets (set with `wrangler secret put NAME`):
  *   SNIPCART_SECRET — Snipcart secret API key. Reads and updates orders, never
@@ -70,6 +78,7 @@
  *   PROMO    — KV namespace holding the sale banner. See worker/promo.js.
  *   LOGOS    — R2 bucket holding customer artwork uploads. See the README.
  *   RECEIPTS — R2 bucket holding receipt photos.
+ *   ACCOUNTS — KV namespace holding customer accounts. See worker/accounts.js.
  *   AI       — Workers AI, used to read a receipt photo. Optional: without it
  *              uploads still store and the row gets filled in by hand.
  */
@@ -136,6 +145,11 @@ import {
 import {
   handleCustomSave, handleCustomDelete, customScript, CUSTOM_STYLES,
 } from './custom-product-page.js';
+import { routeAccount, withAccountLinks } from './accounts.js';
+import {
+  routeCards, savedCardOffer, handleSavedCardPage, handleSavedIntent,
+} from './account-cards.js';
+import { runBirthdays } from './account-coupons.js';
 
 export default {
   /**
@@ -208,6 +222,18 @@ export default {
         })
         .catch((err) => {
           console.error('todo email failed', err?.message || err);
+        })
+    );
+
+    ctx.waitUntil(
+      runBirthdays(env)
+        .then((report) => {
+          if (report.minted || report.emailed || report.failed) {
+            console.log('account birthdays', JSON.stringify(report));
+          }
+        })
+        .catch((err) => {
+          console.error('account birthdays failed', err?.message || err);
         })
     );
 
@@ -329,13 +355,29 @@ export default {
     // is the token Snipcart vouches for on every call — see worker/wallet.js.
     if (path.startsWith('/api/wallet/') || path === '/pay') {
       try {
-        if (path === '/api/wallet/methods') return await handleWalletMethods(request, env, url.origin);
+        if (path === '/api/wallet/methods') return await handleWalletMethods(request, env, url.origin, savedCardOffer);
+        if (path === '/api/wallet/saved-intent') return await handleSavedIntent(request, env);
+        if (path === '/pay' && url.searchParams.get('with') === 'card') return await handleSavedCardPage(request, env, url.origin);
         if (path === '/api/wallet/intent') return await handleWalletIntent(request, env);
         if (path === '/api/wallet/confirm') return await handleWalletConfirm(request, env, url.origin);
         if (path === '/api/wallet/return') return await handleWalletReturn(request, env, url.origin);
         if (path === '/api/wallet/refund') return await handleWalletRefund(request, env);
         if (path === '/pay') return await handleWalletPage(request, env, url.origin);
         return json({ error: 'Not found.' }, 404);
+      } catch (err) {
+        return failure(err, request);
+      }
+    }
+
+    // Public on purpose: these are the customer's own account, behind the
+    // customer's own sign-in code, not the shop's login. Every route checks the
+    // session itself. See worker/accounts.js.
+    if (path.startsWith('/api/account/')) {
+      try {
+        if (path === '/api/account/cards' || path.startsWith('/api/account/cards/')) {
+          return await routeCards(path, request, env);
+        }
+        return await routeAccount(path, request, env);
       } catch (err) {
         return failure(err, request);
       }
@@ -444,6 +486,11 @@ export default {
       final = await withCatalog(decorated, request, env);
     } catch (err) {
       console.error('catalog rewrite failed', err?.message || err);
+    }
+    try {
+      final = await withAccountLinks(final, request, env);
+    } catch (err) {
+      console.error('account link rewrite failed', err?.message || err);
     }
     return withSecurityHeaders(final);
   },

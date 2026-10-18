@@ -50,6 +50,14 @@ const STRIPE = 'https://api.stripe.com/v1';
 export const METHOD_ID = 'rawhide-wallet';
 export const METHOD_NAME = 'Google Pay / Apple Pay';
 
+/**
+ * A card a signed-in customer keeps on file. Charged through this same
+ * gateway and settled by the same `settle` below — see worker/account-cards.js.
+ * Named here so the settle step can say which one paid.
+ */
+export const SAVED_METHOD_ID = 'rawhide-saved-card';
+export const SAVED_METHOD_NAME = 'Saved card';
+
 /** Stripe's Apple Pay domain file, served from our own /.well-known path. */
 const APPLE_ASSOCIATION_URL =
   'https://stripe.com/files/apple-pay/apple-developer-merchantid-domain-association';
@@ -104,7 +112,7 @@ export async function validatePublicToken(token) {
   }
 }
 
-async function paymentSession(token) {
+export async function paymentSession(token) {
   const res = await fetch(
     `${SNIPCART_PAY}/public/custom-payment-gateway/payment-session?publicToken=${encodeURIComponent(token)}`,
     { headers: { Accept: 'application/json' } }
@@ -179,7 +187,7 @@ async function validateRequestToken(env, token) {
  * Stripe speaks form encoding, not JSON. Nested fields go in as
  * `metadata[key]`; a flat object of those is all this ever sends.
  */
-async function stripe(env, method, path, params = null, { idempotencyKey = '' } = {}) {
+export async function stripe(env, method, path, params = null, { idempotencyKey = '' } = {}) {
   const headers = { Authorization: 'Bearer ' + env.STRIPE_SECRET_KEY, Accept: 'application/json' };
   let body;
   if (params) {
@@ -206,8 +214,13 @@ function readJson(request) {
  * Snipcart asks which extra payment methods to show. One answer, or none:
  * with Stripe not set up there is nothing to offer, and an empty list leaves
  * the checkout exactly as it was rather than listing a button that 503s.
+ *
+ * `extraOffer` is how a saved card gets on the list without this file knowing
+ * about accounts: given the token and the payment session, it answers one more
+ * method or null. Whatever it does, the wallet is still offered — a saved-card
+ * lookup that fails costs the buyer nothing.
  */
-export async function handleMethods(request, env, origin) {
+export async function handleMethods(request, env, origin, extraOffer = null) {
   if (request.method !== 'POST') return json({ error: 'Use POST.' }, 405);
   if (!walletConfigured(env)) return json([]);
 
@@ -216,16 +229,24 @@ export async function handleMethods(request, env, origin) {
   if (!token) return json({ error: 'No public token.' }, 400);
   if (!(await validatePublicToken(token))) return json({ error: 'Invalid public token.' }, 401);
 
-  if (stripeInTestMode(env)) {
-    const raw = await paymentSession(token).catch(() => null);
-    if (!testModeAllows(env, raw)) return json([]);
-  }
+  const raw = stripeInTestMode(env) || extraOffer
+    ? await paymentSession(token).catch(() => null)
+    : null;
+  if (stripeInTestMode(env) && !testModeAllows(env, raw)) return json([]);
 
-  return json([{
+  const methods = [];
+  if (extraOffer && raw) {
+    const extra = await Promise.resolve()
+      .then(() => extraOffer(env, token, raw, origin))
+      .catch(() => null);
+    if (extra) methods.push(extra);
+  }
+  methods.push({
     id: METHOD_ID,
     name: METHOD_NAME,
     checkoutUrl: `${origin}/pay?publicToken=${encodeURIComponent(token)}`,
-  }]);
+  });
+  return json(methods);
 }
 
 /**
@@ -337,7 +358,7 @@ export async function settle(env, origin, token, paymentIntentId) {
       paymentSessionId: session.id,
       state: 'processed',
       transactionId: intent.id,
-      instructions: `Paid by ${METHOD_NAME} through Stripe (${intent.id}).`,
+      instructions: `Paid by ${meta.method === SAVED_METHOD_ID ? SAVED_METHOD_NAME : METHOD_NAME} through Stripe (${intent.id}).`,
       links: { refunds: `${origin}/api/wallet/refund` },
     });
   } catch (err) {
@@ -600,7 +621,7 @@ const WALLET_STYLES = `
 .w-help a{color:var(--c-accent);text-decoration:underline}
 `;
 
-function walletPage(title, body, status = 200, { script = '' } = {}) {
+export function walletPage(title, body, status = 200, { script = '', styles = '' } = {}) {
   const html = `<!doctype html>
 <html lang="en">
 <head>
@@ -608,8 +629,9 @@ function walletPage(title, body, status = 200, { script = '' } = {}) {
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
 <title>${esc(title)} · Rawhide City Leather</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=Special+Elite&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/css/style.css">
-<style>${WALLET_STYLES}</style>
+<style>${WALLET_STYLES}${styles}</style>
 ${script ? '<script src="https://js.stripe.com/v3/"></script>' : ''}
 </head>
 <body>

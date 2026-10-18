@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Your Account · Rawhide City Leather</title>
+  <link rel="canonical" href="https://rawhidecityleather.com/account">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#EBE8E1">
+<meta name="description" content="Sign in to your Rawhide City Leather account: your orders, tracking, card on file and codes.">
+<link rel="icon" type="image/png" href="assets/img/favicon.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta property="og:site_name" content="Rawhide City Leather">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Your Account · Rawhide City Leather">
+<meta property="og:description" content="Your orders, tracking, card on file and codes.">
+<meta property="og:url" content="https://rawhidecityleather.com/account">
+<meta property="og:image" content="https://rawhidecityleather.com/assets/img/hero.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=Special+Elite&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://app.snipcart.com"><link rel="preconnect" href="https://cdn.snipcart.com"><link rel="stylesheet" href="https://cdn.snipcart.com/themes/v3.7.1/default/snipcart.css">
+<link rel="stylesheet" href="assets/css/style.css?v=05fc6088e2">
+</head>
+<body>
+<div class="announcement"><div class="container"><p>Handmade in Lakeland, FL · Firefighter Owned · Free Shipping $85 and up</p></div></div>
+<header class="site-header"><div class="container header-grid"><button class="nav-toggle" data-nav-toggle aria-label="Menu"><span></span><span></span><span></span></button><a href="/" class="site-logo"><img width="480" height="326" src="assets/img/logo.png" alt="Rawhide City Leather" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'"><span class="site-logo-text" style="display:none">Rawhide City Leather</span></a><nav class="site-nav" data-site-nav><ul><li><a href="/">Home</a></li><li class="has-dropdown"><a href="/shop">Shop</a><ul class="dropdown"><li><a href="/shop">All Products</a></li><li><a href="/radio-straps">Radio Straps</a></li><li><a href="/shop#belts">Belts</a></li><li><a href="/hats">Hats</a></li><li><a href="/shop#accessories">Accessories</a></li><li><a href="/guides">Guides</a></li></ul></li><li><a href="/crews">Crews</a></li><li><a href="/measure">How to Measure</a></li><li><a href="/about">About</a></li><li><a href="/contact">Contact</a></li></ul></nav><div class="header-actions"><a href="/account" class="account-link" aria-label="Your account"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></a><a href="#" class="snipcart-checkout cart-link" aria-label="Cart"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg><span class="snipcart-items-count cart-count"></span></a></div></div></header>
+
+<main class="page acct">
+  <div class="container acct-wrap">
+
+    <p id="acct-loading" class="acct-loading">Loading your account&hellip;</p>
+
+    <div id="acct-off" hidden class="acct-off">
+      <p class="eyebrow">Your Account</p>
+      <h1 class="acct-title">Coming Soon</h1>
+      <p>Accounts are not switched on yet. Your order confirmation email has everything about your order, and you can <a href="/track">track a shipment here</a>.</p>
+    </div>
+
+    <section id="acct-auth" hidden>
+      <div class="acct-auth-grid">
+        <div class="acct-auth-card">
+          <p class="eyebrow">Your Account</p>
+          <h1 class="acct-title" id="auth-title">Sign In</h1>
+
+          <div class="acct-tabs" role="tablist" aria-label="Sign in or make an account">
+            <button type="button" role="tab" id="tab-signin" aria-controls="form-signin" aria-selected="true" data-tab="signin">Sign In</button>
+            <button type="button" role="tab" id="tab-create" aria-controls="form-create" aria-selected="false" data-tab="create">Make an Account</button>
+          </div>
+
+          <form id="form-signin" class="acct-form" role="tabpanel" aria-labelledby="tab-signin" novalidate>
+            <p class="acct-lede">Welcome back. Sign in with your email and password.</p>
+            <label class="acct-label" for="si-email">Email<span class="req" aria-hidden="true">*</span></label>
+            <input class="acct-input" id="si-email" name="email" type="email" autocomplete="email" inputmode="email" required>
+            <p class="acct-error" data-error="email" role="alert"></p>
+            <div class="acct-label-row"><label class="acct-label" for="si-password">Password<span class="req" aria-hidden="true">*</span></label><button type="button" class="acct-show" data-show="si-password">Show</button></div>
+            <input class="acct-input" id="si-password" name="password" type="password" autocomplete="current-password" required>
+            <p class="acct-error" data-error="password" role="alert"></p>
+            <p class="acct-error" data-error="form" role="alert"></p>
+            <button type="submit" class="btn btn-primary acct-submit">Sign In</button>
+            <p class="acct-switch"><button type="button" class="acct-link" data-goto="forgot">Forgot your password?</button></p>
+            <p class="acct-switch">New here? <button type="button" class="acct-link" data-goto="create">Make an account</button> and take 20% off your first order.</p>
+          </form>
+
+          <form id="form-forgot" class="acct-form" hidden novalidate>
+            <p class="acct-lede">Type the email on your account and we'll send a 6-digit code to set a new password.</p>
+            <label class="acct-label" for="fg-email">Email<span class="req" aria-hidden="true">*</span></label>
+            <input class="acct-input" id="fg-email" name="email" type="email" autocomplete="email" inputmode="email" required>
+            <p class="acct-error" data-error="email" role="alert"></p>
+            <p class="acct-error" data-error="form" role="alert"></p>
+            <button type="submit" class="btn btn-primary acct-submit">Email Me a Code</button>
+            <p class="acct-switch"><button type="button" class="acct-link" data-goto="signin">Back to sign in</button></p>
+          </form>
+
+          <form id="form-reset" class="acct-form" hidden novalidate>
+            <p class="acct-lede">We sent a 6-digit code to <strong id="reset-email"></strong>. It works for 15 minutes. Check your spam folder if it isn't there in a minute.</p>
+            <label class="acct-label" for="rs-code">Code<span class="req" aria-hidden="true">*</span></label>
+            <input class="acct-input acct-code" id="rs-code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required>
+            <p class="acct-error" data-error="code" role="alert"></p>
+            <div class="acct-label-row"><label class="acct-label" for="rs-password">New password<span class="req" aria-hidden="true">*</span></label><button type="button" class="acct-show" data-show="rs-password">Show</button></div>
+            <input class="acct-input" id="rs-password" name="password" type="password" autocomplete="new-password" minlength="8" required>
+            <p class="acct-hint">8 or more characters.</p>
+            <p class="acct-error" data-error="password" role="alert"></p>
+            <p class="acct-error" data-error="form" role="alert"></p>
+            <button type="submit" class="btn btn-primary acct-submit">Set Password and Sign In</button>
+            <p class="acct-switch"><button type="button" class="acct-link" id="reset-resend">Send a new code</button> &middot; <button type="button" class="acct-link" data-goto="signin">Back to sign in</button></p>
+          </form>
+
+          <form id="form-create" class="acct-form" role="tabpanel" aria-labelledby="tab-create" hidden novalidate>
+            <p class="acct-lede">Takes a minute. We'll email you a code to confirm it's you, and your 20% off code is waiting right after.</p>
+            <div class="acct-row">
+              <div><label class="acct-label" for="cr-first">First name<span class="req" aria-hidden="true">*</span></label><input class="acct-input" id="cr-first" name="firstName" autocomplete="given-name" maxlength="40" required><p class="acct-error" data-error="firstName" role="alert"></p></div>
+              <div><label class="acct-label" for="cr-last">Last name<span class="req" aria-hidden="true">*</span></label><input class="acct-input" id="cr-last" name="lastName" autocomplete="family-name" maxlength="40" required><p class="acct-error" data-error="lastName" role="alert"></p></div>
+            </div>
+            <div class="acct-row">
+              <div><label class="acct-label" for="cr-email">Email<span class="req" aria-hidden="true">*</span></label><input class="acct-input" id="cr-email" name="email" type="email" autocomplete="email" inputmode="email" required><p class="acct-error" data-error="email" role="alert"></p></div>
+              <div><label class="acct-label" for="cr-dob">Date of birth<span class="req" aria-hidden="true">*</span></label><input class="acct-input acct-dob" id="cr-dob" name="dob" type="date" autocomplete="bday" required><p class="acct-error" data-error="dob" role="alert"></p></div>
+            </div>
+            <p class="acct-hint acct-hint-top">Your birthday gets you a code every year. You have to be 18 or older, and it can't be changed later.</p>
+            <div class="acct-label-row"><label class="acct-label" for="cr-password">Password<span class="req" aria-hidden="true">*</span></label><button type="button" class="acct-show" data-show="cr-password">Show</button></div>
+            <input class="acct-input" id="cr-password" name="password" type="password" autocomplete="new-password" minlength="8" required>
+            <p class="acct-hint">8 or more characters. You'll sign in with this and your email.</p>
+            <p class="acct-error" data-error="password" role="alert"></p>
+            <fieldset class="acct-address">
+              <legend>Shipping address</legend>
+              <label class="acct-label" for="cr-line1">Street address<span class="req" aria-hidden="true">*</span></label>
+              <input class="acct-input" id="cr-line1" name="line1" autocomplete="address-line1" maxlength="80" required>
+              <p class="acct-error" data-error="line1" role="alert"></p>
+              <label class="acct-label" for="cr-line2">Apt, suite, unit <span class="optional">(optional)</span></label>
+              <input class="acct-input" id="cr-line2" name="line2" autocomplete="address-line2" maxlength="80">
+              <p class="acct-error" role="presentation"></p>
+              <div class="acct-row acct-row-3">
+                <div><label class="acct-label" for="cr-city">City<span class="req" aria-hidden="true">*</span></label><input class="acct-input" id="cr-city" name="city" autocomplete="address-level2" maxlength="50" required><p class="acct-error" data-error="city" role="alert"></p></div>
+                <div><label class="acct-label" for="cr-state">State<span class="req" aria-hidden="true">*</span></label><select class="acct-input" id="cr-state" name="state" autocomplete="address-level1" required data-states></select><p class="acct-error" data-error="state" role="alert"></p></div>
+                <div><label class="acct-label" for="cr-zip">ZIP<span class="req" aria-hidden="true">*</span></label><input class="acct-input" id="cr-zip" name="zip" autocomplete="postal-code" inputmode="numeric" maxlength="10" required><p class="acct-error" data-error="zip" role="alert"></p></div>
+              </div>
+            </fieldset>
+            <label class="acct-label" for="cr-phone">Phone <span class="optional">(optional, only for the carrier)</span></label>
+            <input class="acct-input" id="cr-phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" maxlength="20">
+            <p class="acct-error" data-error="phone" role="alert"></p>
+            <label class="acct-check"><input type="checkbox" name="birthdayEmails" checked> Email me my birthday code</label>
+            <p class="acct-error" data-error="form" role="alert"></p>
+            <button type="submit" class="btn btn-primary acct-submit">Make My Account</button>
+            <p class="acct-fine">By making an account you agree to our <a href="/terms">Terms of Service</a> and <a href="/privacy">Privacy Policy</a>.</p>
+          </form>
+
+          <form id="form-code" class="acct-form" hidden novalidate>
+            <p class="acct-lede">One last step. We sent a 6-digit code to <strong id="code-email"></strong> to make sure it's yours. It works for 15 minutes. Check your spam folder if it isn't there in a minute.</p>
+            <label class="acct-label" for="code-input">Code<span class="req" aria-hidden="true">*</span></label>
+            <input class="acct-input acct-code" id="code-input" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required>
+            <p class="acct-error" data-error="code" role="alert"></p>
+            <button type="submit" class="btn btn-primary acct-submit">Finish My Account</button>
+            <p class="acct-switch"><button type="button" class="acct-link" id="code-back">Go back to the form</button></p>
+          </form>
+        </div>
+
+        <aside class="acct-perks" aria-label="What an account gets you">
+          <div class="acct-perks-inner">
+            <p class="acct-perks-eyebrow">Why make an account</p>
+            <h2 class="acct-perks-title">What You Get</h2>
+            <ul class="acct-perks-list">
+              <li><span class="acct-perk-mark">20%</span><span><strong>Off your first order.</strong> Good for a year from the day you sign up.</span></li>
+              <li><span class="acct-perk-mark">15%</span><span><strong>Off on your birthday.</strong> Good for a month, every year.</span></li>
+              <li><span class="acct-perk-mark"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8l-9-5-9 5v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg></span><span><strong>Every order and its tracking.</strong> From the bench to your door, in one place.</span></li>
+            </ul>
+            <p class="acct-perks-tag">"We do not cut corners. We cut leather."</p>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <section id="acct-home" hidden>
+      <div class="acct-band">
+        <div class="acct-band-inner">
+          <div>
+            <p class="acct-band-eyebrow">Welcome back</p>
+            <h1 class="acct-band-name" id="acct-name"></h1>
+            <p class="acct-band-meta" id="acct-since"></p>
+          </div>
+          <div class="acct-stats">
+            <div class="acct-stat"><span class="acct-stat-n" id="stat-orders">&ndash;</span><span class="acct-stat-l">Orders</span></div>
+            <div class="acct-stat"><span class="acct-stat-n" id="stat-bench">&ndash;</span><span class="acct-stat-l">On the bench</span></div>
+            <div class="acct-stat"><span class="acct-stat-n" id="stat-codes">&ndash;</span><span class="acct-stat-l">Codes ready</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="acct-block" id="acct-codes-block" hidden>
+        <div class="acct-section-head">
+          <h2 class="acct-h2">Your Codes</h2>
+          <p class="acct-section-note">One code per order. They don't stack with each other or a store sale. Type it in the cart under Discount.</p>
+        </div>
+        <p class="acct-sale" id="acct-sale" hidden></p>
+        <div id="acct-codes" class="acct-codes"></div>
+      </div>
+
+      <div class="acct-grid">
+        <div class="acct-main">
+          <div class="acct-section-head">
+            <h2 class="acct-h2">Your Orders</h2>
+            <a class="acct-headlink" href="/shop">Shop the gear</a>
+          </div>
+          <div id="acct-orders"><p class="acct-soft">Loading your orders&hellip;</p></div>
+        </div>
+
+        <aside class="acct-side">
+          <div class="acct-panel" id="acct-cards-block" hidden>
+            <h2 class="acct-h3">Card on File</h2>
+            <div id="acct-cards"></div>
+            <form id="form-card" class="acct-form" hidden novalidate>
+              <label class="acct-label" for="card-element">Card</label>
+              <div id="card-element" class="acct-input acct-card-field"></div>
+              <p class="acct-error" id="card-error" role="alert"></p>
+              <button type="submit" class="btn btn-primary acct-submit" id="card-save">Save Card</button>
+              <p class="acct-switch"><button type="button" class="acct-link" id="card-cancel">Cancel</button></p>
+            </form>
+            <button type="button" class="btn btn-primary acct-submit" id="card-add">Add a Card</button>
+            <p class="acct-fine">Stripe, our payment processor, keeps the card. We never see the number. At checkout pick "Saved card" and type the 3 digits on the back.</p>
+          </div>
+
+          <div class="acct-panel">
+            <div class="acct-panel-head">
+              <h2 class="acct-h3">Your Details</h2>
+              <button type="button" class="acct-link" id="details-edit">Edit</button>
+            </div>
+            <dl id="acct-details" class="acct-details"></dl>
+            <form id="form-details" class="acct-form" hidden novalidate>
+              <div class="acct-row">
+                <div><label class="acct-label" for="ed-first">First name<span class="req" aria-hidden="true">*</span></label><input class="acct-input" id="ed-first" name="firstName" autocomplete="given-name" maxlength="40" required><p class="acct-error" data-error="firstName" role="alert"></p></div>
+                <div><label class="acct-label" for="ed-last">Last name<span class="req" aria-hidden="true">*</span></label><input class="acct-input" id="ed-last" name="lastName" autocomplete="family-name" maxlength="40" required><p class="acct-error" data-error="lastName" role="alert"></p></div>
+              </div>
+              <label class="acct-label" for="ed-line1">Street address<span class="req" aria-hidden="true">*</span></label>
+              <input class="acct-input" id="ed-line1" name="line1" autocomplete="address-line1" maxlength="80" required>
+              <p class="acct-error" data-error="line1" role="alert"></p>
+              <label class="acct-label" for="ed-line2">Apt, suite, unit <span class="optional">(optional)</span></label>
+              <input class="acct-input" id="ed-line2" name="line2" autocomplete="address-line2" maxlength="80">
+              <p class="acct-error" role="presentation"></p>
+              <label class="acct-label" for="ed-city">City<span class="req" aria-hidden="true">*</span></label>
+              <input class="acct-input" id="ed-city" name="city" autocomplete="address-level2" maxlength="50" required>
+              <p class="acct-error" data-error="city" role="alert"></p>
+              <div class="acct-row">
+                <div><label class="acct-label" for="ed-state">State<span class="req" aria-hidden="true">*</span></label><select class="acct-input" id="ed-state" name="state" autocomplete="address-level1" required data-states></select><p class="acct-error" data-error="state" role="alert"></p></div>
+                <div><label class="acct-label" for="ed-zip">ZIP<span class="req" aria-hidden="true">*</span></label><input class="acct-input" id="ed-zip" name="zip" autocomplete="postal-code" inputmode="numeric" maxlength="10" required><p class="acct-error" data-error="zip" role="alert"></p></div>
+              </div>
+              <label class="acct-label" for="ed-phone">Phone <span class="optional">(optional)</span></label>
+              <input class="acct-input" id="ed-phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" maxlength="20">
+              <p class="acct-error" data-error="phone" role="alert"></p>
+              <label class="acct-check"><input type="checkbox" name="birthdayEmails"> Email me my birthday code</label>
+              <p class="acct-error" data-error="form" role="alert"></p>
+              <button type="submit" class="btn btn-primary acct-submit">Save Details</button>
+              <p class="acct-switch"><button type="button" class="acct-link" id="details-cancel">Cancel</button></p>
+            </form>
+            <div class="acct-pw">
+              <div class="acct-panel-head">
+                <span class="acct-pw-label">Password</span>
+                <button type="button" class="acct-link" id="pw-change">Change</button>
+              </div>
+              <form id="form-pw" class="acct-form" hidden novalidate>
+                <p class="acct-fine">We emailed a 6-digit code to <strong id="pw-email"></strong>. Type it here with your new password.</p>
+                <label class="acct-label" for="pw-code">Code<span class="req" aria-hidden="true">*</span></label>
+                <input class="acct-input acct-code" id="pw-code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required>
+                <p class="acct-error" data-error="code" role="alert"></p>
+                <div class="acct-label-row"><label class="acct-label" for="pw-password">New password<span class="req" aria-hidden="true">*</span></label><button type="button" class="acct-show" data-show="pw-password">Show</button></div>
+                <input class="acct-input" id="pw-password" name="password" type="password" autocomplete="new-password" minlength="8" required>
+                <p class="acct-error" data-error="password" role="alert"></p>
+                <p class="acct-error" data-error="form" role="alert"></p>
+                <button type="submit" class="btn btn-primary acct-submit">Save Password</button>
+                <p class="acct-switch"><button type="button" class="acct-link" id="pw-cancel">Cancel</button></p>
+              </form>
+            </div>
+            <p class="acct-fine">Email and date of birth can't be changed here. <a href="/contact">Get in touch</a> if one is wrong.</p>
+          </div>
+
+          <div class="acct-panel acct-panel-quiet">
+            <button type="button" class="btn btn-ghost acct-submit acct-signout" id="signout">Sign Out</button>
+            <p class="acct-fine acct-center"><button type="button" class="acct-link" id="delete-open">Delete my account</button></p>
+            <form id="form-delete" class="acct-form acct-danger" hidden novalidate>
+              <p class="acct-fine">This deletes your account, your codes and any saved card. Your past orders stay with the shop for the warranty and for taxes.</p>
+              <label class="acct-label" for="delete-confirm">Type DELETE to confirm</label>
+              <input class="acct-input" id="delete-confirm" name="confirm" autocomplete="off" maxlength="10">
+              <p class="acct-error" data-error="confirm" role="alert"></p>
+              <button type="submit" class="btn btn-primary acct-submit">Delete My Account</button>
+            </form>
+          </div>
+        </aside>
+      </div>
+    </section>
+  </div>
+</main>
+
+<footer class="site-footer"><div class="container footer-grid"><div class="footer-brand"><img width="480" height="326" src="assets/img/logo.png" alt="Rawhide City Leather" class="footer-logo" onerror="this.style.display='none'"><p class="tagline">"We do not cut corners. We cut leather."</p><p class="footer-meta">Firefighter Owned · Est. 2024 · Lakeland, FL</p></div><div class="footer-col"><h2>Shop</h2><ul><li><a href="/shop">All Products</a></li><li><a href="/radio-straps">Radio Straps</a></li><li><a href="/shop#belts">Belts</a></li><li><a href="/hats">Hats</a></li><li><a href="/crews">Crew Orders</a></li><li><a href="/guides">Guides</a></li></ul></div><div class="footer-col"><h2>About</h2><ul><li><a href="/about">Our Story</a></li><li><a href="/reviews">Reviews</a></li><li><a href="/contact">Contact</a></li><li><a href="/shipping">Shipping</a></li><li><a href="/shipping#warranty">Warranty &amp; Returns</a></li><li><a href="/shipping#use-disclaimer">Use Disclaimer</a></li><li><a href="/privacy">Privacy Policy</a></li><li><a href="/terms">Terms of Service</a></li></ul></div><div class="footer-col"><h2>Get in Touch</h2><p><a href="mailto:rawhidecityleather@gmail.com">rawhidecityleather@gmail.com</a></p><div class="social-links"><a href="https://www.instagram.com/rawhide_city_leather" target="_blank" rel="noopener" aria-label="Instagram"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg></a><a href="https://www.facebook.com/profile.php?id=61575505112987" target="_blank" rel="noopener" aria-label="Facebook"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg></a><a href="https://www.tiktok.com/@rawhidecityleather24" target="_blank" rel="noopener" aria-label="TikTok"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5"/></svg></a></div></div></div><div class="footer-bottom"><div class="container"><p>&copy; <span id="year">2026</span> Rawhide City Leather. All rights reserved.</p></div></div></footer>
+<script src="assets/js/account.js?v=93237f5240" defer></script>
+<script src="assets/js/main.js" defer></script>
+<div hidden id="snipcart" data-api-key="OWM2YjcyNWItMmQ3Ni00NTJlLWI5YTctNDM0NDFhMWNhOTg0NjM5MTgwOTUzMTYwNzQ0MzM5" data-templates-url="inline" data-config-modal-style="side" data-config-add-product-behavior="none"><payment section="bottom"><p class="rc-terms-note">By purchasing, you agree to our <a href="/terms" target="_blank" rel="noopener">Terms of Service</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</p></payment></div>
+<script src="https://cdn.snipcart.com/themes/v3.7.1/default/snipcart.js"></script>
+</body></html>

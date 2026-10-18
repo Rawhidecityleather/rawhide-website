@@ -1029,4 +1029,43 @@
   }
   whenSnipcartReady(initShippingNote);
   loadPromo();
+
+  // Signed in to an account? Put its email and address on the cart, so the
+  // checkout opens filled in — and so the payment step can offer the saved
+  // card, which it only does when the checkout email is the account's. Only
+  // into a cart with no email yet: whatever the buyer typed always wins. The
+  // rcl_signed_in cookie says nothing but "signed in"; without it this never
+  // asks the server anything. See worker/accounts.js.
+  var accountFilled = false;
+  function fillFromAccount(){
+    if(accountFilled) return true;
+    if(!window.Snipcart || !window.Snipcart.store || !window.Snipcart.api) return false;
+    accountFilled = true;
+    var cart = Snipcart.store.getState().cart || {};
+    if(cart.email) return true;
+    fetch('/api/account/me', {credentials:'same-origin', headers:{accept:'application/json'}}).then(function(res){
+      return res.ok ? res.json() : null;
+    }).then(function(d){
+      if(!d || !d.account) return;
+      var now = Snipcart.store.getState().cart || {};
+      if(now.email) return;
+      var a = d.account, addr = a.address || {};
+      // Snipcart takes an address whole or not at all.
+      return Snipcart.api.cart.update({
+        email: a.email,
+        billingAddress: {
+          name: (a.firstName + ' ' + a.lastName).trim(),
+          address1: addr.line1 || '',
+          address2: addr.line2 || '',
+          city: addr.city || '',
+          province: addr.state || '',
+          postalCode: addr.zip || '',
+          country: 'US',
+          phone: a.phone || ''
+        }
+      });
+    }).catch(function(){});
+    return true;
+  }
+  if(/(?:^|;\s*)rcl_signed_in=1/.test(document.cookie)) whenSnipcartReady(fillFromAccount);
 })();

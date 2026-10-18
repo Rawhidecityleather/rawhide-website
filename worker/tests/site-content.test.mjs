@@ -17,6 +17,7 @@
 
 import { suite, check } from './harness.mjs';
 import { readFileSync, readdirSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -261,11 +262,25 @@ export default async function run() {
   }
 
   // -------------------------------------------------------------------------
+  // The account page names its script and stylesheet with a version taken
+  // from their contents. Browsers keep /assets for an hour, and serve a stale
+  // copy for a day after that, so an older account.js once ran against newer
+  // markup and the page sat on "Loading" (Oct 18 2026). A changed file with
+  // the old stamp fails here; the note says the stamp to put in account.html.
+  suite('site content — the account page asks for the files it was built with');
+
+  const stampOf = (f) => createHash('sha256').update(read(f).split(String.fromCharCode(13, 10)).join(String.fromCharCode(10))).digest('hex').slice(0, 10);
+  const accountPage = PAGES['account.html'] || '';
+  for (const [file, ref] of [['assets/js/account.js', /assets\/js\/account\.js\?v=([0-9a-f]+)/], ['assets/css/style.css', /assets\/css\/style\.css\?v=([0-9a-f]+)/]]) {
+    const have = (accountPage.match(ref) || [])[1];
+    check(`account.html asks for ${file} by its current stamp`, have === stampOf(file), `want ?v=${stampOf(file)}, page has ${have || 'none'}`);
+  }
+
   suite('site content — sitemap lists every public page');
 
   const sitemap = read('sitemap.xml');
   const locs = [...sitemap.matchAll(/<loc>([^<]*)<\/loc>/g)].map((m) => m[1]);
-  const UNLISTED = new Set(['index.html', 'track.html']);
+  const UNLISTED = new Set(['index.html', 'track.html', 'account.html']);
   for (const f of PUBLIC) {
     if (UNLISTED.has(f)) continue;
     const url = 'https://rawhidecityleather.com/' + f.replace(/\.html$/, '');
