@@ -13,7 +13,8 @@
 
 import { esc, json } from './lib.js';
 import { sendMail, mailerConfigured, mailProvider, UNSUBSCRIBE_TO } from './mailer.js';
-import { push, pushConfigured, testPush } from './pushover.js';
+import { push, pushConfigured, testPush, orderPush } from './pushover.js';
+import { getJson, countsAsSale } from './snipcart.js';
 
 /** What the card needs to know, read off the Worker's secrets. */
 export function alertsState(env) {
@@ -29,7 +30,8 @@ export function renderAlertsCard({ push: pushOn = false, mail = '', backup = fal
     ? '<span class="pill good">on</span>'
     : '<span class="pill warn">not set up</span>';
   const pushHint = pushOn
-    ? 'Pushover. New orders and contact-form inquiries buzz your phone. Quiet hours are set in the Pushover app.'
+    ? 'Pushover. New orders and contact-form inquiries buzz your phone. The test sends your latest order, ' +
+      'marked as a test, so it looks just like the real thing. Quiet hours are set in the Pushover app.'
     : 'Pushover. Set PUSHOVER_TOKEN and PUSHOVER_USER on the Worker and new orders and inquiries will buzz your phone.';
 
   const mailPill = mail === 'Resend'
@@ -71,9 +73,34 @@ export async function handlePushTest(env, now = new Date()) {
   if (!pushConfigured(env)) {
     return json({ error: 'Pushover is not set up. Set PUSHOVER_TOKEN and PUSHOVER_USER on the Worker.' }, 400);
   }
-  const result = await push(env, testPush(now));
+  // The most recent real order, dressed as what it is: a test. Falls back to a
+  // plain test message when there is no order to show or Snipcart is down.
+  const order = await latestOrder(env);
+  const message = order ? sampleOrderPush(order) : testPush(now);
+  const result = await push(env, message);
   if (!result.sent) return json({ error: 'Pushover would not take it: ' + result.reason }, 502);
-  return json({ ok: true });
+  return json({ ok: true, order: order?.invoiceNumber || '' });
+}
+
+/** An order alert exactly as a real one reads, with TEST in front so nobody packs it twice. */
+export function sampleOrderPush(order) {
+  const real = orderPush(order);
+  return {
+    ...real,
+    title: 'TEST · ' + real.title,
+    message: real.message + '\n(A sample from the dashboard, not a new order.)',
+  };
+}
+
+/** Newest paid order, or null. Never throws. */
+async function latestOrder(env) {
+  if (!env.SNIPCART_SECRET) return null;
+  try {
+    const page = await getJson(env, '/orders?format=Full&limit=10&offset=0');
+    return (page.items || []).find(countsAsSale) || null;
+  } catch {
+    return null;
+  }
 }
 
 export async function handleMailTest(env, now = new Date()) {
@@ -150,8 +177,10 @@ export const ALERTS_SCRIPT = `
     });
   }
 
-  wire(pushBtn, '/dashboard/api/alerts/push-test', function(){
-    toast('Sent. Check your phone.');
+  wire(pushBtn, '/dashboard/api/alerts/push-test', function(data){
+    toast(data.order
+      ? 'Sent ' + data.order + ' as a sample. Check your phone.'
+      : 'Sent. Check your phone.');
   });
   wire(mailBtn, '/dashboard/api/alerts/mail-test', function(data){
     if (data.resendError) {

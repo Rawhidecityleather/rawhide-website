@@ -341,6 +341,34 @@ export default async function run() {
   }
 
   {
+    const unpaid = { ...ORDER, invoiceNumber: 'SNIP-1041', paymentStatus: 'Pending' };
+    const paid = { ...ORDER, paymentStatus: 'Paid', status: 'Processed' };
+    const net = fakeNet({
+      'app.snipcart.com': () => new Response(JSON.stringify({ items: [unpaid, paid] }), { status: 200 }),
+      'api.pushover.net': pushOk,
+    });
+    const res = await withFetch(net.fetch, () => handlePushTest({ ...PUSH, SNIPCART_SECRET: 's' }));
+    const data = await res.json();
+    const sent = net.to('api.pushover.net')[0]?.body || {};
+    check('the test push shows the newest paid order, skipping an unpaid one',
+      data.order === 'SNIP-1040' && /SNIP-1040/.test(sent.title), sent.title);
+    check('marked TEST so nobody packs it twice',
+      sent.title.startsWith('TEST · New order') && /not a new order/.test(sent.message));
+    check('and it sounds like a real one', sent.sound === 'cashregister');
+  }
+
+  {
+    const net = fakeNet({
+      'app.snipcart.com': () => new Response('down', { status: 503 }),
+      'api.pushover.net': pushOk,
+    });
+    const res = await withFetch(net.fetch, () => handlePushTest({ ...PUSH, SNIPCART_SECRET: 's' }));
+    const sent = net.to('api.pushover.net')[0]?.body || {};
+    check('Snipcart down: the plain test still goes',
+      res.status === 200 && /^Test from the dashboard/.test(sent.message), sent.message);
+  }
+
+  {
     const net = fakeNet({
       'api.resend.com': () => new Response('{"message":"domain is not verified"}', { status: 403 }),
       'api.brevo.com': brevoOk,
