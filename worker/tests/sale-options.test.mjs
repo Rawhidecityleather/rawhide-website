@@ -115,6 +115,8 @@ export default async function () {
   check('smokey: free stamps, and no leather cut on a fixed colourway',
     smokeyRules.some((r) => r.selector.includes('customstamps')) &&
     !smokeyRules.some((r) => r.selector.includes('name="leather"')));
+  check('smokey: the line still says the 20% comes off it',
+    smokeyRules.find((r) => r.action === 'after').value.includes('through Nov 13: 20% off and custom stamps free.'));
 
   check('a product with no deal gets nothing', saleOptionRules(CUSTOM, sale, 'helmet-band', 0.2).length === 0);
 

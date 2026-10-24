@@ -184,16 +184,19 @@ export function saleOptionRules(html, sale, product, storeRate = 0) {
 
   // One line under the price, so the deal is on the page and not only in a
   // dropdown somebody has to open.
+  // A strap with no colour prices (the Smokey) still says what the sale
+  // takes off it, or the line reads as stamps-only.
   const said = [];
   if (lines.length) said.push(lines.join(' &middot; '));
-  if (stamps) said.push('Custom stamps free');
+  else if (storeRate) said.push(`${Math.round(storeRate * 100)}% off`);
+  if (stamps) said.push(lines.length ? 'Custom stamps free' : 'custom stamps free');
   rules.push({
     selector: '.product-price',
     action: 'after',
     once: true,
     value: `<p class="product-sale" data-sale-options style="margin:-4px 0 14px;color:var(--c-accent);` +
       `font-family:var(--font-stamp);font-size:.8rem;letter-spacing:.06em;line-height:1.6">` +
-      `${esc(sale.name)} through ${ends}: ${said.join('. ')}. Comes off in the cart, no code needed.</p>`,
+      `${esc(sale.name)} through ${ends}: ${said.join(lines.length ? '. ' : ' and ')}. Comes off in the cart, no code needed.</p>`,
   });
 
   return rules;
