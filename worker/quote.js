@@ -478,8 +478,16 @@ export function quoteWarnings(summary) {
 const SNIPCART_KEY = 'OWM2YjcyNWItMmQ3Ni00NTJlLWI5YTctNDM0NDFhMWNhOTg0NjM5MTgwOTUzMTYwNzQ0MzM5';
 const SNIPCART_VERSION = 'v3.7.1';
 
-export function renderQuotePage(quote, { status }) {
+/**
+ * `discountRate` is the sale running NOW, when the Worker knows it. The rate
+ * frozen into the quote is only the fallback: a quote made under the 10% sale
+ * and paid under the 20% one would otherwise collect 8/9 of its total, and one
+ * paid the day after a sale ends would collect more than it says.
+ */
+export function renderQuotePage(quote, { status, discountRate }) {
   const closed = status !== 'open';
+  const rate = typeof discountRate === 'number' ? discountRate : (quote.discountRate || 0);
+  const listPrice = typeof discountRate === 'number' ? listPriceFor(quote.total, rate) : quote.listPrice;
   const cash = quotePayment(quote) === 'cash';
   const grandTotal = quoteGrandTotal(quote);
 
@@ -536,7 +544,7 @@ export function renderQuotePage(quote, { status }) {
     : cash ? cashPanel
     : `<button type="button" id="q-pay" class="btn btn-primary btn-full snipcart-add-item"
         data-item-id="${esc(quote.itemId)}"
-        data-item-price="${esc(quote.listPrice.toFixed(2))}"
+        data-item-price="${esc(listPrice.toFixed(2))}"
         data-item-url="/quote/${esc(quote.id)}"
         data-item-name="${esc(quote.title)}"
         data-item-quantity="1"
@@ -555,7 +563,7 @@ export function renderQuotePage(quote, { status }) {
         // Checkout shows the list price struck through with the shop sale taken
         // off it, the same as every product page. Say so here or the two
         // numbers on that screen look like they came out of nowhere.
-        quote.discountRate
+        rate
           ? ` Checkout shows the shop sale applied &mdash; your total stays ${esc(money(quote.total, 'usd'))}.`
           : ''
       }</p>

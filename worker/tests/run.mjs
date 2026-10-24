@@ -21,6 +21,7 @@ const SUITES = [
   ['product-options', () => import('./product-options.test.mjs')],
   ['custom-product', () => import('./custom-product.test.mjs')],
   ['promo', () => import('./promo.test.mjs')],
+  ['sale-options', () => import('./sale-options.test.mjs')],
   ['quote', () => import('./quote.test.mjs')],
   ['recovery', () => import('./recovery.test.mjs')],
   ['recovery-card', () => import('./recovery-card.test.mjs')],

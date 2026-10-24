@@ -121,6 +121,19 @@ export default function run() {
   check('item url points back at this page', page.includes(`data-item-url="/quote/${quote.id}"`));
   check('page is noindex', page.includes('noindex'));
 
+  // Oct 2026: two card quotes written under the 10% sale were still open when
+  // the 20% one started. Priced off the frozen rate, a $750 quote would have
+  // collected $666.67.
+  const tenPct = buildQuote({ ...base, lines: [{ description: 'Hats', quantity: 25, unitPrice: 30 }] },
+    { discountRate: 0.1 });
+  check('a quote made under one sale is priced against the sale on now',
+    renderQuotePage(tenPct, { status: 'open', discountRate: 0.2 }).includes('data-item-price="937.50"'));
+  check('and against no sale once it ends',
+    renderQuotePage(tenPct, { status: 'open', discountRate: 0 }).includes('data-item-price="750.00"') &&
+    !renderQuotePage(tenPct, { status: 'open', discountRate: 0 }).includes('shop sale applied'));
+  check('with no live rate handed in it falls back to the one it was made with',
+    renderQuotePage(tenPct, { status: 'open' }).includes('data-item-price="833.33"'));
+
   // The crew always sees the number it was quoted. Under a sitewide sale the
   // button carries a grossed-up figure instead, and that figure must never
   // reach the page — it would not reconcile against the line items directly

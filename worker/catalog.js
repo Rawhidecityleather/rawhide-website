@@ -354,6 +354,16 @@ export function applyRules(response, rules) {
           el.append(rule.value, { html: true });
         },
       });
+    } else if (rule.action === 'after') {
+      // A line put in straight after an element — the sale prices under a
+      // strap's price. `once` because the selector is a class.
+      let seen = 0;
+      rewriter = rewriter.on(rule.selector, {
+        element(el) {
+          if (rule.once && seen++) return;
+          el.after(rule.value, { html: true });
+        },
+      });
     } else if (rule.action === 'blocks') {
       // A run of elements replaced outright, in order — the two ld+json blocks
       // on a page the Worker builds. Anything past the end of the list is

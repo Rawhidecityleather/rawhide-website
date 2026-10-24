@@ -489,5 +489,24 @@ export default async function run() {
     const render = async (promo) => (await applyPromoBanner(new Response(PAGE, { headers: { 'content-type': 'text/html' } }), { ...promo, headline: 'Sale' })).text();
     check('the note is shown under a storewide sale', (await render(store)).includes('<p data-crew-sale-note>'));
     check('the note stays hidden under a straps-only sale', (await render(straps)).includes('<p data-crew-sale-note hidden>'));
+
+    // Christmas 2026: Rob had the crew tiers stack on the storewide 20%.
+    const stacking = { ...store, deal: { ...store.deal, value: 20 }, stacks: true };
+    check('a stacking sale does not block the tiers', !saleBlocksCrewTiers(stacking));
+    const stackPage = await render(stacking);
+    check('the note says the tiers come off on top instead',
+      stackPage.includes('<p data-crew-sale-note>While the sale is on, these tiers come off on top of the 20% off.</p>'));
+    check('a stacking straps-only sale leaves the note hidden',
+      (await render({ ...straps, stacks: true })).includes('<p data-crew-sale-note hidden>'));
+    check('the rule is combinable only when saved to stack',
+      discountBody(stacking).combinable === true && discountBody(store).combinable === false);
+    const savedStacks = buildPromo({ headline: 'Sale', enabled: true, stacks: true,
+      deal: { type: 'percent', value: 20, scope: 'store' } });
+    check('the form saves the stacking switch, and only a real true turns it on',
+      savedStacks.stacks === true &&
+      buildPromo({ headline: 'Sale', stacks: 'yes', deal: { type: 'none' } }).stacks === false);
+    check('the card shows the switch, ticked when saved',
+      renderPromoCard({ ...savedStacks, snipcart: null }).includes('name="stacks" checked') &&
+      renderPromoCard(null).includes('name="stacks"'));
   }
 }

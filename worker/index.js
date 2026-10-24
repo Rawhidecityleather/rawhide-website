@@ -150,6 +150,7 @@ import { handlePhotoUpload, handlePhotoFetch } from './photos.js';
 import {
   withCatalog, getCatalog, customProductPage, extraSaleProducts,
 } from './catalog.js';
+import { withSaleOptions } from './sale-options.js';
 import {
   renderProductsPage, productsScript, readBuiltIn, handleProductSave, PRODUCTS_STYLES,
 } from './products-page.js';
@@ -497,6 +498,14 @@ export default {
       final = await withCatalog(decorated, request, env);
     } catch (err) {
       console.error('catalog rewrite failed', err?.message || err);
+    }
+    // Sale prices inside the strap dropdowns, after the dashboard's own option
+    // changes so it prices the list the customer actually sees. See
+    // worker/sale-options.js.
+    try {
+      final = await withSaleOptions(final, request, env);
+    } catch (err) {
+      console.error('sale options failed', err?.message || err);
     }
     try {
       final = await withAccountLinks(final, request, env);
@@ -1104,8 +1113,10 @@ async function handleQuotePage(path, env) {
   if (!quote) return quoteGone();
 
   const status = quoteStatus(quote);
+  // Priced against the sale on today, not the one on the day it was written.
+  const discountRate = quoteDiscountRate(await getPromo(env));
 
-  return new Response(renderQuotePage(quote, { status }), {
+  return new Response(renderQuotePage(quote, { status, discountRate }), {
     // 410 on a dead quote is deliberate. Snipcart's crawler treats a non-2xx
     // as a failed price check, so an expired or voided link can't be paid even
     // if someone kept the checkout tab open.

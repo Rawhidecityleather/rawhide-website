@@ -109,6 +109,10 @@ export function buildPromo(body = {}, now = new Date(), extra = []) {
     starts,
     ends,
     deal: cleanDeal(body.deal, extra),
+    // Whether the crew hat and patch tiers come off on top. Off unless asked:
+    // the rule turns combinable, and anything else in Snipcart left
+    // combinable stacks with it too.
+    stacks: body.stacks === true,
     updatedAt: now.toISOString(),
   };
 }
@@ -303,12 +307,30 @@ export async function withPromoBanner(response, request, env) {
  * carry a hidden note under each crew-pricing box; this decides when it shows.
  */
 const CREW_TIER_IDS = ['leather-patch-hat', 'my-wife-beats-me-hat', 'scream-for-daddy-hat', 'velcro-patch'];
-export function saleBlocksCrewTiers(promo) {
+function saleTouchesCrewTiers(promo) {
   if (!promo || promo.kind !== 'auto') return false;
   const deal = promo.deal;
   if (!deal || deal.type === 'none') return false;
   if (deal.scope !== 'products') return true;
   return (deal.productIds || []).some((id) => CREW_TIER_IDS.includes(id));
+}
+
+export function saleBlocksCrewTiers(promo) {
+  return saleTouchesCrewTiers(promo) && promo.stacks !== true;
+}
+
+/**
+ * A sale saved to stack is combinable, and so are the crew rules, so the tier
+ * comes off as well as the sale. The same note says so instead.
+ */
+export function saleStacksCrewTiers(promo) {
+  return saleTouchesCrewTiers(promo) && promo.stacks === true;
+}
+
+export function crewStackNote(promo) {
+  const deal = promo.deal;
+  const what = deal.type === 'percent' ? `the ${deal.value}% off` : 'the sale discount';
+  return `While the sale is on, these tiers come off on top of ${what}.`;
 }
 
 export function applyPromoBanner(response, promo) {
@@ -319,6 +341,14 @@ export function applyPromoBanner(response, promo) {
     rewriter.on('[data-crew-sale-note]', {
       element(el) {
         el.removeAttribute('hidden');
+      },
+    });
+  } else if (saleStacksCrewTiers(promo)) {
+    const note = crewStackNote(promo);
+    rewriter.on('[data-crew-sale-note]', {
+      element(el) {
+        el.removeAttribute('hidden');
+        el.setInnerContent(note);
       },
     });
   }
@@ -541,6 +571,10 @@ export function renderPromoCard(promo, {
             <span><b>Code</b> &mdash; the buyer types it at checkout</span>
           </label>
         </div>
+        <label class="qcheck promostacks">
+          <input type="checkbox" name="stacks"${checked(p.stacks === true)}>
+          <span><b>Stacks with the crew tiers</b> &mdash; 5+ hats or 10+ patches get their tier on top of the sale</span>
+        </label>
         <div class="qgrid" id="promocodefield"${p.kind === 'code' ? '' : ' hidden'}>
           <label class="qfield qnarrow">
             <span>Code <em>(Snipcart gets exactly this)</em></span>
@@ -580,6 +614,7 @@ export const PROMO_STYLES = `
 .promoproducts[hidden]{display:none}
 .promoproduct{font-size:12.5px}
 .promodealsentence{margin:10px 0 0;font-weight:600;color:var(--ink)}
+.promostacks{margin-top:10px;font-size:12.5px}
 `;
 
 /**
@@ -627,6 +662,7 @@ export const PROMO_SCRIPT = `
       starts: form.starts.value,
       ends: form.ends.value,
       enabled: form.enabled.checked,
+      stacks: form.stacks.checked,
       deal: {
         type: picked('dealType') || 'none',
         value: form.value.value,

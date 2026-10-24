@@ -36,6 +36,9 @@ export const RULE_PREFIX = 'Sale banner: ';
  *          RateOnItems / FixedAmountOnItems — on the named products only
  * combinable false — a storewide sale must not stack with a cart-recovery
  *                    coupon, which is also non-combinable for the same reason.
+ *            true only when the sale is saved to stack with the crew tiers.
+ *                    Every code this repo mints stays non-combinable, so a
+ *                    typed code still replaces the sale rather than adding to it.
  * expires  — the last minute of the end date in Florida, as a backstop. The
  *            cron archives the rule on the hour after; this is for the day
  *            the cron does not fire.
@@ -46,7 +49,7 @@ export function discountBody(promo) {
   const body = {
     name: `${RULE_PREFIX}${dealSentence(deal)}${promo.kind === 'code' ? ` (${promo.code})` : ''}`.slice(0, 100),
     trigger: promo.kind === 'code' ? 'Code' : 'Total',
-    combinable: false,
+    combinable: promo.stacks === true,
     maxNumberOfUsages: null,
     expires: promo.ends ? endOfDayUtc(promo.ends) : null,
   };

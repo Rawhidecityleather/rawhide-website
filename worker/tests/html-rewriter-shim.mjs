@@ -231,6 +231,7 @@ function apply(html, selector, handler) {
       const attrs = el.attrs.map((a) => ({ ...a }));
       let inner = null;
       let appended = '';
+      let following = '';
       let gone = false;
 
       handler.element({
@@ -258,6 +259,9 @@ function apply(html, selector, handler) {
         append: (content, opts) => {
           appended += opts?.html ? String(content) : esc(content);
         },
+        after: (content, opts) => {
+          following += opts?.html ? String(content) : esc(content);
+        },
         remove: () => { gone = true; },
       });
 
@@ -284,6 +288,13 @@ function apply(html, selector, handler) {
         const at = contentEnd(out, el);
         out = out.slice(0, at) + appended + out.slice(at);
         delta += appended.length;
+      }
+
+      // After the closing tag, outside the element altogether.
+      if (following) {
+        const at = elementEnd(out, el);
+        out = out.slice(0, at) + following + out.slice(at);
+        delta += following.length;
       }
     }
 
