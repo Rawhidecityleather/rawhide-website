@@ -29,6 +29,8 @@
  *   GET  /dashboard/expenses/report  the printable year-end packet
  *   POST /dashboard/api/todo         the LWFD to-do list: add, tick, remove, email settings
  *   POST /dashboard/api/todo/send    email the open list now
+ *   POST /dashboard/api/alerts/push-test   one test push to the shop's phone
+ *   POST /dashboard/api/alerts/mail-test   one test email, says who carried it
  *   POST /dashboard/hooks/snipcart   webhook: tracking -> Shipped, paid -> quote
  *   GET  /packing-slip?token=…       printable slip / build sheet
  *   GET  /logo/<key>                 customer artwork for a custom stamp
@@ -61,7 +63,12 @@
  *                     ships to the browser.
  *   SLIP_USER       — username for the browser login prompt
  *   SLIP_PASS       — password for the browser login prompt
- *   BREVO_KEY       — cart recovery email. See worker/mailer.js for why Brevo.
+ *   RESEND_API_KEY  — all of the site's own email goes through Resend first.
+ *                     See worker/mailer.js.
+ *   BREVO_KEY       — the backup when Resend refuses a message. See
+ *                     worker/mailer.js for why Brevo.
+ *   PUSHOVER_TOKEN, PUSHOVER_USER — new orders and inquiries push to the
+ *                     shop's phone. See worker/pushover.js.
  *   RECOVERY_FROM   — from address for recovery email, on the
  *                     rawhidecityleather.com domain authenticated in Brevo.
  *   RECOVERY_POSTAL_ADDRESS — footer mailing address. CAN-SPAM. A PO box is fine.
@@ -135,6 +142,10 @@ import {
   getTodos, handleTodoChange, handleTodoSendNow, runTodoMail, TODO_STYLES, TODO_SCRIPT,
 } from './todo.js';
 import { mailerConfigured } from './mailer.js';
+import { push, orderPush } from './pushover.js';
+import {
+  alertsState, handlePushTest, handleMailTest, ALERTS_STYLES, ALERTS_SCRIPT,
+} from './alerts-card.js';
 import { handlePhotoUpload, handlePhotoFetch } from './photos.js';
 import {
   withCatalog, getCatalog, customProductPage, extraSaleProducts,
@@ -548,6 +559,8 @@ async function route(path, request, env, url) {
     if (path === '/dashboard/api/coupon') return await handleCouponPost(request, env);
     if (path === '/dashboard/api/todo') return await handleTodoPost(request, env);
     if (path === '/dashboard/api/todo/send') return await handleTodoSendPost(request, env);
+    if (path === '/dashboard/api/alerts/push-test') return await handleAlertsTest(request, env, handlePushTest);
+    if (path === '/dashboard/api/alerts/mail-test') return await handleAlertsTest(request, env, handleMailTest);
     if (path === '/packing-slip') return await handleSlip(request, env, url);
     return notFound();
   } catch (err) {
@@ -756,9 +769,11 @@ async function handleDashboard(request, env, url) {
     todos,
     todosReady: Boolean(env.TODOS),
     todoMailReady: mailerConfigured(env),
+    alerts: alertsState(env),
   }), {
-    styles: DASHBOARD_STYLES + TODO_STYLES + PROMO_STYLES + RECOVERY_STYLES + COUPON_STYLES,
-    script: DASHBOARD_SCRIPT + TODO_SCRIPT + promoScript(saleProducts) + RECOVERY_SCRIPT + COUPON_SCRIPT,
+    styles: DASHBOARD_STYLES + TODO_STYLES + PROMO_STYLES + RECOVERY_STYLES + COUPON_STYLES + ALERTS_STYLES,
+    script: DASHBOARD_SCRIPT + TODO_SCRIPT + promoScript(saleProducts) + RECOVERY_SCRIPT + COUPON_SCRIPT +
+      ALERTS_SCRIPT,
   });
 }
 
@@ -884,6 +899,12 @@ async function handleTodoPost(request, env) {
 async function handleTodoSendPost(request, env) {
   if (!fromDashboard(request)) return json({ error: 'Bad request.' }, 403);
   return await handleTodoSendNow(request, env);
+}
+
+/** The Alerts & email card's two test buttons. */
+async function handleAlertsTest(request, env, run) {
+  if (!fromDashboard(request)) return json({ error: 'Bad request.' }, 403);
+  return await run(env);
 }
 
 /** A one-off code for one person. Mints it; sending it is the shop's own job. */
@@ -1256,6 +1277,12 @@ async function handleWebhook(request, env) {
     // Meta first, and it never throws: the quote stamp below decides the
     // status code Snipcart sees, and a Meta hiccup must not trigger a retry.
     const meta = await sendPurchase(env, body.content || {}, { mode: body.mode });
+    // The phone, same rule: never throws, never decides the status code. Live
+    // orders only — a test checkout is the shop testing, not a sale.
+    if (!body.mode || body.mode === 'Live') {
+      const pushed = await push(env, orderPush(body.content || {}));
+      if (!pushed.sent && pushed.reason !== 'not configured') console.log('order push failed:', pushed.reason);
+    }
     const res = await handleQuotePaid(body.content || {}, env);
     if (!meta.sent) console.log('meta capi skipped:', meta.reason);
     return res;

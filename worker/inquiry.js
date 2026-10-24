@@ -18,10 +18,14 @@
  * Secrets: the same three the cart recovery cron uses. See worker/mailer.js.
  * With any of them unset this returns 503 and the page falls back to mailto,
  * exactly as it does today — so this is safe to deploy before they are set.
+ *
+ * Each inquiry also pushes to the shop's phone when Pushover is set up. See
+ * worker/pushover.js.
  */
 
 import { json } from './lib.js';
 import { sendMail, mailerConfigured, UNSUBSCRIBE_TO } from './mailer.js';
+import { push, inquiryPush } from './pushover.js';
 import { isLogoKey } from './uploads.js';
 
 const SITE = 'https://rawhidecityleather.com';
@@ -177,14 +181,25 @@ export async function handleInquiry(request, env) {
 
   const { subject, html, text } = renderInquiryEmail(inquiry);
 
-  await sendMail(env, {
-    to: UNSUBSCRIBE_TO,
-    subject,
-    html,
-    text,
-    replyTo: { email: safeHeaderValue(inquiry.email), name: safeHeaderValue(inquiry.name) },
-    transactional: true,
-  });
+  let failed = null;
+  try {
+    await sendMail(env, {
+      to: UNSUBSCRIBE_TO,
+      subject,
+      html,
+      text,
+      replyTo: { email: safeHeaderValue(inquiry.email), name: safeHeaderValue(inquiry.name) },
+      transactional: true,
+    });
+  } catch (err) {
+    failed = err;
+  }
 
+  // The phone hears about it either way. When the email failed, this push is
+  // the only copy the shop gets — the customer may never press send on the
+  // mailto the page falls back to. Never throws; see worker/pushover.js.
+  await push(env, inquiryPush(inquiry, { emailed: !failed }));
+
+  if (failed) throw failed;
   return json({ ok: true });
 }

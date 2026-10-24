@@ -26,6 +26,7 @@ const SUITES = [
   ['recovery-card', () => import('./recovery-card.test.mjs')],
   ['coupon', () => import('./coupon.test.mjs')],
   ['accounts', () => import('./accounts.test.mjs')],
+  ['alerts', () => import('./alerts.test.mjs')],
   ['todo', () => import('./todo.test.mjs')],
   ['shipped-mail', () => import('./shipped-mail.test.mjs')],
   ['slip', () => import('./slip.test.mjs')],

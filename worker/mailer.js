@@ -18,7 +18,18 @@
  * - **Brevo** is free to 300 emails/day and permits marketing mail. Recovery
  *   volume is a handful a week, nowhere near the ceiling.
  *
+ * Resend, added 2026-10-24, goes first whenever RESEND_API_KEY is set. Brevo
+ * stays on as the backup: if Resend refuses a message or is down, the same
+ * message goes out through Brevo instead. So a domain that has not finished
+ * verifying, a revoked key or an outage never costs a customer their sign-in
+ * code or the shop an inquiry. Delete BREVO_KEY to run on Resend alone.
+ * Resend's free plan is 100 a day and 3,000 a month, and it permits marketing
+ * mail, so cart recovery is allowed there too.
+ *
  * Secrets:
+ *   RESEND_API_KEY Resend API key, "Sending access" on rawhidecityleather.com.
+ *                  The domain must be verified in Resend or every send falls
+ *                  through to Brevo.
  *   BREVO_KEY      Brevo API key (Brevo calls these "SMTP & API" keys).
  *   RECOVERY_FROM  Sending address on a domain authenticated in Brevo.
  *                  Must be @rawhidecityleather.com — the domain customers
@@ -33,6 +44,7 @@
  *                  until this is set, on purpose.
  */
 
+const RESEND_API = 'https://api.resend.com/emails';
 const BREVO_API = 'https://api.brevo.com/v3/smtp/email';
 
 /** Where an unsubscribe request lands. A real, monitored inbox. */
@@ -41,21 +53,88 @@ export const UNSUBSCRIBE_TO = 'rawhidecityleather@gmail.com';
 export class MailError extends Error {}
 
 export function mailerConfigured(env) {
-  return Boolean(env.BREVO_KEY && env.RECOVERY_FROM && env.RECOVERY_POSTAL_ADDRESS);
+  return Boolean((env.RESEND_API_KEY || env.BREVO_KEY) && env.RECOVERY_FROM && env.RECOVERY_POSTAL_ADDRESS);
+}
+
+/** Who gets first go at a message, for the dashboard. '' when neither is set. */
+export function mailProvider(env) {
+  if (env.RESEND_API_KEY) return 'Resend';
+  if (env.BREVO_KEY) return 'Brevo';
+  return '';
 }
 
 /**
  * Sends one message. Throws MailError on anything but a 2xx so the caller can
  * record the failure against the cart and retry it on the next run.
+ *
+ * Resolves to { messageId, provider } and, when Resend failed and Brevo
+ * carried it, `resendError` saying why — the dashboard's test button shows it.
  */
-export async function sendMail(env, { to, subject, html, text, replyTo, transactional = false }) {
+export async function sendMail(env, message) {
   if (!mailerConfigured(env)) {
     throw new MailError(
-      'Email is not configured. Set BREVO_KEY, RECOVERY_FROM and ' +
+      'Email is not configured. Set RESEND_API_KEY (or BREVO_KEY), RECOVERY_FROM and ' +
         'RECOVERY_POSTAL_ADDRESS with `wrangler secret put`.'
     );
   }
 
+  if (!env.RESEND_API_KEY) return sendViaBrevo(env, message);
+
+  try {
+    return await sendViaResend(env, message);
+  } catch (err) {
+    // Any failure falls through, a 4xx included: a 403 for an unverified
+    // domain is exactly the case Brevo is kept around for. The one cost is a
+    // Resend 5xx that went out anyway and now goes twice — rarer than an
+    // inquiry lost to an outage, and far less costly.
+    if (!env.BREVO_KEY) throw err;
+    console.error('resend failed, sending through brevo:', err.message);
+    return { ...(await sendViaBrevo(env, message)), resendError: err.message };
+  }
+}
+
+async function sendViaResend(env, { to, subject, html, text, replyTo, transactional = false }) {
+  let res;
+  try {
+    res = await fetch(RESEND_API, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${env.RESEND_API_KEY}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: `Rawhide City Leather <${env.RECOVERY_FROM}>`,
+        to: [to],
+        // The bare address, no display name. A customer's name with a comma
+        // in it would read as two addresses and get the whole message refused.
+        reply_to: replyTo?.email || UNSUBSCRIBE_TO,
+        subject,
+        html,
+        text,
+        // Same rule as Brevo below: no List-Unsubscribe on transactional mail.
+        ...(transactional ? {} : {
+          headers: {
+            'List-Unsubscribe': `<mailto:${UNSUBSCRIBE_TO}?subject=Unsubscribe>`,
+          },
+        }),
+      }),
+    });
+  } catch (err) {
+    throw new MailError(`Resend could not be reached: ${err.message}`);
+  }
+
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new MailError(
+      `Resend returned ${res.status} ${res.statusText}${detail ? ': ' + detail.slice(0, 300) : ''}`
+    );
+  }
+
+  const body = await res.json().catch(() => ({}));
+  return { messageId: body.id || '', provider: 'Resend' };
+}
+
+async function sendViaBrevo(env, { to, subject, html, text, replyTo, transactional = false }) {
   const res = await fetch(BREVO_API, {
     method: 'POST',
     headers: {
@@ -97,5 +176,5 @@ export async function sendMail(env, { to, subject, html, text, replyTo, transact
   }
 
   const body = await res.json().catch(() => ({}));
-  return { messageId: body.messageId || '' };
+  return { messageId: body.messageId || '', provider: 'Brevo' };
 }

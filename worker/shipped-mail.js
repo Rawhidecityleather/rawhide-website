@@ -206,7 +206,7 @@ export async function sendShippedEmail(env, order, trackingNumber, now = Date.no
   if (!to) throw new MailError('That order has no email address on it.');
   if (!mailerConfigured(env)) {
     throw new MailError(
-      'Email is not configured. Set BREVO_KEY, RECOVERY_FROM and ' +
+      'Email is not configured. Set RESEND_API_KEY (or BREVO_KEY), RECOVERY_FROM and ' +
         'RECOVERY_POSTAL_ADDRESS with `wrangler secret put`.'
     );
   }
@@ -240,7 +240,7 @@ const SAMPLE_TRACKING = '9400111899223197428490';
 export async function sendTestShippedEmail(env, now = Date.now()) {
   if (!mailerConfigured(env)) {
     throw new MailError(
-      'Email is not configured. Set BREVO_KEY, RECOVERY_FROM and ' +
+      'Email is not configured. Set RESEND_API_KEY (or BREVO_KEY), RECOVERY_FROM and ' +
         'RECOVERY_POSTAL_ADDRESS with `wrangler secret put`.'
     );
   }
