@@ -451,8 +451,8 @@ table.
 
 ## Custom stamp artwork
 
-The fully custom radio strap sells custom stamps as a paid option — one for $15,
-two for $25 — and each one needs the customer's artwork.
+The fully custom radio strap sells custom stamps as a paid option — one for $5,
+two for $10 total — and each one needs the customer's artwork.
 
 Snipcart has six custom-field types and none of them is a file, so the artwork
 can't ride along in the cart. The product page uploads the file to the Worker
@@ -911,7 +911,7 @@ Snipcart by name and to the packing slip by its label.
 **The two "Custom Stamps" dropdowns are left alone**, on the fully custom and
 Smokey straps. They are shown on the page with a note saying why. That field
 decides how many artwork upload slots appear by reading the number off the
-front of the chosen value, so renaming `1 custom stamp` would take the fifteen
+front of the chosen value, so renaming `1 custom stamp` would take the money
 dollars and then never ask for the file. Change that one in the HTML.
 
 **Removing a choice somebody already has in a cart** will fail their checkout,

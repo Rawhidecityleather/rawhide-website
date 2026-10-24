@@ -284,8 +284,8 @@ function productPageChecks() {
 
   const both = (p, text) => p.form.includes(text) && p.button.includes(text);
 
-  check('one stamp adds $15', () => both(custom, '1 custom stamp[+15.00]'));
-  check('two stamps add $25, not $40', () => both(custom, '2 custom stamps[+25.00]'));
+  check('one stamp adds $5', () => both(custom, '1 custom stamp[+5.00]'));
+  check('two stamps add $10 total', () => both(custom, '2 custom stamps[+10.00]'));
 
   // Matches the standalone Leather Butter price, deliberately — an add-on that
   // undercuts the product's own page is a discount nobody decided to give.
