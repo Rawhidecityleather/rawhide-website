@@ -61,7 +61,13 @@
     [48, 'Spade'],
     [49, 'Diamond'],
     [50, 'Club'],
-    [51, 'Heart']
+    [51, 'Heart'],
+    // Pressed Oct 28 2026. 52 is a department monogram; the name is a
+    // best read of the letters and is Rob's to confirm.
+    [52, 'CFD monogram'],
+    [53, 'Packers G'],
+    [54, 'Oklahoma OU'],
+    [55, 'Liverpool liver bird']
   ];
 
   // Served out of /assets, so the path works from a product page at the root
