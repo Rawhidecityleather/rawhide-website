@@ -119,10 +119,14 @@ function optionField(id, field, options) {
         <p class="phint">
           ${esc(choices.map((c) => c.value).join(', '))}
         </p>
-        <p class="phint"><b>Not editable here.</b> This one decides how many artwork
+        <p class="phint"><b>Not editable here.</b> ${field.stamps
+          ? `This is the stamp catalogue, filled in by <code>assets/js/stamp-picker.js</code>
+        so the numbered tiles and the dropdown always agree. Add or rename a stamp there,
+        on every page at once.`
+          : `This one decides how many artwork
         slots the page asks for, by reading the number off the front of the choice.
         Renaming one would take the money and stop asking for the file. Change it in
-        <code>product-${esc(id)}.html</code>.</p>
+        <code>product-${esc(id)}.html</code>.`}</p>
       </div>`;
   }
 

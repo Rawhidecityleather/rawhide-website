@@ -296,7 +296,25 @@ p{margin:0 0 1em}
 .order-form input:focus,.order-form select:focus,.order-form textarea:focus{outline:none;border-color:var(--c-text)}
 .order-form textarea{resize:vertical;min-height:80px;font-family:var(--font-body)}
 .order-form .form-help{font-size:.78rem;color:var(--c-muted);margin:0}
+/* The flex rule above outranks the UA stylesheet, so an artwork slot or stamp preview marked hidden by main.js stayed on screen. */
+.order-form [hidden]{display:none!important}
 @media(max-width:560px){.order-form .form-row-2{grid-template-columns:1fr}}
+/* Stamp pickers: the numbered catalogue as tiles. Tapping a tile sets the
+   select beside it; the select is what goes on the order, so a keyboard or a
+   screen reader picks the same way. The grid scrolls so two pickers do not
+   turn the form into a wall on a phone. */
+.stamp-picker .stamp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(60px,1fr));gap:6px;max-height:252px;overflow-y:auto;padding:8px;background:var(--c-surface);border:1px solid var(--c-line-strong);border-radius:2px;overscroll-behavior:contain}
+.stamp-tile{position:relative;padding:0;margin:0;border:2px solid transparent;background:var(--c-bg-2);aspect-ratio:1/1;cursor:pointer;border-radius:2px;overflow:hidden;transition:border-color .15s}
+.stamp-tile img{width:100%;height:100%;object-fit:cover;display:block}
+.stamp-tile .stamp-num{position:absolute;left:0;bottom:0;background:rgba(15,15,15,.82);color:#EBE8E1;font-family:var(--font-display);font-size:.68rem;font-weight:600;letter-spacing:.04em;padding:1px 5px;line-height:1.4}
+.stamp-tile:hover{border-color:var(--c-text-soft)}
+.stamp-tile.active{border-color:var(--c-text);box-shadow:0 0 0 1px var(--c-text)}
+.stamp-tile:focus-visible{outline:2px solid var(--c-text);outline-offset:1px}
+.stamp-tile[data-value=""]{display:flex;align-items:center;justify-content:center;color:var(--c-text-soft)}
+.stamp-tile[data-value=""] .stamp-num{position:static;background:none;color:inherit;font-size:.66rem;letter-spacing:.12em;text-transform:uppercase;padding:0}
+.stamp-preview{display:flex;align-items:center;gap:10px;margin:0;font-size:.88rem;color:var(--c-text)}
+.stamp-preview img{width:48px;height:48px;border:1px solid var(--c-line-strong);flex:none}
+.stamp-preview span{font-family:var(--font-display);letter-spacing:.06em;text-transform:uppercase;font-size:.78rem}
 .qty-stepper{display:inline-flex;align-items:stretch;width:max-content;background:var(--c-surface);border:1px solid var(--c-line-strong);border-radius:2px}
 .qty-stepper .qty-btn{width:46px;padding:0;background:none;border:0;color:var(--c-text);font-family:var(--font-display);font-size:1.3rem;line-height:1;cursor:pointer;transition:background .2s}
 .qty-stepper .qty-btn:hover{background:var(--c-bg-2)}

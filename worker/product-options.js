@@ -23,7 +23,9 @@
  * removed, renamed or retyped here, and the two "Custom stamps" dropdowns are
  * left alone entirely: those drive how many artwork upload slots appear, by
  * reading a number off the front of the chosen value, and a renamed choice
- * would quietly stop asking for the artwork it charged for.
+ * would quietly stop asking for the artwork it charged for. The stamp pickers
+ * (Stamp above name, Stamp below name) are left alone too: their list is the
+ * numbered catalogue in assets/js/stamp-picker.js, one place for every page.
  */
 
 import { esc } from './lib.js';
@@ -384,7 +386,12 @@ export function extractOptions(html) {
       // Reading a number off the front of the chosen value is how the page
       // decides to show one artwork slot or two. A renamed choice would stop
       // asking for artwork it just charged for, so this one is not edited here.
-      locked: hasAttr(tag, 'data-logo-count'),
+      // The stamp pickers are locked for a different reason: their choices are
+      // the numbered catalogue in assets/js/stamp-picker.js, filled in by the
+      // browser so the tiles and the dropdown cannot disagree about what number
+      // 12 is. The page ships them with only "None" on.
+      locked: hasAttr(tag, 'data-logo-count') || hasAttr(tag, 'data-stamp-pick'),
+      stamps: hasAttr(tag, 'data-stamp-pick'),
       choices,
     });
   }

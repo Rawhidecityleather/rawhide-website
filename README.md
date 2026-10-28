@@ -996,6 +996,31 @@ back to its built-in photos, wording and options on the next request. Nothing in
 repo is touched by any of this — `product-<id>.html` and
 `assets/img/products/` are the fallback, always.
 
+## The stamp catalogue
+
+Every stamp the shop can press has a number, the same number written on the
+sample boards on the bench. A customer picks by number on the order form, the
+number prints on the packing slip, and the bench reads it off the board.
+
+**One list drives it all: `assets/js/stamp-picker.js`.** Each entry is
+`[number, 'short name']`, and its tile is `assets/img/stamps/NN.webp` (240px
+square, cut from the board photos). The script fills the two pickers on every
+page that offers stamps — **Stamp above name** and **Stamp below name** on the
+three radio straps, **Stamp before text** and **Stamp after text** on the helmet
+band — so the dropdown and the numbered tiles can never disagree. The page
+ships each picker with only "None" on it. What goes on the order is
+`12 - Cross`: number first, so it reads the way the boards do.
+
+**To add a stamp:** press it, photograph it on tan leather, cut a square tile
+and save it as the next number, then add `[N, 'Name']` to the end of the list.
+Never reuse or renumber — an old order still has to read right. The `stamps`
+suite checks for gaps, duplicate names, a tile for every number and a stamp
+for every tile, and fails the deploy otherwise.
+
+The pickers are locked in the dashboard editor, with a note saying why. The
+"Custom Stamps" dropdown (+$5 one / +$10 two) is still the artwork upload for
+a design that is not on the boards; it has nothing to do with the catalogue.
+
 ## Adding a product
 
 **Add a product**, at the top of the dashboard's Products page. A name, a price,
