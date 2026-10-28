@@ -116,6 +116,8 @@
       b.appendChild(n);
       b.addEventListener('click', function(){
         select.value = value;
+        fold(false);
+        if(browse) browse.focus();
         // A real change event, so anything else listening to the select
         // (the preview below, the form) hears it the same way a keyboard pick
         // sounds.
@@ -131,6 +133,20 @@
     });
 
     var preview = wrap.querySelector('[data-stamp-preview]');
+
+    // The grid is big — 55 tiles, twice on a page — so it stays folded behind
+    // a button until the customer asks for it, and folds away again once they
+    // have tapped a stamp. The dropdown above it is always there for anyone
+    // who already knows the number off the boards.
+    var browse = wrap.querySelector('[data-stamp-browse]');
+    function fold(open){
+      grid.hidden = !open;
+      if(browse){
+        browse.setAttribute('aria-expanded', open ? 'true' : 'false');
+        browse.textContent = open ? 'Hide the stamps' : 'Browse the stamps';
+      }
+    }
+    if(browse) browse.addEventListener('click', function(){ fold(grid.hidden); });
 
     function sync(){
       var v = select.value;

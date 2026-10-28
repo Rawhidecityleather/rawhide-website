@@ -82,8 +82,8 @@ export default async function run() {
       check(`${f}: picker "${a.name}" ships with only None on it (the script fills the rest)`,
         /^\s*<option value="" selected>None<\/option>\s*$/.test(sel[1]));
       check(`${f}: picker "${a.name}" names its field for the order`, !!a['data-label'] && /^Stamp /.test(a['data-label']));
-      check(`${f}: picker "${a.name}" has a tile grid beside it`,
-        new RegExp(`id="${a.id}"[\\s\\S]{0,400}data-stamp-grid`).test(html));
+      check(`${f}: picker "${a.name}" has a browse button and a folded tile grid beside it`,
+        new RegExp(`id="${a.id}"[\\s\\S]{0,700}data-stamp-browse[\\s\\S]{0,200}data-stamp-grid[^>]*\\bhidden`).test(html));
       check(`${f}: picker "${a.name}" is never required`, !/\brequired\b/.test(sel[0].slice(0, sel[0].indexOf('>'))));
     }
 
