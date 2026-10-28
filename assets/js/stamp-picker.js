@@ -62,8 +62,7 @@
     [49, 'Diamond'],
     [50, 'Club'],
     [51, 'Heart'],
-    // Pressed Oct 28 2026. 52 is a department monogram; the name is a
-    // best read of the letters and is Rob's to confirm.
+    // Pressed Oct 28 2026. 52 is the CFD department monogram (name confirmed by Rob).
     [52, 'CFD monogram'],
     [53, 'Packers G'],
     [54, 'Oklahoma OU'],
