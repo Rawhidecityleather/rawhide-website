@@ -15,6 +15,7 @@
 
 import { suite, check } from './harness.mjs';
 import { readFileSync, readdirSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { extractOptions } from '../product-options.js';
@@ -57,6 +58,7 @@ export default async function run() {
   // -------------------------------------------------------------------------
   suite('stamps — every page that offers stamps has both pickers');
 
+  const pickerStamp = createHash('sha256').update(js.split('\r\n').join('\n')).digest('hex').slice(0, 10);
   const pages = readdirSync(ROOT).filter((f) => f.startsWith('product-') && f.endsWith('.html'));
   const withPickers = pages.filter((f) => read(f).includes('data-stamp-picker'));
   const expected = [
@@ -73,6 +75,14 @@ export default async function run() {
     const html = read(f);
     check(`${f}: loads stamp-picker.js after main.js`,
       html.indexOf('assets/js/stamp-picker.js') > html.indexOf('assets/js/main.js'));
+
+    // /assets/js is cached for an hour and served stale for a day after that.
+    // The page and the script change together, so the page has to ask for the
+    // script by its content: an old script against a new page left the Browse
+    // button dead for Rob on Oct 28 2026.
+    const have = (html.match(/assets\/js\/stamp-picker\.js\?v=([0-9a-f]+)/) || [])[1];
+    check(`${f}: asks for stamp-picker.js by its current stamp`, have === pickerStamp,
+      `want ?v=${pickerStamp}, page has ${have || 'none'}`);
 
     const selects = [...html.matchAll(/<select\b[^>]*data-stamp-pick[^>]*>([\s\S]*?)<\/select>/g)];
     check(`${f}: has exactly two pickers`, selects.length === 2, `${selects.length}`);
