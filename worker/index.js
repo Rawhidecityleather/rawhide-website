@@ -267,6 +267,15 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
+    // Google's ownership check for Search Console fetches /google<token>.html
+    // at exactly that address and treats any redirect as a failure. Two
+    // redirects below would fail it — the www → apex 301, and the asset
+    // router's own .html → extensionless 307 — so these files are answered
+    // here, as they are, on either host, before anything can send them on.
+    if (isVerificationFile(url.pathname)) {
+      return verificationFile(url, env);
+    }
+
     // Both normalisations below write into one URL and issue one redirect. An
     // old Wix URL on the www host needs both, and that combination is exactly
     // where Google holds the radio strap rankings — doing it in two hops would
@@ -307,8 +316,12 @@ export default {
     // treatment: exact match, Wix's query string dropped.
     const legacyPath = LEGACY_PATHS.get(path.toLowerCase());
     if (legacyPath) {
-      canonical.pathname = legacyPath;
+      // A target may name a section of its page ("/shop#accessories"): the
+      // browser scrolls there, and Google reads it as the page.
+      const [legacyPathname, legacyFragment] = legacyPath.split('#');
+      canonical.pathname = legacyPathname;
       canonical.search = '';
+      canonical.hash = legacyFragment ? '#' + legacyFragment : '';
     }
 
     // 308 for POST: a 301 lets the browser downgrade the method to GET, which
@@ -639,6 +652,9 @@ const LEGACY_PRODUCT_URLS = new Map([
   ['fully-custom-adjustable-radio-strap', '/product-fully-custom-radio-strap'],
   ['adjustable-glovestrap', '/product-glove-strap'],
   ['helmet-band', '/product-helmet-band'],
+  // Added 2026-11-06: Search Console's page report lists it, and the home
+  // page's own "referring pages" list names it. The belt still sells.
+  ['basket-weave-belt', '/product-basket-weave-belt'],
   // Deliberately NOT mapped, so they keep falling through to /shop:
   // 'all-leather-adjustable-e-collar' and 'helmet-morale-cards' are products
   // the shop no longer makes. There is no honest equivalent, and sending a
@@ -673,7 +689,43 @@ const LEGACY_PATHS = new Map([
   ['/english-shipping-policy', '/shipping'],
   ['/english-refund-policy', '/shipping'],
   ['/contact-8', '/contact'],
+  // Added 2026-11-06 from the www property's 16-month page report: the two
+  // remaining Wix policy pages and the accessories category, which has a
+  // section of its own on the shop page.
+  ['/english-privacy-policy', '/privacy'],
+  ['/english-terms-conditions', '/terms'],
+  ['/category/accessories', '/shop#accessories'],
 ]);
+
+/* ------------------------------------------------- site verification files */
+
+/**
+ * The files Google hands out to prove the site is ours live in the repo root
+ * as google<token>.html, one per Google account that asked. They are the only
+ * .html addresses the site answers at their full name: Google fetches exactly
+ * that URL, and a redirect — to the apex, or to the extensionless address the
+ * asset router prefers — reads as "file not found" on its side.
+ */
+const VERIFICATION_FILE = /^\/google[0-9a-f]+\.html$/;
+
+function isVerificationFile(pathname) {
+  return VERIFICATION_FILE.test(pathname);
+}
+
+async function verificationFile(url, env) {
+  // The asset router serves google<token>.html at /google<token> (its
+  // html_handling drops the extension), so ask it for that and answer at the
+  // address Google asked for.
+  const bare = new URL(url);
+  bare.pathname = url.pathname.replace(/\.html$/, '');
+  bare.search = '';
+  const asset = await env.ASSETS.fetch(new Request(bare.toString()));
+  if (!asset.ok) return withSecurityHeaders(asset);
+  return withSecurityHeaders(new Response(asset.body, {
+    status: 200,
+    headers: { 'content-type': 'text/html; charset=utf-8' },
+  }));
+}
 
 /* ------------------------------------------------------------------- auth */
 

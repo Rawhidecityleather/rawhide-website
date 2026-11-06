@@ -34,7 +34,9 @@ function makeKV() {
   };
 }
 
-const REAL_FILES = ['/shop.html', '/index.html', '/assets/css/style.css'];
+// The asset router serves google<token>.html at /google<token>, so that is
+// the address the Worker asks it for.
+const REAL_FILES = ['/shop.html', '/index.html', '/assets/css/style.css', '/google76cce82b6bd1fb6b'];
 
 export default async function run() {
   const env = {
@@ -487,6 +489,22 @@ export default async function run() {
   check('the Wix query string is dropped on the product mapping',
     wwwLegacyQuery.headers.get('location') === ORIGIN + '/product-fully-custom-radio-strap');
 
+  // The rest of the Wix map, each confirmed in Search Console on 2026-11-06.
+  const wwwBelt = await fromWww('/product-page/basket-weave-belt');
+  check('the old belt URL reaches the belt, not the shop page',
+    wwwBelt.status === 301 && wwwBelt.headers.get('location') === ORIGIN + '/product-basket-weave-belt',
+    `${wwwBelt.status} → ${wwwBelt.headers.get('location')}`);
+  for (const [from, to] of [
+    ['/english-privacy-policy', '/privacy'],
+    ['/english-terms-conditions', '/terms'],
+    ['/category/accessories', '/shop#accessories'],
+  ]) {
+    const res = await fromWww(from + '?wix=1');
+    check(`${from} goes to ${to} in one hop, Wix query dropped`,
+      res.status === 301 && res.headers.get('location') === ORIGIN + to,
+      `${res.status} → ${res.headers.get('location')}`);
+  }
+
   const wwwPost = await fromWww('/dashboard/api/quote', {
     method: 'POST', headers: DASH, body: '{}',
   });
@@ -497,6 +515,22 @@ export default async function run() {
   const apexPage = await get('/shop.html');
   check('the apex is left alone',
     apexPage.status === 200 && apexPage.headers.get('x-served-by') === 'assets');
+
+  suite('worker — Google verification files');
+
+  // Google fetches the file at its full .html name and fails on any redirect,
+  // so neither the www hop nor the router's extensionless 307 may touch it.
+  const verifyApex = await get('/google76cce82b6bd1fb6b.html');
+  check('the apex serves it with a 200', verifyApex.status === 200, String(verifyApex.status));
+  check('with the file\'s own contents', (await verifyApex.text()) === 'asset');
+  check('as html', (verifyApex.headers.get('content-type') || '').startsWith('text/html'));
+  const verifyWww = await fromWww('/google76cce82b6bd1fb6b.html');
+  check('and so does www, with no hop to the apex', verifyWww.status === 200, String(verifyWww.status));
+  const verifyMissing = await get('/googleffff.html');
+  check('a token with no file in the repo keeps its 404', verifyMissing.status === 404, String(verifyMissing.status));
+  const verifyShaped = await get('/googleplex.html');
+  check('an ordinary .html address is not caught by the pattern',
+    verifyShaped.status !== 200 || verifyShaped.headers.get('x-served-by') === 'assets', String(verifyShaped.status));
 
   suite('worker — legacy Wix product URLs');
 
