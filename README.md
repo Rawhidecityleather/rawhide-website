@@ -513,13 +513,13 @@ The tier copy is in the repo. **The discount itself is not** — it's a Snipcart
 dashboard rule keyed to the product id, and nothing here can see it. Change one
 without the other and the site advertises a number the cart never takes off.
 
-Patch hats (`leather-patch-hat`), from $30 each:
+Patch hats (`leather-patch-hat`), $25 each (changed from $30 and three
+tiers on 2026-11-08, to match the crew-hat lead ad):
 
 | Quantity | Off  | Each   |
 | -------- | ---- | ------ |
-| 5+       | 10%  | $27.00 |
-| 10+      | 15%  | $25.50 |
-| 20+      | 20%  | $24.00 |
+| 5 to 20  | 10%  | $22.50 |
+| 21+      | 20%  | $20.00 |
 
 Velcro patches (`velcro-patch`), $7 each: 10 or more, 10% off.
 
