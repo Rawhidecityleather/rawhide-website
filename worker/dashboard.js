@@ -30,6 +30,7 @@ import { renderRecoveryCard } from './recovery-card.js';
 import { renderCouponCard } from './coupon.js';
 import { renderTodoCard } from './todo.js';
 import { renderAlertsCard } from './alerts-card.js';
+import { SLIP_LIST_KEY } from './slip.js';
 
 const RANGES = [
   { key: '30d', label: 'Last 30 days', compare: 'vs prior 30 days' },
@@ -1591,6 +1592,47 @@ export const DASHBOARD_SCRIPT = `
       row.hidden = !test(row.getAttribute('data-bucket'), row.getAttribute('data-refund'));
     });
   });
+
+  /* ---- the list behind a packing slip's Previous / Next ---- */
+
+  // Opening an order leaves the slips of every row the same table is showing,
+  // in the order it shows them, for the slip page to step through. Rows the
+  // status filter hid are left out, so Next stays inside the filter. Cash
+  // jobs open an invoice in a new tab rather than a slip and aren't stepped.
+  function slipToken(link){
+    try { return new URL(link.href, location.href).searchParams.get('token') || ''; }
+    catch (e) { return ''; }
+  }
+
+  function rememberSlipList(event){
+    var link = event.target.closest && event.target.closest('a[href^="/packing-slip?"]');
+    var section = link && link.closest('section[id]');
+    if (!section) return;
+
+    var list = [], seen = {};
+    [].forEach.call(section.querySelectorAll('a[href^="/packing-slip?"]'), function(a){
+      var row = a.closest('tr');
+      var t = slipToken(a);
+      if ((row && row.hidden) || !t || seen[t]) return;
+      seen[t] = true;
+      list.push({ t: t, n: a.textContent.trim() });
+    });
+
+    var heading = section.querySelector('h2');
+    var raw = JSON.stringify({
+      from: heading ? heading.textContent.trim() : '',
+      back: location.pathname + location.search + '#' + section.id,
+      at: Date.now(),
+      list: list
+    });
+    // Both: this tab's copy, and one a slip opened in a new tab can find.
+    try { sessionStorage.setItem(${JSON.stringify(SLIP_LIST_KEY)}, raw); } catch (e) {}
+    try { localStorage.setItem(${JSON.stringify(SLIP_LIST_KEY)}, raw); } catch (e) {}
+  }
+
+  document.addEventListener('click', rememberSlipList);
+  // A middle-click opens a new tab without firing 'click'.
+  document.addEventListener('auxclick', rememberSlipList);
 })();
 `;
 

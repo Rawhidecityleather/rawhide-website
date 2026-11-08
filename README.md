@@ -1563,7 +1563,7 @@ node worker/tests/run.mjs slip
 | Suite | Covers |
 |---|---|
 | `quote` | pricing and the gross-up, validation, tax exemption, certificate warnings, status, the page Snipcart's crawler reads, cash jobs and their tax, the printable invoice and receipt, HTML escaping |
-| `slip` | packing slip rendering with and without a quote attached |
+| `slip` | packing slip rendering with and without a quote attached, and the Previous / Next holder its script fills from the list the dashboard stored |
 | `expenses` | the ledger: categories, edits and what blocks checking a row off, KV round-trip, year and undated handling, totals, the CSV including Excel formula injection, both pages' HTML escaping, and every way reading a receipt can fail |
 | `mime` | the hand-written email parser: folded headers, encoded subjects and filenames, base64 and quoted-printable, nested and prefix-clashing boundaries, a message forwarded as an attachment, HTML flattened to text |
 | `email-in` | receipts by email: who may file and every way a message is refused, picking the real attachment out of the letterhead, the fallbacks from sender and subject, and the promises that must hold on a bad day — always forwarded, never bounced, an unreadable receipt still becomes a row |

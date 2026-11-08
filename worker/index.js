@@ -95,7 +95,7 @@ import {
   getAllOrders, getOrder, getOrders, putJson, validateRequestToken,
   isCancelled, isShipped, trackingUrlFor,
 } from './snipcart.js';
-import { renderSlip, SLIP_STYLES } from './slip.js';
+import { renderSlip, SLIP_STYLES, SLIP_SCRIPT } from './slip.js';
 import { renderQuoteSheet, QUOTE_SHEET_STYLES } from './quote-sheet.js';
 import {
   analyze, renderDashboard, DEFAULT_RANGE, DASHBOARD_STYLES, DASHBOARD_SCRIPT,
@@ -1602,6 +1602,7 @@ async function handleSlip(request, env, url) {
   return page(`Order ${order.invoiceNumber || ''}`.trim(),
     renderSlip(order, { quote: await quoteForOrder(env, order) }), {
       styles: SLIP_STYLES,
+      script: SLIP_SCRIPT,
     });
 }
 

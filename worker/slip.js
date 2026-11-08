@@ -21,7 +21,8 @@ export function renderSlip(order, { quote = null } = {}) {
   return `<div class="wrap slip">
     <div class="toolbar">
       <button type="button" onclick="window.print()">Print</button>
-      <a class="back" href="/dashboard">&larr; Dashboard</a>
+      <a class="back" id="slip-back" href="/dashboard">&larr; Dashboard</a>
+      ${renderStepper(order)}
     </div>
 
     <header class="head">
@@ -69,6 +70,113 @@ export function renderSlip(order, { quote = null } = {}) {
     </footer>
   </div>`;
 }
+
+/**
+ * Where the dashboard leaves the list an order was opened from. Shared with
+ * dashboard.js so the two ends can't drift apart.
+ */
+export const SLIP_LIST_KEY = 'rawhide:slip-list';
+
+/**
+ * Previous / next order, for working down a list without going back to the
+ * dashboard between every slip.
+ *
+ * Which list is whatever the shop clicked the order from — the ship queue,
+ * all orders under the filter that was on, or the quotes. The dashboard writes
+ * the rows it was showing into browser storage on the way here and
+ * SLIP_SCRIPT reads them back, so stepping costs no extra Snipcart calls.
+ *
+ * Rendered empty and hidden. A slip opened from anywhere else — a bookmark, a
+ * phone notification — has no list behind it and simply shows no buttons. It
+ * sits in the toolbar, so it never prints.
+ */
+function renderStepper(order) {
+  return `<nav class="stepper" id="stepper" data-token="${esc(order.token || '')}"
+        aria-label="Step through orders" hidden></nav>`;
+}
+
+/**
+ * Fills in the stepper from what the dashboard stored. sessionStorage first —
+ * it belongs to this tab, so two tabs working two lists don't cross. A slip
+ * opened in a new tab starts with an empty one, so it falls back to the copy
+ * in localStorage while that is fresh, and adopts it for the rest of the tab.
+ */
+export const SLIP_SCRIPT = `
+(function(){
+  var nav = document.getElementById('stepper');
+  if (!nav) return;
+  var KEY = ${JSON.stringify(SLIP_LIST_KEY)};
+  var FRESH_MS = 12 * 60 * 60 * 1000;
+  var here = nav.getAttribute('data-token');
+
+  function store(name){ try { return window[name]; } catch (e) { return null; } }
+  function load(s){
+    if (!s) return null;
+    try {
+      var d = JSON.parse(s.getItem(KEY) || 'null');
+      return d && Array.isArray(d.list) ? d : null;
+    } catch (e) { return null; }
+  }
+  function find(d){
+    if (!d) return -1;
+    for (var i = 0; i < d.list.length; i++) if (d.list[i] && d.list[i].t === here) return i;
+    return -1;
+  }
+
+  var data = load(store('sessionStorage'));
+  var at = find(data);
+  if (at < 0) {
+    data = load(store('localStorage'));
+    at = data && Date.now() - (Number(data.at) || 0) < FRESH_MS ? find(data) : -1;
+    if (at >= 0) try { store('sessionStorage').setItem(KEY, JSON.stringify(data)); } catch (e) {}
+  }
+  if (at < 0 || data.list.length < 2) return;
+
+  function slipUrl(entry){ return '/packing-slip?token=' + encodeURIComponent(entry.t); }
+
+  function step(entry, label, rel){
+    var el;
+    if (entry) {
+      el = document.createElement('a');
+      el.href = slipUrl(entry);
+      el.rel = rel;
+      el.title = (rel === 'prev' ? 'Previous: ' : 'Next: ') + (entry.n || 'order') +
+        (rel === 'prev' ? ' (left arrow key)' : ' (right arrow key)');
+    } else {
+      // Nothing that way. A span, not a link with no href, so it can't be
+      // tabbed to or clicked — it only holds the button's place.
+      el = document.createElement('span');
+      el.setAttribute('aria-disabled', 'true');
+    }
+    el.className = 'step';
+    el.textContent = label;
+    return el;
+  }
+
+  var prev = data.list[at - 1], next = data.list[at + 1];
+  var pos = document.createElement('span');
+  pos.className = 'step-pos';
+  pos.textContent = (at + 1) + ' of ' + data.list.length;
+  if (data.from) pos.title = 'In ' + data.from;
+
+  nav.appendChild(step(prev, '\\u2039 Previous', 'prev'));
+  nav.appendChild(pos);
+  nav.appendChild(step(next, 'Next \\u203A', 'next'));
+  nav.hidden = false;
+
+  // Back to the same list, range and spot on the dashboard it came from.
+  var back = document.getElementById('slip-back');
+  if (back && typeof data.back === 'string' && data.back.indexOf('/dashboard') === 0) back.href = data.back;
+
+  document.addEventListener('keydown', function(event){
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.defaultPrevented) return;
+    var t = event.target;
+    if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+    var to = event.key === 'ArrowLeft' ? prev : event.key === 'ArrowRight' ? next : null;
+    if (to) location.href = slipUrl(to);
+  });
+})();
+`;
 
 /**
  * Fields that get cut, stamped or painted into the leather — get these wrong
@@ -263,6 +371,19 @@ h2{font-size:11px;letter-spacing:.22em;color:var(--soft);margin:0 0 6px;padding-
 .toolbar .back{font-family:var(--display);text-transform:uppercase;letter-spacing:.14em;font-size:10px;
   color:var(--soft);text-decoration:none}
 .toolbar .back:hover{color:var(--ink)}
+.toolbar{flex-wrap:wrap;row-gap:10px}
+
+/* Previous / next. Outlined, so Print stays the one solid button. */
+.stepper{margin-left:auto;display:flex;align-items:center;gap:10px}
+.stepper[hidden]{display:none}
+.step{font-family:var(--display);text-transform:uppercase;letter-spacing:.14em;font-size:11px;
+  padding:7px 14px;border:2px solid var(--ink);border-radius:2px;color:var(--ink);
+  text-decoration:none;white-space:nowrap;line-height:1.2}
+a.step:hover{background:var(--ink);color:#EBE8E1}
+a.step:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.step[aria-disabled]{opacity:.3;cursor:default}
+.step-pos{font-family:var(--display);text-transform:uppercase;letter-spacing:.14em;
+  font-size:10px;color:var(--soft);white-space:nowrap}
 
 .head{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;
   padding-bottom:14px;border-bottom:2px solid var(--ink)}

@@ -9,7 +9,8 @@
  */
 
 import { suite, check } from './harness.mjs';
-import { renderSlip } from '../slip.js';
+import { renderSlip, SLIP_SCRIPT, SLIP_LIST_KEY } from '../slip.js';
+import { DASHBOARD_SCRIPT } from '../dashboard.js';
 import { buildQuote } from '../quote.js';
 
 const order = {
@@ -119,6 +120,26 @@ export default function run() {
   const gone = renderSlip({ ...order, creationDate: placed(45), status: 'Shipped' });
   check('drops the countdown once the order shipped', !gone.includes('days late'));
   check('still prints the date it was owed', gone.includes('Ship by'));
+
+  suite('slip — previous / next order');
+
+  // The buttons themselves are drawn in the browser from the list the
+  // dashboard stored; the server only leaves the empty, hidden holder.
+  const stepper = plain.match(/<nav class="stepper"[^>]*>/)?.[0] || '';
+  check('leaves a stepper for the script to fill', stepper.length > 0);
+  check('it starts hidden, so a slip opened cold shows no buttons', /\shidden(>|\s)/.test(stepper));
+  check('it carries this order\'s token', stepper.includes(`data-token="${order.token}"`));
+  check('it sits in the toolbar, which never prints',
+    /<div class="toolbar">[\s\S]*<nav class="stepper"[\s\S]*?<\/div>\s*<header/.test(plain));
+  check('a hostile token cannot open a tag', () =>
+    !renderSlip({ ...order, token: '"><script>x</script>' }).includes('<script>x'));
+  check('the back link has the id the script retargets', plain.includes('id="slip-back"'));
+
+  let parsed = true;
+  try { new Function(SLIP_SCRIPT); } catch (err) { parsed = err.message; }
+  check('the slip script parses', parsed === true, String(parsed));
+  check('both ends use the same storage key',
+    SLIP_SCRIPT.includes(JSON.stringify(SLIP_LIST_KEY)) && DASHBOARD_SCRIPT.includes(JSON.stringify(SLIP_LIST_KEY)));
 
   // A zero-tax order is not the same thing as an exempt one — an out-of-state
   // order has no Florida tax and must not print paperwork saying it was exempt.
