@@ -1684,11 +1684,21 @@ PowerShell has no `&&`, so there it's:
 node worker/tests/run.mjs; if ($?) { npx wrangler deploy }
 ```
 
-### Pushing to GitHub does not deploy
+### Pushing to `main` deploys on its own
 
-There's no CI here. `git push` backs the code up; `wrangler deploy` puts it
-live. They're separate, and either can be ahead of the other. If a change isn't
-showing up on the site, this is almost always why.
+The repo is connected to Cloudflare **Workers Builds**. A push to `main` starts
+a build on Cloudflare that runs the deploy itself, and the site is on the new
+code a few minutes later. The green check beside a commit on GitHub is that
+build; click it for the log. (Seen 2026-11-09: a build landed three minutes
+after each push, deploying the same Worker a manual `wrangler deploy` had.)
+
+So `git push` to `main` is not a backup. Anything on `main` goes live. Do
+unfinished work on a branch and merge it when it is ready, and run the tests
+yourself before merging rather than counting on the build to.
+
+`npx wrangler deploy` still works for a direct deploy from your own machine,
+and is the way to put something live without pushing. If a change isn't
+showing up on the site, look at the build on the commit first.
 
 ### What's already set up
 
@@ -1697,6 +1707,7 @@ Done once, and not worth touching again:
 | Piece | Where it lives |
 |---|---|
 | Worker | `quiet-firefly-3711` on the `rawhidecityleather@gmail.com` account |
+| Deploy on push | Cloudflare Workers Builds, connected to this GitHub repo — every push to `main` builds and deploys |
 | Domain | `rawhidecityleather.com`, attached in the Cloudflare dashboard under the Worker's **Settings → Domains & Routes** — deliberately *not* in `wrangler.jsonc`, so deploying can't disturb it |
 | Static files | served straight from this folder by the `ASSETS` binding |
 | `run_worker_first` | in `wrangler.jsonc` — the paths the Worker answers instead of the file router (`/dashboard*`, `/packing-slip*`, `/quote*`, `/logo/*`, `/photo/*`, `/api/*`) |
