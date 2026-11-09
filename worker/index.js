@@ -13,6 +13,7 @@
  *   POST /dashboard/api/ship-batch   paste Pirate Ship's list, ship them all
  *   POST /dashboard/api/ship-test    mail the shipped email to the shop inbox
  *   POST /dashboard/api/customer-mail   one note to one customer, from their order's row
+ *   POST /dashboard/api/customer-mail-test   the same note, to the shop inbox, to see how it lands
  *   POST /dashboard/api/quote        build a custom-job quote, get a link
  *   POST /dashboard/api/quote/void   kill a quote link
  *   POST /dashboard/api/quote/paid   stamp a cash quote collected
@@ -127,7 +128,7 @@ import {
 import { handleEmail, readRaw, MAX_EMAIL_BYTES } from './email-in.js';
 import { sendShippedEmail, sendTestShippedEmail } from './shipped-mail.js';
 import {
-  sendCustomerEmail, checkDraft, CUSTOMER_MAIL_STYLES, CUSTOMER_MAIL_SCRIPT,
+  sendCustomerEmail, sendTestCustomerEmail, checkDraft, CUSTOMER_MAIL_STYLES, CUSTOMER_MAIL_SCRIPT,
 } from './customer-mail.js';
 import { isTrackingAddress, handleTrackingEmail } from './tracking-in.js';
 import {
@@ -569,6 +570,7 @@ async function route(path, request, env, url) {
     if (path === '/dashboard/api/ship-batch') return await handleShipBatch(request, env);
     if (path === '/dashboard/api/ship-test') return await handleShipTest(request, env);
     if (path === '/dashboard/api/customer-mail') return await handleCustomerMail(request, env);
+    if (path === '/dashboard/api/customer-mail-test') return await handleCustomerMail(request, env, { test: true });
     if (path === '/dashboard/api/quote') return await handleQuoteCreate(request, env);
     if (path === '/dashboard/api/quote/void') return await handleQuoteVoid(request, env);
     if (path === '/dashboard/api/quote/paid') return await handleQuoteCashPaid(request, env);
@@ -1299,8 +1301,12 @@ async function handleShipTest(request, env) {
  *
  * The draft is checked before Snipcart is asked for anything: a blank note
  * should not cost a request.
+ *
+ * With `test` set, the same note goes to the shop inbox instead of the
+ * customer, so the shop can see how it reads first. The recipient is fixed in
+ * worker/customer-mail.js and cannot be pointed anywhere else.
  */
-async function handleCustomerMail(request, env) {
+async function handleCustomerMail(request, env, { test = false } = {}) {
   if (!fromDashboard(request)) return json({ error: 'Bad request.' }, 403);
 
   const body = await request.json().catch(() => ({}));
@@ -1312,11 +1318,14 @@ async function handleCustomerMail(request, env) {
 
   const order = await getOrder(env, token);
   try {
-    const sent = await sendCustomerEmail(env, order, draft);
+    const sent = test
+      ? await sendTestCustomerEmail(env, order, draft)
+      : await sendCustomerEmail(env, order, draft);
     return json({
       ok: true,
+      test,
       to: sent.to,
-      copy: sent.copy,
+      copy: sent.copy || '',
       provider: sent.provider || '',
       resendError: sent.resendError || '',
     });

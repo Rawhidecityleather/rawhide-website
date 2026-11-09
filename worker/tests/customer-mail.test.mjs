@@ -11,7 +11,7 @@
 import { suite, check } from './harness.mjs';
 import {
   STARTERS, starterFor, fillStarter, itemList, mailContext, checkDraft, messageHtml,
-  customerHtml, customerText, sendCustomerEmail, mailButton, renderMailDialog,
+  customerHtml, customerText, sendCustomerEmail, sendTestCustomerEmail, mailButton, renderMailDialog,
   CUSTOMER_MAIL_SCRIPT, SUBJECT_MAX, MESSAGE_MAX,
 } from '../customer-mail.js';
 import { analyze, renderDashboard } from '../dashboard.js';
@@ -269,6 +269,30 @@ export default async function run() {
       /400/.test(err?.message || '') && /nope/.test(err?.message || ''), err?.message);
   }
 
+  suite('customer mail — the test copy');
+
+  {
+    const net = fakeNet({ 'api.brevo.com': brevoOk });
+    const result = await withFetch(net.fetch, () =>
+      sendTestCustomerEmail({ ...BASE, BREVO_KEY: 'b' }, order(), DRAFT));
+    const call = net.to('api.brevo.com')[0];
+    check('it goes to the shop, never the customer',
+      call.body.to.length === 1 && call.body.to[0].email === 'rawhidecityleather@gmail.com'
+      && !JSON.stringify(call.body.to).includes('jane@'), JSON.stringify(call.body.to));
+    check('and says it is a test in the subject', call.body.subject === '[test] ' + DRAFT.subject, call.body.subject);
+    check('with no bcc, the inbox being the recipient already', !('bcc' in call.body));
+    check('but the full note as the customer would see it, order and all',
+      (call.body.htmlContent || '').includes('Quick update on your order.')
+      && call.body.htmlContent.includes('Order RCL-1042') && call.body.textContent.startsWith(DRAFT.message));
+    check('the result names the shop inbox', result.to === 'rawhidecityleather@gmail.com' && !result.copy);
+  }
+  {
+    const net = fakeNet({ 'api.brevo.com': brevoOk });
+    const err = await rejects(() => withFetch(net.fetch, () =>
+      sendTestCustomerEmail({ ...BASE, BREVO_KEY: 'b' }, order(), { subject: 'Hi', message: '' })));
+    check('a blank test copy is refused the same way', /no message/i.test(err?.message || '') && net.calls.length === 0);
+  }
+
   suite('customer mail — on the dashboard');
 
   const btn = mailButton(order());
@@ -291,6 +315,7 @@ export default async function run() {
   check('its fields carry the same caps the Worker enforces',
     dialog.includes(`maxlength="${SUBJECT_MAX}"`) && dialog.includes(`maxlength="${MESSAGE_MAX}"`));
   check('it says where the copy goes', /copy lands in the shop inbox/i.test(dialog));
+  check('and offers a test copy to the shop inbox', dialog.includes('id="mailtestcopy"'));
   check('every field has a label', () => {
     const labelled = (dialog.match(/<label class="qfield">\s*<span>[^<]+<\/span>\s*<(select|input|textarea)/g) || []).length;
     return labelled === 3;
@@ -322,8 +347,9 @@ export default async function run() {
   check('the dialog script parses', scriptOk === true, String(scriptOk));
   check('and the starters ride inside it without a closing script tag',
     CUSTOMER_MAIL_SCRIPT.includes('"key":"blank"') && !/<\/script/i.test(CUSTOMER_MAIL_SCRIPT));
-  check('the script posts to the route the Worker answers',
-    CUSTOMER_MAIL_SCRIPT.includes("'/dashboard/api/customer-mail'"));
+  check('the script posts to the routes the Worker answers',
+    CUSTOMER_MAIL_SCRIPT.includes("'/dashboard/api/customer-mail'")
+    && CUSTOMER_MAIL_SCRIPT.includes("'/dashboard/api/customer-mail-test'"));
 
   suite('customer mail — through the Worker');
 
@@ -338,11 +364,12 @@ export default async function run() {
   const AUTH = 'Basic ' + Buffer.from('dev:dev').toString('base64');
   const DASH = { Authorization: AUTH, 'x-rawhide-dashboard': '1' };
   const ORIGIN = 'https://rawhidecityleather.com';
-  const post = (body, headers = {}) => worker.fetch(new Request(ORIGIN + '/dashboard/api/customer-mail', {
+  const postTo = (path, body, headers = {}) => worker.fetch(new Request(ORIGIN + path, {
     method: 'POST',
     headers: { 'content-type': 'application/json', ...headers },
     body: JSON.stringify(body),
   }), env);
+  const post = (body, headers = {}) => postTo('/dashboard/api/customer-mail', body, headers);
   const GOOD = { token: 'tok-aaaaaaaa', ...DRAFT };
 
   check('it demands a login', (await post(GOOD)).status === 401);
@@ -397,5 +424,20 @@ export default async function run() {
     check('an order with no address is refused and nothing is sent',
       res.status === 502 && /no email address/i.test(data.error || '') && net.to('api.brevo.com').length === 0,
       JSON.stringify(data));
+  }
+  {
+    const net = fakeNet({
+      'app.snipcart.com': () => new Response(JSON.stringify(order()), { status: 200 }),
+      'api.brevo.com': brevoOk,
+    });
+    const res = await withFetch(net.fetch, () => postTo('/dashboard/api/customer-mail-test', GOOD, DASH));
+    const data = await res.json();
+    const sent = net.to('api.brevo.com')[0];
+    check('the test route mails the shop inbox and not the customer, even with a real order',
+      res.status === 200 && data.ok === true && data.test === true && data.to === 'rawhidecityleather@gmail.com'
+      && sent?.body.to[0].email === 'rawhidecityleather@gmail.com' && !JSON.stringify(sent?.body.to).includes('jane@'),
+      JSON.stringify(data));
+    check('and it demands the dashboard header like the real one',
+      (await postTo('/dashboard/api/customer-mail-test', GOOD, { Authorization: AUTH })).status === 403);
   }
 }

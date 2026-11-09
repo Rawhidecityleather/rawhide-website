@@ -23,8 +23,9 @@
  * is not marketing, and an unsubscribe click on one would have the provider
  * suppress that address for the shipped email too.
  *
- * Route (wired in index.js, behind the login)
- *   POST /dashboard/api/customer-mail   { token, subject, message }
+ * Routes (wired in index.js, behind the login)
+ *   POST /dashboard/api/customer-mail        { token, subject, message }
+ *   POST /dashboard/api/customer-mail-test   same body; goes to the shop inbox, never the customer
  */
 
 import { esc, shortDate } from './lib.js';
@@ -367,6 +368,36 @@ export async function sendCustomerEmail(env, order, draft) {
   return { ...result, to, copy: UNSUBSCRIBE_TO };
 }
 
+/**
+ * The same note, to the shop's own inbox instead — to see how it lands before
+ * it goes to the customer, or to prove the whole path end to end without
+ * emailing anyone real.
+ *
+ * The recipient is NOT a parameter, and that is the point: this endpoint
+ * sends email, so the one thing it must never do is send to an address
+ * someone hands it. It goes to the shop inbox or nowhere. No BCC either —
+ * the inbox is already the recipient.
+ */
+export async function sendTestCustomerEmail(env, order, draft) {
+  if (!mailerConfigured(env)) {
+    throw new MailError(
+      'Email is not configured. Set RESEND_API_KEY (or BREVO_KEY), RECOVERY_FROM and ' +
+        'RECOVERY_POSTAL_ADDRESS with `wrangler secret put`.'
+    );
+  }
+  const checked = checkDraft(draft);
+  if (checked.error) throw new MailError(checked.error);
+
+  const result = await sendMail(env, {
+    to: UNSUBSCRIBE_TO,
+    subject: '[test] ' + checked.subject,
+    html: customerHtml(order, checked),
+    text: customerText(order, checked),
+    transactional: true,
+  });
+  return { ...result, to: UNSUBSCRIBE_TO };
+}
+
 /* -------------------------------------------------------------- dashboard */
 
 /**
@@ -418,12 +449,15 @@ export function renderMailDialog() {
       </label>
       <p class="hint">Plain text; web addresses become links. Anything in [brackets] is yours to fill
         in before it goes. It is sent from the shop, a copy lands in the shop inbox, and their reply
-        comes back there too.</p>
+        comes back there too. Not sure how it reads? <em>Send me a test copy</em> mails it to the
+        shop inbox and nowhere else.</p>
     </div>
     <div class="mailfoot">
       <button type="submit" class="btn" id="mailsend">Send</button>
       <button type="button" class="btn ghost" id="mailclose">Cancel</button>
       <span class="soft" id="mailnote" role="status" aria-live="polite"></span>
+      <button type="button" class="btn tiny ghost" id="mailtestcopy"
+        title="Mails this note to the shop inbox instead of the customer">Send me a test copy</button>
     </div>
   </form>
 </dialog>`;
@@ -453,7 +487,8 @@ export const CUSTOMER_MAIL_STYLES = `
 #mailmessage{font-family:var(--body);min-height:11rem}
 .mailfoot{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
   padding:14px 18px 16px;border-top:1px solid var(--line)}
-#mailnote{font-size:12.5px}
+#mailnote{font-size:12.5px;flex:1 1 10rem}
+#mailtestcopy{margin-left:auto}
 `;
 
 export const CUSTOMER_MAIL_SCRIPT = `
@@ -492,6 +527,7 @@ export const CUSTOMER_MAIL_SCRIPT = `
   var subj = document.getElementById('mailsubject');
   var msg = document.getElementById('mailmessage');
   var sendBtn = document.getElementById('mailsend');
+  var testBtn = document.getElementById('mailtestcopy');
   var note = document.getElementById('mailnote');
 
   var ctx = null;          // who the open note is to
@@ -610,6 +646,38 @@ export const CUSTOMER_MAIL_SCRIPT = `
       .then(function(){
         sendBtn.disabled = false;
         sendBtn.textContent = 'Send';
+      });
+  });
+
+  /* The same note to the shop inbox. A preview, so a [bracket] left in is fine. */
+  testBtn.addEventListener('click', function(){
+    if (!ctx) return;
+    var subject = subj.value.trim();
+    var message = msg.value.trim();
+    if (!subject) { note.textContent = 'Give it a subject.'; subj.focus(); return; }
+    if (!message) { note.textContent = 'Nothing to send yet.'; msg.focus(); return; }
+
+    note.textContent = '';
+    var label = testBtn.textContent;
+    testBtn.disabled = true;
+    testBtn.textContent = 'Sending\\u2026';
+
+    post('/dashboard/api/customer-mail-test', { token: ctx.token, subject: subject, message: message })
+      .then(function(data){
+        var said = data.resendError
+          ? 'Resend refused it, so Brevo sent the test copy to ' + data.to + '. Resend said: ' + data.resendError
+          : 'Test copy sent to ' + data.to + (data.provider ? ' through ' + data.provider : '') +
+            '. Nothing went to the customer.';
+        note.textContent = said;
+        toast(said, !!data.resendError);
+      })
+      .catch(function(err){
+        note.textContent = err.message;
+        toast(err.message, true);
+      })
+      .then(function(){
+        testBtn.disabled = false;
+        testBtn.textContent = label;
       });
   });
 })();

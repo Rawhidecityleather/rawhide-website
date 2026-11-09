@@ -340,6 +340,12 @@ into links; everything else goes as plain text, in the same frame as the
 shipped email, with the order number, the items and the tracking number (if
 there is one) repeated back under your note.
 
+**Not sure how it reads?** **Send me a test copy**, at the bottom of the note,
+mails exactly what you have typed to the shop inbox instead of the customer,
+with `[test]` in front of the subject. Nothing goes to the customer. It is also
+the way to prove the whole path works without a real order on the line: open
+any order's note, hit it, and check the inbox.
+
 **A copy lands in the shop inbox.** The note goes out through the site's mailer
 (Resend, or Brevo as the backup — the same one the shipped email uses), from
 the storefront domain, not through Gmail, so nothing appears in Sent on its
