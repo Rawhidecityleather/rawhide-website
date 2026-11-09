@@ -67,6 +67,11 @@ export function mailProvider(env) {
  * Sends one message. Throws MailError on anything but a 2xx so the caller can
  * record the failure against the cart and retry it on the next run.
  *
+ * A message is { to, subject, html, text, replyTo?, bcc?, transactional? }.
+ * `bcc` is one address copied in without the recipient seeing it — the note to
+ * a customer uses it to drop a copy in the shop inbox, since nothing sent this
+ * way passes through Gmail's Sent folder.
+ *
  * Resolves to { messageId, provider } and, when Resend failed and Brevo
  * carried it, `resendError` saying why — the dashboard's test button shows it.
  */
@@ -93,7 +98,7 @@ export async function sendMail(env, message) {
   }
 }
 
-async function sendViaResend(env, { to, subject, html, text, replyTo, transactional = false }) {
+async function sendViaResend(env, { to, subject, html, text, replyTo, bcc, transactional = false }) {
   let res;
   try {
     res = await fetch(RESEND_API, {
@@ -105,6 +110,7 @@ async function sendViaResend(env, { to, subject, html, text, replyTo, transactio
       body: JSON.stringify({
         from: `Rawhide City Leather <${env.RECOVERY_FROM}>`,
         to: [to],
+        ...(bcc ? { bcc: [bcc] } : {}),
         // The bare address, no display name. A customer's name with a comma
         // in it would read as two addresses and get the whole message refused.
         reply_to: replyTo?.email || UNSUBSCRIBE_TO,
@@ -134,7 +140,7 @@ async function sendViaResend(env, { to, subject, html, text, replyTo, transactio
   return { messageId: body.id || '', provider: 'Resend' };
 }
 
-async function sendViaBrevo(env, { to, subject, html, text, replyTo, transactional = false }) {
+async function sendViaBrevo(env, { to, subject, html, text, replyTo, bcc, transactional = false }) {
   const res = await fetch(BREVO_API, {
     method: 'POST',
     headers: {
@@ -145,6 +151,7 @@ async function sendViaBrevo(env, { to, subject, html, text, replyTo, transaction
     body: JSON.stringify({
       sender: { email: env.RECOVERY_FROM, name: 'Rawhide City Leather' },
       to: [{ email: to }],
+      ...(bcc ? { bcc: [{ email: bcc }] } : {}),
       // Cart recovery replies come back to the shop. A contact-form inquiry
       // overrides this so hitting reply answers the customer, not ourselves.
       replyTo: replyTo?.email

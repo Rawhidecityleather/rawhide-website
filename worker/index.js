@@ -12,6 +12,7 @@
  *   POST /dashboard/api/ship         one order: save tracking, mark shipped
  *   POST /dashboard/api/ship-batch   paste Pirate Ship's list, ship them all
  *   POST /dashboard/api/ship-test    mail the shipped email to the shop inbox
+ *   POST /dashboard/api/customer-mail   one note to one customer, from their order's row
  *   POST /dashboard/api/quote        build a custom-job quote, get a link
  *   POST /dashboard/api/quote/void   kill a quote link
  *   POST /dashboard/api/quote/paid   stamp a cash quote collected
@@ -125,6 +126,9 @@ import {
 } from './expenses.js';
 import { handleEmail, readRaw, MAX_EMAIL_BYTES } from './email-in.js';
 import { sendShippedEmail, sendTestShippedEmail } from './shipped-mail.js';
+import {
+  sendCustomerEmail, checkDraft, CUSTOMER_MAIL_STYLES, CUSTOMER_MAIL_SCRIPT,
+} from './customer-mail.js';
 import { isTrackingAddress, handleTrackingEmail } from './tracking-in.js';
 import {
   buildPromo, putPromo, getPromo, publicPromo, promoState, bannerText,
@@ -564,6 +568,7 @@ async function route(path, request, env, url) {
     if (path === '/dashboard/api/ship') return await handleShip(request, env);
     if (path === '/dashboard/api/ship-batch') return await handleShipBatch(request, env);
     if (path === '/dashboard/api/ship-test') return await handleShipTest(request, env);
+    if (path === '/dashboard/api/customer-mail') return await handleCustomerMail(request, env);
     if (path === '/dashboard/api/quote') return await handleQuoteCreate(request, env);
     if (path === '/dashboard/api/quote/void') return await handleQuoteVoid(request, env);
     if (path === '/dashboard/api/quote/paid') return await handleQuoteCashPaid(request, env);
@@ -830,11 +835,13 @@ async function handleDashboard(request, env, url) {
     todos,
     todosReady: Boolean(env.TODOS),
     todoMailReady: mailerConfigured(env),
+    mailReady: mailerConfigured(env),
     alerts: alertsState(env),
   }), {
-    styles: DASHBOARD_STYLES + TODO_STYLES + PROMO_STYLES + RECOVERY_STYLES + COUPON_STYLES + ALERTS_STYLES,
+    styles: DASHBOARD_STYLES + TODO_STYLES + PROMO_STYLES + RECOVERY_STYLES + COUPON_STYLES + ALERTS_STYLES +
+      CUSTOMER_MAIL_STYLES,
     script: DASHBOARD_SCRIPT + TODO_SCRIPT + promoScript(saleProducts) + RECOVERY_SCRIPT + COUPON_SCRIPT +
-      ALERTS_SCRIPT,
+      ALERTS_SCRIPT + CUSTOMER_MAIL_SCRIPT,
   });
 }
 
@@ -1277,6 +1284,42 @@ async function handleShipTest(request, env) {
   try {
     const sent = await sendTestShippedEmail(env);
     return json({ ok: true, to: sent.to });
+  } catch (err) {
+    return json({ error: err?.message || 'The email did not send.' }, 502);
+  }
+}
+
+/* ----------------------------------------------------------- customer note */
+
+/**
+ * One note to one customer, typed on the dashboard. The body carries an order
+ * token, a subject and a message — never an address. The order is fetched
+ * fresh and the mail goes to the email on it, so the only people this can
+ * reach are people who have placed an order. See worker/customer-mail.js.
+ *
+ * The draft is checked before Snipcart is asked for anything: a blank note
+ * should not cost a request.
+ */
+async function handleCustomerMail(request, env) {
+  if (!fromDashboard(request)) return json({ error: 'Bad request.' }, 403);
+
+  const body = await request.json().catch(() => ({}));
+  const token = String(body.token || '');
+  if (!/^[A-Za-z0-9-]{8,64}$/.test(token)) return json({ error: 'Bad order token.' }, 400);
+
+  const draft = checkDraft(body);
+  if (draft.error) return json({ error: draft.error }, 400);
+
+  const order = await getOrder(env, token);
+  try {
+    const sent = await sendCustomerEmail(env, order, draft);
+    return json({
+      ok: true,
+      to: sent.to,
+      copy: sent.copy,
+      provider: sent.provider || '',
+      resendError: sent.resendError || '',
+    });
   } catch (err) {
     return json({ error: err?.message || 'The email did not send.' }, 502);
   }

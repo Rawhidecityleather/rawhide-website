@@ -315,6 +315,53 @@ gets BCC'd and the whole loop stops.
 If a tracking email can't be matched, it lands in the shop inbox and the paste
 box in the dashboard is still there. Nothing is lost, it just needs a hand.
 
+### Emailing a customer
+
+Every order with an email address on it has an **Email** button beside the
+customer's name, in **Ship queue** and in **All orders**. It opens a note to
+them right there on the dashboard, addressed, with the order number already in
+the subject. Pick a starter or write from blank, hit **Send**, and it's gone —
+no trip to Gmail, no copying the address across.
+
+The starters, under **Start from**:
+
+| Starter | When |
+|---|---|
+| Blank | Just the greeting. The rest is yours. |
+| Order update | It's on the bench, tracking comes when it ships. |
+| Running behind | It's late. Has a bracket for the reason and the new date. |
+| Question before we build | Something to settle before leather gets cut. Has a bracket for the question. |
+| Finished, ships soon | Done, label in the next day or two. |
+| How's it holding up? | A few shifts in: anything wrong, and the review ask. |
+
+Anything in **[brackets]** is a blank for you. The form won't send while one is
+left in, and puts the cursor on it instead. Web addresses in the note turn
+into links; everything else goes as plain text, in the same frame as the
+shipped email, with the order number, the items and the tracking number (if
+there is one) repeated back under your note.
+
+**A copy lands in the shop inbox.** The note goes out through the site's mailer
+(Resend, or Brevo as the backup — the same one the shipped email uses), from
+the storefront domain, not through Gmail, so nothing appears in Sent on its
+own. The BCC is the record, and because it carries the same message id as the
+customer's copy, Gmail threads their reply under it when they answer. Replies
+go to the shop inbox either way.
+
+The address is always read off the order itself. The page sends the Worker an
+order token; the Worker fetches that order from Snipcart and mails whatever
+address is on it. There is no field for a recipient and no way to post one.
+That is what keeps the shop's verified sending domain from becoming a relay
+for anyone who gets hold of the dashboard password.
+
+It needs the same secrets as the shipped email (`RESEND_API_KEY` or
+`BREVO_KEY`, plus `RECOVERY_FROM` and `RECOVERY_POSTAL_ADDRESS`). Without them
+the buttons are greyed out and the **Alerts & email** card says what's missing.
+
+What it doesn't do: attachments, more than one recipient, or a message to
+someone who hasn't ordered. A crew quote is a different job — the **Email it**
+button on a quote's row still opens your own mail client with the link in the
+body, as before.
+
 ### Register the webhook (one time)
 
 This is what makes "tracking number added → Shipped" happen even when the
@@ -1568,6 +1615,7 @@ node worker/tests/run.mjs slip
 | `mime` | the hand-written email parser: folded headers, encoded subjects and filenames, base64 and quoted-printable, nested and prefix-clashing boundaries, a message forwarded as an attachment, HTML flattened to text |
 | `email-in` | receipts by email: who may file and every way a message is refused, picking the real attachment out of the letterhead, the fallbacks from sender and subject, and the promises that must hold on a bad day — always forwarded, never bounced, an unreadable receipt still becomes a row |
 | `todo` | the LWFD list: every action and what it refuses, due-date states, the email, the cron step (right hour, once a day, nothing open, mail unset, a failed send retries), the card, and both routes through the real Worker |
+| `customer-mail` | the note to a customer from an order's row: the starters and their [bracket] blanks, the draft's caps, the email with what the shop types escaped and web addresses linked, the send — to the order's address only, a copy BCC'd to the shop inbox, no unsubscribe header — the button and dialog on the dashboard, and the route through the real Worker, including a recipient smuggled into the body being ignored |
 | `worker` | routes through the real fetch handler — auth, the quote API, the public quote page, voiding, the printable sheet, marking a cash job paid, the webhook |
 | `site-content` | the static pages against each other and against CLAUDE.md: no artwork upload is ever `required`; every priced `<select>`'s `data-options` equals the hidden Snipcart button's `customN-options` (Snipcart validates against the button, not the dropdown — a colour added to one and not the other fails at checkout); every stitch list offers the same nine colours and no paint list offers Purple or Grey; form, button, JSON-LD and the visible price agree, and the shop/hats/crews cards charge the product-page price; each product states its lead time; nothing says hand-stitched, leather balm, "only color currently offered" or "both straps"; the red star matches the `required` flag; JSON-LD parses; a snippet names only colours the page offers; the sitemap lists every public page |
 

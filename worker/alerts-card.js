@@ -44,7 +44,8 @@ export function renderAlertsCard({ push: pushOn = false, mail = '', backup = fal
     : (mail === 'Resend'
       ? (backup ? 'Brevo takes over if Resend refuses one. ' : '')
       : 'Resend is not set up yet; set RESEND_API_KEY to switch. ') +
-      'Sign-in codes, inquiries, cart recovery, the shipped email and the to-do list. ' +
+      'Sign-in codes, inquiries, cart recovery, the shipped email, the to-do list, and the ' +
+      'Email button on an order&rsquo;s row. ' +
       'Snipcart&rsquo;s own order emails are separate and do not change.';
 
   return `<section id="alerts" class="card">

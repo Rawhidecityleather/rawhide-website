@@ -3,8 +3,9 @@
  * the door.
  *
  * Everything is server-rendered from one pass over the Snipcart order list. The
- * only client-side JavaScript handles selection, the Pirate Ship export, and
- * posting tracking numbers back.
+ * only client-side JavaScript handles selection, the Pirate Ship export,
+ * posting tracking numbers back, and the note to a customer (see
+ * worker/customer-mail.js).
  */
 
 import {
@@ -31,6 +32,7 @@ import { renderCouponCard } from './coupon.js';
 import { renderTodoCard } from './todo.js';
 import { renderAlertsCard } from './alerts-card.js';
 import { SLIP_LIST_KEY } from './slip.js';
+import { mailButton, renderMailDialog } from './customer-mail.js';
 
 const RANGES = [
   { key: '30d', label: 'Last 30 days', compare: 'vs prior 30 days' },
@@ -230,6 +232,9 @@ export function renderDashboard(stats, {
   truncated, quotes = [], toCheck = 0, promo = null, promoReady = true, snipcartRule = null,
   recovery = null, coupons = null, couponsReady = true, saleProducts = [],
   todos = null, todosReady = true, todoMailReady = true, alerts = null,
+  // Whether the Email button on an order's row can send. Off, the buttons stay
+  // but are greyed out — see mailButton in worker/customer-mail.js.
+  mailReady = true,
 } = {}) {
   const rangeLabel = rangeInfo(stats.rangeKey).label;
 
@@ -266,18 +271,19 @@ export function renderDashboard(stats, {
         ${renderChart(stats.months)}
         ${renderProducts(stats.products, rangeLabel)}
       </div>
-      ${renderQueue(stats.queue, cashWaiting)}
+      ${renderQueue(stats.queue, cashWaiting, mailReady)}
       ${renderTrackingPanel()}
       ${renderQuotes(quotes, stats.orders, quoteDiscountRate(promo))}
       ${renderPromoCard(promo, { ready: promoReady, rule: snipcartRule, extra: saleProducts })}
       ${recovery ? renderRecoveryCard(recovery) : ''}
       ${renderCouponCard(coupons, { ready: couponsReady })}
-      ${renderOrders(stats.inRange, rangeLabel, cashInRange)}
+      ${renderOrders(stats.inRange, rangeLabel, cashInRange, mailReady)}
       ${alerts ? renderAlertsCard(alerts) : ''}
     </div>
   </main>
 </div>
-<div class="toast" id="toast" role="status" aria-live="polite"></div>`;
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+${renderMailDialog()}`;
 }
 
 /**
@@ -522,7 +528,7 @@ function attr(value) {
   return esc(value).replace(/\r?\n/g, '&#10;');
 }
 
-function renderQueue(queue, cashJobs = []) {
+function renderQueue(queue, cashJobs = [], mailReady = true) {
   if (!queue.length && !cashJobs.length) {
     return `<section id="queue" class="card">
       <div class="cardhead"><h2>Ship queue</h2></div>
@@ -542,7 +548,7 @@ function renderQueue(queue, cashJobs = []) {
       <td class="c-order"><a class="mono" href="/packing-slip?token=${esc(order.token)}">${esc(order.invoiceNumber || order.token)}</a></td>
       <td class="c-placed nowrap" data-label="Placed">${esc(tinyDate(order.creationDate))}</td>
       <td class="c-due nowrap" data-label="Ship by">${renderDue(order)}</td>
-      <td class="c-cust">${esc(a.fullName || a.name || order.email || '')}
+      <td class="c-cust">${esc(a.fullName || a.name || order.email || '')}${mailButton(order, { ready: mailReady })}
         <span class="soft block">${esc([a.city, a.province].filter(Boolean).join(', '))}</span></td>
       <td class="c-items items">${items}</td>
       <td class="c-weight num soft nowrap" data-label="Weight">${esc(String(orderWeightOunces(order)))} oz</td>
@@ -928,7 +934,7 @@ function statusPill(order) {
 /** Past this many rows the table is scroll fodder, not information. */
 const ORDER_ROW_CAP = 400;
 
-function renderOrders(allOrders, rangeLabel, cashJobs = []) {
+function renderOrders(allOrders, rangeLabel, cashJobs = [], mailReady = true) {
   if (!allOrders.length && !cashJobs.length) {
     return `<section id="orders" class="card">
       <div class="cardhead"><h2>All orders</h2></div>
@@ -996,7 +1002,7 @@ function renderOrders(allOrders, rangeLabel, cashJobs = []) {
     return `<tr data-bucket="${bucket}" data-refund="${refund}"${startsHidden ? ' hidden' : ''}>
       <td><a class="mono" href="/packing-slip?token=${esc(order.token)}">${esc(order.invoiceNumber || order.token)}</a></td>
       <td class="nowrap">${esc(shortDate(order.creationDate))}</td>
-      <td>${esc(a.fullName || a.name || order.email || '')}</td>
+      <td>${esc(a.fullName || a.name || order.email || '')}${mailButton(order, { ready: mailReady })}</td>
       <td class="num">${esc(String((order.items || []).reduce((n, i) => n + (Number(i.quantity) || 1), 0)))}</td>
       <td class="num strong">${esc(money(grandTotal(order), order.currency))}</td>
       <td>${statusPill(order)}${refundTag}</td>
