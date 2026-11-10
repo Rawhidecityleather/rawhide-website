@@ -554,7 +554,16 @@
         headers:{'content-type':'application/x-www-form-urlencoded'},
         body:new URLSearchParams(new FormData(inquiry)).toString()
       }).then(function(res){
-        if(res.ok){inquiryDone("Got it. We'll be in touch within 24 hours.");return;}
+        if(res.ok){
+          // Tell Meta a quote request came in, so the Crew Hats ad set
+          // (optimizing for Lead) can see what it is meant to find.
+          if(typeof fbq==='function'){
+            var kind=inquiry.querySelector('#ct-about');
+            fbq('track','Lead',{content_category:kind?kind.value:''});
+          }
+          inquiryDone("Got it. We'll be in touch within 24 hours.");
+          return;
+        }
         // 400 means they left something out and can fix it in place. Anything
         // else is our end, so get out of the way and let email carry it.
         if(res.status===400){
