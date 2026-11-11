@@ -1710,6 +1710,16 @@ yourself before merging rather than counting on the build to.
 and is the way to put something live without pushing. If a change isn't
 showing up on the site, look at the build on the commit first.
 
+**A push does not always start a build.** Seen 2026-11-11: `main` was moved
+to a commit less than a minute after that same commit's branch build had
+finished, and Cloudflare started no production build for it. The site stayed
+on the old code. An empty commit pushed to nudge it started nothing either.
+
+A push to any other branch builds a preview, not the site, and its check on
+GitHub carries the same name as a real deploy. So a green check on a commit
+that went to a branch first proves nothing about the site. Load the page, or
+count the builds on the commit: one for the branch, and a second for `main`.
+
 ### What's already set up
 
 Done once, and not worth touching again:
