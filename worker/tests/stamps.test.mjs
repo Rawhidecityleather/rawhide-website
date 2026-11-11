@@ -55,6 +55,11 @@ export default async function run() {
   check('there is a tile for every number', missing.length === 0, missing.join(', '));
   check('and no tile without a number', stray.length === 0, stray.join(', '));
 
+  // None is "" on the straps and "None" on the helmet band. A None tile that
+  // hard-coded "" would put a required picker back on "Select..." and the
+  // customer who tapped it could not check out.
+  check('the None tile picks the value the page gave None', /tile\(NONE,/.test(js) && !/tile\('',/.test(js));
+
   // -------------------------------------------------------------------------
   suite('stamps — every page that offers stamps has both pickers');
 
@@ -67,6 +72,9 @@ export default async function run() {
     'product-helmet-band.html',
     'product-smokey-radio-strap.html',
   ];
+  // Left of name and right of name, both required. Every other page's pickers
+  // are optional.
+  const REQUIRED_PICKERS = new Set(['product-helmet-band.html']);
   check('the two custom straps, the basic strap and the helmet band carry pickers',
     expected.every((f) => withPickers.includes(f)),
     expected.filter((f) => !withPickers.includes(f)).join(', '));
@@ -88,13 +96,30 @@ export default async function run() {
     check(`${f}: has exactly two pickers`, selects.length === 2, `${selects.length}`);
 
     for (const sel of selects) {
-      const a = attrsOf(sel[0].slice(0, sel[0].indexOf('>') + 1));
+      const open = sel[0].slice(0, sel[0].indexOf('>') + 1);
+      const a = attrsOf(open);
+      const required = /\brequired\b/.test(open);
+
+      // Two ways to start, and None has to be pickable in both. An optional
+      // picker starts on None, the empty value, and can be left there. A
+      // required one starts on a greyed "Select..." and offers None as a real
+      // value: a required picker whose None was the empty value would refuse
+      // the customer who wants no stamp on that side.
       check(`${f}: picker "${a.name}" ships with only None on it (the script fills the rest)`,
-        /^\s*<option value="" selected>None<\/option>\s*$/.test(sel[1]));
+        required
+          ? /^\s*<option value="" disabled selected hidden>Select\.\.\.<\/option><option value="None">None<\/option>\s*$/.test(sel[1])
+          : /^\s*<option value="" selected>None<\/option>\s*$/.test(sel[1]),
+        required ? 'required: a hidden "Select..." row, then None with the value "None"'
+          : 'optional: None with the empty value, selected');
       check(`${f}: picker "${a.name}" names its field for the order`, !!a['data-label'] && /^Stamp /.test(a['data-label']));
       check(`${f}: picker "${a.name}" has a browse button and a folded tile grid beside it`,
         new RegExp(`id="${a.id}"[\\s\\S]{0,700}data-stamp-browse[\\s\\S]{0,200}data-stamp-grid[^>]*\\bhidden`).test(html));
-      check(`${f}: picker "${a.name}" is never required`, !/\brequired\b/.test(sel[0].slice(0, sel[0].indexOf('>'))));
+
+      // The shop's call, Nov 11 2026: a helmet band says what goes each side
+      // of the name, None included, so no band reaches the bench with a side
+      // nobody decided. The straps stay optional.
+      const want = REQUIRED_PICKERS.has(f);
+      check(`${f}: picker "${a.name}" is ${want ? 'required' : 'optional'}`, required === want);
     }
 
     // The hidden Snipcart button lists the fields in the form's order, so the
@@ -121,4 +146,11 @@ export default async function run() {
   check('the editor sees both pickers', pickers.length === 2, pickers.map((f) => f.name).join(', '));
   check('and both are locked', pickers.every((f) => f.locked === true));
   check('a colour list is still editable', fields.some((f) => f.name === 'stitch' && !f.locked && !f.stamps));
+
+  const band = extractOptions(read('product-helmet-band.html')).filter((f) => f.stamps);
+  check('the helmet band\'s two pickers are locked too', band.length === 2 && band.every((f) => f.locked === true),
+    band.map((f) => f.name).join(', '));
+  check('and read as required, with None as a real choice behind "Select..."',
+    band.every((f) => f.required && f.placeholder?.required && f.choices.length === 1 && f.choices[0].value === 'None'),
+    JSON.stringify(band.map((f) => ({ name: f.name, required: f.required, placeholder: f.placeholder, choices: f.choices }))));
 }

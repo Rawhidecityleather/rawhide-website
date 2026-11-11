@@ -86,9 +86,18 @@
     var grid = wrap.querySelector('[data-stamp-grid]');
     if(!select || !grid) return;
 
-    // The page ships the select with only "None" on it. The numbered choices
-    // come from the one list above, so the dropdown and the tiles can never
-    // disagree about what number 12 is.
+    // The page ships the select with only "None" on it to pick, and the None
+    // tile takes whatever value the page gave it. On the radio straps that is
+    // the empty value the picker starts on, so leaving it alone means no
+    // stamp. On the helmet band both pickers are required: each starts on a
+    // greyed "Select..." row, and None is a real answer, value "None", that
+    // goes on the order the same way a stamp does. Read before the stamps go
+    // in, while None is still the only choice there.
+    var noneOption = select.querySelector('option:not([disabled])');
+    var NONE = noneOption ? noneOption.value : '';
+
+    // The numbered choices come from the one list above, so the dropdown and
+    // the tiles can never disagree about what number 12 is.
     STAMPS.forEach(function(entry){
       var opt = document.createElement('option');
       opt.value = valueOf(entry);
@@ -101,7 +110,9 @@
     function tile(value, label, img, number){
       var b = document.createElement('button');
       b.type = 'button';
-      b.className = 'stamp-tile';
+      // Styled by class, not by value: None is "" on the straps and "None"
+      // on the helmet band, and it is the same tile on both.
+      b.className = img ? 'stamp-tile' : 'stamp-tile stamp-none';
       b.setAttribute('data-value', value);
       b.setAttribute('title', label);
       b.setAttribute('aria-label', label);
@@ -127,7 +138,7 @@
       return b;
     }
 
-    grid.appendChild(tile('', 'No stamp', '', 'None'));
+    grid.appendChild(tile(NONE, 'No stamp', '', 'None'));
     STAMPS.forEach(function(entry){
       grid.appendChild(tile(valueOf(entry), entry[0] + ' · ' + entry[1], TILE_DIR + pad(entry[0]) + '.webp', entry[0]));
     });

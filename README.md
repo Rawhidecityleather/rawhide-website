@@ -1069,10 +1069,20 @@ number prints on the packing slip, and the bench reads it off the board.
 `[number, 'short name']`, and its tile is `assets/img/stamps/NN.webp` (240px
 square, cut from the board photos). The script fills the two pickers on every
 page that offers stamps — **Stamp above name** and **Stamp below name** on the
-three radio straps, **Stamp before text** and **Stamp after text** on the helmet
-band — so the dropdown and the numbered tiles can never disagree. The page
-ships each picker with only "None" on it. What goes on the order is
+three radio straps, **Stamp left of name** and **Stamp right of name** on the
+helmet band — so the dropdown and the numbered tiles can never disagree. The
+page ships each picker with only "None" on it. What goes on the order is
 `12 - Cross`: number first, so it reads the way the boards do.
+
+**On the straps a picker is optional; on the helmet band both are required.**
+A strap's picker starts on None and can be left there, and a strap with no
+stamp simply has no stamp line on the order. The helmet band's two start on a
+greyed "Select..." instead, and None is a choice like any stamp, so every band
+order says what goes on each side of the name, `None` included. That is why
+None is the value `None` there and the empty value on the straps: a required
+picker whose None was empty would refuse the customer who wants a plain side.
+The None tile takes whichever value the page gave None, and the `stamps` suite
+holds each page to its own way.
 
 **To add a stamp:** press it, photograph it on tan leather, cut a square tile
 and save it as the next number, then add `[N, 'Name']` to the end of the list.
