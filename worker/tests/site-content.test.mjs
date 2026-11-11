@@ -262,6 +262,37 @@ export default async function run() {
   }
 
   // -------------------------------------------------------------------------
+  // The custom hat takes a colour off the list or one the customer writes in.
+  // The write-in can come back empty, and the cart numbers the fields by the
+  // ones that came back filled in — so it sits below every dropdown, where an
+  // empty one moves nothing that carries options. It is never required: a
+  // customer who picks Custom and says no more gets asked with the proof.
+  suite('site content — the custom hat takes a written-in colour');
+
+  {
+    const f = 'product-leather-patch-hat.html';
+    const html = PAGES[f] || '';
+    const form = (html.match(/<form\b[^>]*data-order-form[\s\S]*?<\/form>/) || [''])[0];
+    const colour = selects(form).find((s) => s.name === 'color');
+    const customs = colour ? colour.options.map((o) => o.value).filter((v) => /^custom\b/i.test(v)) : [];
+    check(`${f}: Color offers a Custom choice on each hat`,
+      customs.some((v) => v.includes('(112)')) && customs.some((v) => v.includes('(WP)')), customs.join(', ') || 'none');
+
+    const box = (form.match(/<input\b[^>]*name="customcolor"[^>]*>/) || [''])[0];
+    const label = box ? attrsOf(box)['data-label'] : '';
+    check(`${f}: has a box to write the colour in`, /type="text"/.test(box));
+    check(`${f}: the write-in is never required`, !!box && !/\brequired\b/.test(box));
+    check(`${f}: the write-in stays hidden until Custom is picked`, /<div class="form-row" data-custom-color hidden>/.test(form));
+
+    const dropdowns = [...form.matchAll(/<select\b[^>]*data-options=/g)].map((m) => m.index);
+    check(`${f}: the write-in sits below every dropdown`, !!box && dropdowns.length > 0 && form.indexOf(box) > Math.max(...dropdowns));
+
+    const btn = hiddenButton(html) || {};
+    const declared = Object.keys(btn).some((k) => /^data-item-custom\d+-name$/.test(k) && btn[k] === label);
+    check(`${f}: the write-in is declared on the Snipcart button`, !!label && declared, label);
+  }
+
+  // -------------------------------------------------------------------------
   // The account page names its script and stylesheet with a version taken
   // from their contents. Browsers keep /assets for an hour, and serve a stale
   // copy for a day after that, so an older account.js once ran against newer

@@ -70,21 +70,24 @@ src="https://www.facebook.com/tr?id=1579558768885977&ev=PageView&noscript=1"/></
       <form class="order-form" data-order-form data-product="Leather Patch Hat" data-snipcart-id="leather-patch-hat" data-snipcart-price="25.00" data-snipcart-image="/assets/img/products/leather-patch-hat.jpg">
         <div class="form-row-2">
           <div class="form-row"><label for="hat-type">Hat Type<span class="req">*</span></label><select id="hat-type" name="hattype" data-label="Hat type" data-options="Waterproof|Richardson 112" required><option value="" disabled selected hidden>Select...</option><option>Waterproof</option><option>Richardson 112</option></select></div>
-          <div class="form-row"><label for="hat-color">Color<span class="req">*</span></label><select id="hat-color" name="color" data-label="Color" data-options="All Black (112)|Heather/Black (112)|All Navy (112)|All Black (WP)|Heather/Black (WP)|All Navy (WP)" required>
+          <div class="form-row"><label for="hat-color">Color<span class="req">*</span></label><select id="hat-color" name="color" data-label="Color" data-options="All Black (112)|Heather/Black (112)|All Navy (112)|Custom (112)|All Black (WP)|Heather/Black (WP)|All Navy (WP)|Custom (WP)" required>
             <option value="" disabled selected hidden>Select...</option>
             <optgroup label="Richardson 112">
               <option>All Black (112)</option>
               <option>Heather/Black (112)</option>
               <option>All Navy (112)</option>
+              <option>Custom (112)</option>
             </optgroup>
             <optgroup label="Waterproof">
               <option>All Black (WP)</option>
               <option>Heather/Black (WP)</option>
               <option>All Navy (WP)</option>
+              <option>Custom (WP)</option>
             </optgroup>
           </select></div>
         </div>
         <div class="form-row"><label for="hat-logo">Logo Style<span class="req">*</span></label><select id="hat-logo" name="logostyle" data-label="Logo style" data-options="FD Logo|Local Patch|Custom" required><option value="" disabled selected hidden>Select...</option><option value="FD Logo">FD Logo</option><option value="Local Patch">Local Patch</option><option value="Custom">Custom</option></select></div>
+        <div class="form-row" data-custom-color hidden><label for="hat-custom-color">Custom Hat Color <span class="optional">(optional)</span></label><input id="hat-custom-color" name="customcolor" data-label="Custom hat color" type="text" maxlength="80" autocomplete="off" placeholder="Tell us the hat color you want"></div>
         <div class="form-row" data-logo-slot="1" hidden><label for="hat-logo-art">Logo Artwork <span class="optional">(optional)</span></label><input type="file" id="hat-logo-art" accept=".png,.jpg,.jpeg,.webp,.gif,.heic,.pdf,image/*,application/pdf" data-logo-upload data-logo-target="hat-logo-art-url"><input type="text" hidden id="hat-logo-art-url" name="logo" data-label="Logo artwork" data-type="readonly"><p class="form-help" data-logo-status style="margin:6px 0 0">PNG, JPG, WEBP, GIF, HEIC, or PDF. Up to 8 MB. Highest resolution you have.</p></div>
         <div class="form-row"><label for="hat-details">Patch Details<span class="req">*</span></label><textarea id="hat-details" name="details" data-label="Patch details" required placeholder="Tell us what goes on the patch"></textarea></div>
         <div class="form-row qty-row">
@@ -98,7 +101,7 @@ src="https://www.facebook.com/tr?id=1579558768885977&ev=PageView&noscript=1"/></
         <button type="submit" class="btn btn-primary btn-full">Add to Cart</button>
         <p class="form-help" style="text-align:center">Adds to cart with all your details.</p>
       </form>
-      <button hidden type="button" class="snipcart-add-item" data-item-id="leather-patch-hat" data-item-price="25.00" data-item-url="/product-leather-patch-hat.html" data-item-name="Leather Patch Hat" data-item-image="/assets/img/products/leather-patch-hat.jpg" data-item-custom1-name="Hat type" data-item-custom1-options="Waterproof|Richardson 112" data-item-custom2-name="Color" data-item-custom2-options="All Black (112)|Heather/Black (112)|All Navy (112)|All Black (WP)|Heather/Black (WP)|All Navy (WP)" data-item-custom3-name="Logo style" data-item-custom3-options="FD Logo|Local Patch|Custom" data-item-custom4-name="Logo artwork" data-item-custom4-type="readonly" data-item-custom5-name="Patch details" data-item-custom5-type="textarea"></button>
+      <button hidden type="button" class="snipcart-add-item" data-item-id="leather-patch-hat" data-item-price="25.00" data-item-url="/product-leather-patch-hat.html" data-item-name="Leather Patch Hat" data-item-image="/assets/img/products/leather-patch-hat.jpg" data-item-custom1-name="Hat type" data-item-custom1-options="Waterproof|Richardson 112" data-item-custom2-name="Color" data-item-custom2-options="All Black (112)|Heather/Black (112)|All Navy (112)|Custom (112)|All Black (WP)|Heather/Black (WP)|All Navy (WP)|Custom (WP)" data-item-custom3-name="Logo style" data-item-custom3-options="FD Logo|Local Patch|Custom" data-item-custom4-name="Custom hat color" data-item-custom5-name="Logo artwork" data-item-custom5-type="readonly" data-item-custom6-name="Patch details" data-item-custom6-type="textarea"></button>
       <div class="product-description rte"><p>A genuine leather patch, cut, engraved, and finished in our shop, mounted on a hat that can keep up with the job. Pick the classic Richardson 112 trucker or a waterproof performance hat, choose your color, and tell us what goes on the patch: your department's crest, your union local, or your own custom design. Both hats are adjustable snapbacks, one size.</p></div>
       <div style="background:var(--c-bg-2);border:1px solid var(--c-line-strong);padding:18px 20px;margin:18px 0">
         <p style="margin:0 0 8px;font-family:var(--font-display);font-weight:600;font-size:.82rem;letter-spacing:.22em;text-transform:uppercase;color:var(--c-text)">Crew Pricing</p>
@@ -152,6 +155,28 @@ src="https://www.facebook.com/tr?id=1579558768885977&ev=PageView&noscript=1"/></
   var type = document.getElementById('hat-type');
   var color = document.getElementById('hat-color');
   if (!type || !color) return;
+  // The write-in box belongs to the Custom colour and to nothing else. It sits
+  // after Logo Style on purpose: the cart numbers the fields that came back
+  // filled in, so a box that can be left empty goes below every dropdown and
+  // those three keep the numbers the buy button gives them.
+  var slot = document.querySelector('[data-custom-color]');
+  var writeIn = slot ? slot.querySelector('input') : null;
+  function syncCustom(){
+    if (!slot) return;
+    // Any choice whose name starts with "Custom" opens the box, so the two on
+    // the list can be reworded from the dashboard as long as they keep that.
+    var on = /^custom\b/i.test(color.value);
+    slot.hidden = !on;
+    // Picking a stock colour has to empty the box too, or an All Black hat
+    // goes to the bench with another colour written in beside it.
+    if (!on && writeIn) writeIn.value = '';
+  }
+  // A colour marked out of stock arrives disabled. Remember which, so that
+  // matching the hat type below cannot switch one back on.
+  var soldOut = [];
+  color.querySelectorAll('option').forEach(function(opt){
+    if (opt.value && opt.disabled) soldOut.push(opt);
+  });
   function filterColors(){
     var t = type.value;
     var tag = t === 'Waterproof' ? '(WP)' : t === 'Richardson 112' ? '(112)' : null;
@@ -160,15 +185,19 @@ src="https://www.facebook.com/tr?id=1579558768885977&ev=PageView&noscript=1"/></
       if (!opt.value) return;
       var match = !tag || opt.text.indexOf(tag) !== -1;
       opt.hidden = !match;
-      opt.disabled = !match;
+      opt.disabled = !match || soldOut.indexOf(opt) !== -1;
     });
     color.querySelectorAll('optgroup').forEach(function(g){
       var visible = g.querySelectorAll('option:not([disabled])').length > 0;
       g.hidden = !visible;
     });
     if (selected && selected.value && selected.disabled) color.selectedIndex = 0;
+    // Resetting the colour above fires no change event, so say so by hand.
+    syncCustom();
   }
   type.addEventListener('change', filterColors);
+  color.addEventListener('change', syncCustom);
+  syncCustom();
 })();
 // Only "Custom" artwork is drawn from a file the customer sends. FD crests and
 // union locals we already have on hand, so the picker has nothing to ask for

@@ -929,8 +929,18 @@ of it. Delete the line instead and the colour simply vanishes, which tells a
 customer nothing.
 
 **Headings**, for a list long enough to need them. `## Richardson 112` starts
-one. Only the hat colours use them today — the same three colours on each of
-two blanks, and ungrouped it is a list people pick the wrong blank from.
+one. Only the hat colours use them today — the same three colours and a Custom
+line on each of two blanks, and ungrouped it is a list people pick the wrong
+blank from.
+
+**The hat's Custom line opens a write-in box.** Pick `Custom (112)` or
+`Custom (WP)` and an optional "Custom Hat Color" box appears under Logo Style;
+what the customer types prints on the order as `Custom hat color`. Any colour
+choice whose name starts with the word Custom opens it, so the line can be
+reworded here as long as it keeps that word at the front. Take both Custom
+lines off the list and the box is simply never shown. The box itself is in the
+HTML, and it sits below the three dropdowns on purpose — it can come back
+empty, and nothing that carries options should have to move when it does.
 
 **Where the list starts** depends on how the page was built, and it stays that
 way. A dropdown that makes the customer choose keeps its "Select…" row; one
@@ -1623,7 +1633,7 @@ node worker/tests/run.mjs slip
 | `todo` | the LWFD list: every action and what it refuses, due-date states, the email, the cron step (right hour, once a day, nothing open, mail unset, a failed send retries), the card, and both routes through the real Worker |
 | `customer-mail` | the note to a customer from an order's row: the starters and their [bracket] blanks, the draft's caps, the email with what the shop types escaped and web addresses linked, the send — to the order's address only, a copy BCC'd to the shop inbox, no unsubscribe header — the button and dialog on the dashboard, and the route through the real Worker, including a recipient smuggled into the body being ignored |
 | `worker` | routes through the real fetch handler — auth, the quote API, the public quote page, voiding, the printable sheet, marking a cash job paid, the webhook |
-| `site-content` | the static pages against each other and against CLAUDE.md: no artwork upload is ever `required`; every priced `<select>`'s `data-options` equals the hidden Snipcart button's `customN-options` (Snipcart validates against the button, not the dropdown — a colour added to one and not the other fails at checkout); every stitch list offers the same nine colours and no paint list offers Purple or Grey; form, button, JSON-LD and the visible price agree, and the shop/hats/crews cards charge the product-page price; each product states its lead time; nothing says hand-stitched, leather balm, "only color currently offered" or "both straps"; the red star matches the `required` flag; JSON-LD parses; a snippet names only colours the page offers; the sitemap lists every public page |
+| `site-content` | the static pages against each other and against CLAUDE.md: no artwork upload is ever `required`; every priced `<select>`'s `data-options` equals the hidden Snipcart button's `customN-options` (Snipcart validates against the button, not the dropdown — a colour added to one and not the other fails at checkout); every stitch list offers the same nine colours and no paint list offers Purple or Grey; form, button, JSON-LD and the visible price agree, and the shop/hats/crews cards charge the product-page price; each product states its lead time; nothing says hand-stitched, leather balm, "only color currently offered" or "both straps"; the red star matches the `required` flag; JSON-LD parses; a snippet names only colours the page offers; the custom hat's write-in colour box is optional, hidden until Custom is picked, and below every dropdown; the sitemap lists every public page |
 
 `worker` swaps in a KV shim and a stub asset router, so it needs neither
 Cloudflare nor a Snipcart key. Anything that calls Snipcart directly — the
