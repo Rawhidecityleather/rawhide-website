@@ -275,7 +275,13 @@ export default async function run() {
     const form = (html.match(/<form\b[^>]*data-order-form[\s\S]*?<\/form>/) || [''])[0];
     const colour = selects(form).find((s) => s.name === 'color');
     const customs = colour ? colour.options.map((o) => o.value).filter((v) => /^custom\b/i.test(v)) : [];
-    check(`${f}: Color offers a Custom choice on each hat`,
+    // "Color" alone read as the patch's colour as easily as the hat's, on a
+    // form that also asks about the patch. The cart and the packing slip carry
+    // the same name, so the bench reads it the way the customer did.
+    check(`${f}: the colour dropdown says it is the hat's colour`,
+      /<label for="hat-color">Hat Color</.test(form) && !!colour && colour['data-label'] === 'Hat color',
+      colour ? colour['data-label'] : 'no dropdown');
+    check(`${f}: Hat Color offers a Custom choice on each hat`,
       customs.some((v) => v.includes('(112)')) && customs.some((v) => v.includes('(WP)')), customs.join(', ') || 'none');
 
     const box = (form.match(/<input\b[^>]*name="customcolor"[^>]*>/) || [''])[0];
