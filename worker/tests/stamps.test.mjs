@@ -72,9 +72,6 @@ export default async function run() {
     'product-helmet-band.html',
     'product-smokey-radio-strap.html',
   ];
-  // Left of name and right of name, both required. Every other page's pickers
-  // are optional.
-  const REQUIRED_PICKERS = new Set(['product-helmet-band.html']);
   check('the two custom straps, the basic strap and the helmet band carry pickers',
     expected.every((f) => withPickers.includes(f)),
     expected.filter((f) => !withPickers.includes(f)).join(', '));
@@ -100,26 +97,20 @@ export default async function run() {
       const a = attrsOf(open);
       const required = /\brequired\b/.test(open);
 
-      // Two ways to start, and None has to be pickable in both. An optional
-      // picker starts on None, the empty value, and can be left there. A
-      // required one starts on a greyed "Select..." and offers None as a real
-      // value: a required picker whose None was the empty value would refuse
-      // the customer who wants no stamp on that side.
+      // A picker starts on a greyed "Select..." and offers None as a real
+      // value. Required with None as the empty value instead, it would refuse
+      // the customer who wants no stamp in that spot.
       check(`${f}: picker "${a.name}" ships with only None on it (the script fills the rest)`,
-        required
-          ? /^\s*<option value="" disabled selected hidden>Select\.\.\.<\/option><option value="None">None<\/option>\s*$/.test(sel[1])
-          : /^\s*<option value="" selected>None<\/option>\s*$/.test(sel[1]),
-        required ? 'required: a hidden "Select..." row, then None with the value "None"'
-          : 'optional: None with the empty value, selected');
+        /^\s*<option value="" disabled selected hidden>Select\.\.\.<\/option><option value="None">None<\/option>\s*$/.test(sel[1]),
+        'a hidden "Select..." row, then None with the value "None"');
       check(`${f}: picker "${a.name}" names its field for the order`, !!a['data-label'] && /^Stamp /.test(a['data-label']));
       check(`${f}: picker "${a.name}" has a browse button and a folded tile grid beside it`,
         new RegExp(`id="${a.id}"[\\s\\S]{0,700}data-stamp-browse[\\s\\S]{0,200}data-stamp-grid[^>]*\\bhidden`).test(html));
 
-      // The shop's call, Nov 11 2026: a helmet band says what goes each side
-      // of the name, None included, so no band reaches the bench with a side
-      // nobody decided. The straps stay optional.
-      const want = REQUIRED_PICKERS.has(f);
-      check(`${f}: picker "${a.name}" is ${want ? 'required' : 'optional'}`, required === want);
+      // The shop's call, Nov 11 2026: first the helmet band, then the straps.
+      // Every order says what goes in each stamp spot, None included, so
+      // nothing reaches the bench with a spot nobody decided.
+      check(`${f}: picker "${a.name}" is required`, required);
     }
 
     // The hidden Snipcart button lists the fields in the form's order, so the

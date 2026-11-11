@@ -1074,15 +1074,13 @@ helmet band — so the dropdown and the numbered tiles can never disagree. The
 page ships each picker with only "None" on it. What goes on the order is
 `12 - Cross`: number first, so it reads the way the boards do.
 
-**On the straps a picker is optional; on the helmet band both are required.**
-A strap's picker starts on None and can be left there, and a strap with no
-stamp simply has no stamp line on the order. The helmet band's two start on a
-greyed "Select..." instead, and None is a choice like any stamp, so every band
-order says what goes on each side of the name, `None` included. That is why
-None is the value `None` there and the empty value on the straps: a required
-picker whose None was empty would refuse the customer who wants a plain side.
-The None tile takes whichever value the page gave None, and the `stamps` suite
-holds each page to its own way.
+**Every picker is required, and None is a real choice.** Each one starts on a
+greyed "Select..." and the customer has to pick a stamp or None, so every
+order says what goes in each stamp spot, `None` included. That is why None
+carries the value `None` rather than the empty value: a required picker whose
+None was empty would refuse the customer who wants a plain spot. The None tile
+takes whatever value the page gave None, and the `stamps` suite fails a picker
+that is not required or whose None is not a real value.
 
 **To add a stamp:** press it, photograph it on tan leather, cut a square tile
 and save it as the next number, then add `[N, 'Name']` to the end of the list.
