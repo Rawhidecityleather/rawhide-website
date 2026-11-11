@@ -106,7 +106,7 @@ export function choicesFromText(text) {
   for (const line of lines) {
     // `## Waterproof` starts a heading in the dropdown. The hat colours come
     // in two of them, one per blank the shop buys, and a customer scrolling
-    // twenty-six of them ungrouped is a customer picking the wrong blank.
+    // them ungrouped is a customer picking the wrong blank.
     const heading = /^\s*##\s*(.*)$/.exec(line);
     if (heading) {
       group = heading[1].trim().slice(0, CHOICE_MAX);

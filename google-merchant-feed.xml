@@ -186,11 +186,12 @@
       <g:identifier_exists>no</g:identifier_exists>
       <g:product_type>Hats</g:product_type>
       <!-- Apparel & Accessories, so all four attributes below are required.
-           Black matches the feed image; the page carries 26 colour options in
-           total, which want splitting into variants under an item_group_id
-           before this listing represents the range honestly. "One size" is the
-           hat itself — both the waterproof shell and the Richardson 112 are
-           adjustable snapbacks. -->
+           Black matches the feed image; the page carries six colour options in
+           total (all black, heather/black and all navy on each hat), which want
+           splitting into variants under an item_group_id before this listing
+           represents the range honestly. "One size" is the hat itself — both
+           the waterproof shell and the Richardson 112 are adjustable
+           snapbacks. -->
       <g:google_product_category>173</g:google_product_category>
       <g:color>Black</g:color>
       <g:size>One size</g:size>

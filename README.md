@@ -929,8 +929,8 @@ of it. Delete the line instead and the colour simply vanishes, which tells a
 customer nothing.
 
 **Headings**, for a list long enough to need them. `## Richardson 112` starts
-one. Only the hat colours use them today — twenty-six colours across two
-blanks, and ungrouped it is a list people pick the wrong thing from.
+one. Only the hat colours use them today — the same three colours on each of
+two blanks, and ungrouped it is a list people pick the wrong blank from.
 
 **Where the list starts** depends on how the page was built, and it stays that
 way. A dropdown that makes the customer choose keeps its "Select…" row; one
