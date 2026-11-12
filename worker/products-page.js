@@ -379,7 +379,10 @@ export const PRODUCTS_STYLES = `
  */
 export const PRODUCTS_SCRIPT = `
 (function(){
-  var list = document.querySelector('.plist');
+  // Not the first .plist on the page: the added-products list above it is
+  // .plist too (.plist.cplist), and a click listener on that one left every
+  // built-in row unopenable from Sep 15 to Nov 12 2026.
+  var list = document.querySelector('.plist:not(.cplist)');
   if (!list) return;
 
   var STATE = __STATE__;

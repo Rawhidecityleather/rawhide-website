@@ -454,6 +454,25 @@ export default async function run() {
     !script.includes('__NAMES__') && !script.includes('__MAX__') && !script.includes('__ALTMAX__'));
   check('product names reach it', script.includes('Helmet Band'));
 
+  // Two lists on the page, both .plist: the added products first, then the
+  // built-in ones. Hooked to the first .plist, a click on any built-in row
+  // did nothing (Sep 15 to Nov 12 2026). The script has to pick the list its
+  // rows are actually in.
+  const pick = (script.match(/var list = document\.querySelector\('([^']+)'\)/) || [])[1] || '';
+  const lists = [...html.matchAll(/<div class="(plist[^"]*)"/g)].map((m) => m[1].split(/\s+/));
+  // The selector is `.a` or `.a:not(.b)`; picked the way querySelector would,
+  // the first list that matches.
+  const sel = /^\.([\w-]+)((?::not\(\.[\w-]+\))*)$/.exec(pick);
+  const nots = sel ? [...sel[2].matchAll(/:not\(\.([\w-]+)\)/g)].map((m) => m[1]) : [];
+  const picked = sel && lists.find((cls) => cls.includes(sel[1]) && nots.every((n) => !cls.includes(n)));
+  const rowsIn = (cls) => {
+    const i = html.indexOf(`<div class="${cls.join(' ')}"`);
+    const next = lists.map((c) => html.indexOf(`<div class="${c.join(' ')}"`)).filter((j) => j > i).sort((a, b) => a - b)[0] ?? html.length;
+    return html.slice(i, next).includes('data-toggle=');
+  };
+  check('the script listens on the list the product rows are in, not the added-products one',
+    !!picked && !picked.includes('cplist') && rowsIn(picked), `selector ${pick || 'none'}; lists ${lists.map((c) => c.join('.')).join(', ')}`);
+
   suite('photos — keys');
 
   check('a main key is a key', isPhotoKey(`${ID_A}-m.webp`));
