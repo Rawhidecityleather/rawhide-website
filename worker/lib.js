@@ -105,6 +105,21 @@ export function orderShipBy(order) {
   return new Date(Math.min(...dates.map((d) => d.getTime())));
 }
 
+/**
+ * How close a ship-by date is: the words for the dashboard's badge and how
+ * loud it gets. One definition, so the ship queue and the build list can't
+ * disagree about what counts as late.
+ */
+export function dueCountdown(due) {
+  // No date is no badge. new Date(null) is 1970, and that would read as a
+  // piece fifty years late rather than one nobody could date.
+  const left = due == null ? null : daysUntil(due);
+  if (left === null) return { label: '', tone: '' };
+  if (left < 0) return { label: `${Math.abs(left)}d late`, tone: 'hot' };
+  if (left === 0) return { label: 'today', tone: 'hot' };
+  return { label: `${left}d`, tone: left <= 7 ? 'soon' : '' };
+}
+
 /** "2026-08" — the month bucket key for the revenue chart. */
 export function monthKey(iso) {
   const d = new Date(iso);

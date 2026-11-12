@@ -10,7 +10,7 @@
 
 import {
   esc, money, moneyShort, tinyDate, shortDate, daysUntil,
-  orderShipBy, monthKey, monthLabel,
+  orderShipBy, dueCountdown, monthKey, monthLabel,
 } from './lib.js';
 import {
   isCancelled, isShipped, needsShipping, netRevenue, grandTotal,
@@ -31,6 +31,7 @@ import { renderRecoveryCard } from './recovery-card.js';
 import { renderCouponCard } from './coupon.js';
 import { renderTodoCard } from './todo.js';
 import { renderAlertsCard } from './alerts-card.js';
+import { renderBuildCard } from './build-list.js';
 import { SLIP_LIST_KEY } from './slip.js';
 import { mailButton, renderMailDialog } from './customer-mail.js';
 
@@ -226,6 +227,20 @@ function topProducts(orders) {
   return [...totals.values()].sort((a, b) => b.revenue - a.revenue).slice(0, 8);
 }
 
+/**
+ * Paid cash jobs the shop still has to hand over.
+ *
+ * Same order as the rest of the queue: longest-waiting first. A job refunded
+ * in full is off the bench, the same as a refunded order. Exported because the
+ * Worker asks the same question before the page is drawn, to know which quote
+ * records the build list needs — see loadBuildQuotes in worker/build-list.js.
+ */
+export function cashJobsWaiting(quotes = []) {
+  return quotes.filter(isPaidCashJob)
+    .filter((q) => !q.handedOverAt && quoteRefundState(q) !== 'full')
+    .sort((a, b) => String(a.paidAt).localeCompare(String(b.paidAt)));
+}
+
 /* --------------------------------------------------------------- rendering */
 
 export function renderDashboard(stats, {
@@ -235,16 +250,16 @@ export function renderDashboard(stats, {
   // Whether the Email button on an order's row can send. Off, the buttons stay
   // but are greyed out — see mailButton in worker/customer-mail.js.
   mailReady = true,
+  // Full quote records for the crew jobs on the bench, by id, so the build
+  // list can write out their lines. Without them it links to the sheet.
+  buildQuotes = new Map(),
 } = {}) {
   const rangeLabel = rangeInfo(stats.rangeKey).label;
 
   // A card quote is already in the queue and the order list as its Snipcart
   // order. A cash job never reaches Snipcart, so it gets put there by hand.
   const cashJobs = quotes.filter(isPaidCashJob);
-  // Same order as the rest of the queue: longest-waiting first.
-  // A job refunded in full is off the bench, the same as a refunded order.
-  const cashWaiting = cashJobs.filter((q) => !q.handedOverAt && quoteRefundState(q) !== 'full')
-    .sort((a, b) => String(a.paidAt).localeCompare(String(b.paidAt)));
+  const cashWaiting = cashJobsWaiting(quotes);
   const { start, end } = rangeBounds(stats.rangeKey);
   const cashInRange = cashJobs.filter((q) => {
     const t = Date.parse(q.paidAt) || 0;
@@ -271,6 +286,7 @@ export function renderDashboard(stats, {
         ${renderChart(stats.months)}
         ${renderProducts(stats.products, rangeLabel)}
       </div>
+      ${renderBuildCard(stats.queue, cashWaiting, { quotes: buildQuotes })}
       ${renderQueue(stats.queue, cashWaiting, mailReady)}
       ${renderTrackingPanel()}
       ${renderQuotes(quotes, stats.orders, quoteDiscountRate(promo))}
@@ -313,6 +329,7 @@ export function renderRail({
     <nav class="railnav">
       ${link(base + '#todo', 'LWFD to-do', openTodos || null)}
       ${link(base + '#overview', 'Overview')}
+      ${link(base + '#build', 'Build list')}
       ${link(base + '#queue', 'Ship queue', queueCount || null)}
       ${link(base + '#tracking', 'Add tracking')}
       ${link(base + '#quotes', 'Quotes', openQuotes || null)}
@@ -651,13 +668,12 @@ function renderDue(order) {
   const due = orderShipBy(order);
   if (!due) return '<span class="soft">&mdash;</span>';
 
-  const left = daysUntil(due);
-  const badge = left < 0 ? [`${Math.abs(left)}d late`, 'hot']
-    : left === 0 ? ['today', 'hot']
-    : [`${left}d`, left <= 7 ? 'soon' : ''];
+  // The wording and the thresholds live in lib.js: the build list badges the
+  // same dates, and the two cards have to call the same day late.
+  const { label, tone } = dueCountdown(due);
 
   return `${esc(tinyDate(due))}
-    <span class="due${badge[1] ? ' ' + badge[1] : ''}">${esc(badge[0])}</span>`;
+    <span class="due${tone ? ' ' + tone : ''}">${esc(label)}</span>`;
 }
 
 function renderTrackingPanel() {
@@ -1605,6 +1621,10 @@ export const DASHBOARD_SCRIPT = `
   // in the order it shows them, for the slip page to step through. Rows the
   // status filter hid are left out, so Next stays inside the filter. Cash
   // jobs open an invoice in a new tab rather than a slip and aren't stepped.
+  //
+  // "Hid" means hidden anywhere above the link, not only on its own row. The
+  // build list keeps both of its arrangements on the page and hides one, and
+  // stepping has to follow the one on screen.
   function slipToken(link){
     try { return new URL(link.href, location.href).searchParams.get('token') || ''; }
     catch (e) { return ''; }
@@ -1617,9 +1637,8 @@ export const DASHBOARD_SCRIPT = `
 
     var list = [], seen = {};
     [].forEach.call(section.querySelectorAll('a[href^="/packing-slip?"]'), function(a){
-      var row = a.closest('tr');
       var t = slipToken(a);
-      if ((row && row.hidden) || !t || seen[t]) return;
+      if (a.closest('[hidden]') || !t || seen[t]) return;
       seen[t] = true;
       list.push({ t: t, n: a.textContent.trim() });
     });

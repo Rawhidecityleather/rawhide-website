@@ -193,9 +193,24 @@ const CRITICAL_FIELD = /stamp|artwork|^message$|^notes$|^patch details$|^text on
  */
 const CALLOUT_LABELS = { 'text / symbols to be stamped': 'Stamp text' };
 
-function calloutLabel(name) {
+export function calloutLabel(name) {
   const key = String(name || '').trim().toLowerCase();
   return CALLOUT_LABELS[key] || name || '';
+}
+
+/**
+ * What the customer actually filled in on one line item, split the way it is
+ * read at the bench: `critical` is what gets cut into the leather, `specs` is
+ * everything else. Shared with the dashboard's build list (worker/build-list.js)
+ * so a field is never a callout on the slip and small print on the list.
+ */
+export function itemFields(item) {
+  const fields = (Array.isArray(item?.customFields) ? item.customFields : [])
+    .filter((f) => f && String(f.value || '').trim());
+  return {
+    critical: fields.filter((f) => CRITICAL_FIELD.test(f.name || '')),
+    specs: fields.filter((f) => !CRITICAL_FIELD.test(f.name || '')),
+  };
 }
 
 /**
@@ -205,14 +220,12 @@ function calloutLabel(name) {
  * Runs on already-escaped text, so nothing a customer types can open a tag —
  * the match can only ever be the plain URL characters left after escaping.
  */
-function linkify(escaped) {
+export function linkify(escaped) {
   return escaped.replace(/https?:\/\/[^\s<"']+/g, (url) => `<a href="${url}">${url}</a>`);
 }
 
 function renderItem(item, { orderDate, shipped } = {}) {
-  const fields = (item.customFields || []).filter((f) => f && String(f.value || '').trim());
-  const critical = fields.filter((f) => CRITICAL_FIELD.test(f.name || ''));
-  const specs = fields.filter((f) => !CRITICAL_FIELD.test(f.name || ''));
+  const { critical, specs } = itemFields(item);
 
   const callout = critical.map((f) => `<div class="callout-row">
       <span class="callout-label">${esc(calloutLabel(f.name))}</span>
