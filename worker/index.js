@@ -100,8 +100,9 @@ import {
 import { renderSlip, SLIP_STYLES, SLIP_SCRIPT } from './slip.js';
 import { renderQuoteSheet, QUOTE_SHEET_STYLES } from './quote-sheet.js';
 import {
-  analyze, renderDashboard, DEFAULT_RANGE, DASHBOARD_STYLES, DASHBOARD_SCRIPT,
+  analyze, renderDashboard, cashJobsWaiting, DEFAULT_RANGE, DASHBOARD_STYLES, DASHBOARD_SCRIPT,
 } from './dashboard.js';
+import { loadBuildQuotes, BUILD_STYLES, BUILD_SCRIPT } from './build-list.js';
 import { pirateShipCsv, parseTrackingPaste } from './pirateship.js';
 import { handleLogoUpload, handleLogoFetch } from './uploads.js';
 import { runRecovery } from './recovery.js';
@@ -822,10 +823,16 @@ async function handleDashboard(request, env, url) {
     recentCoupons(env).catch(() => null),
   ]);
   const stats = analyze(orders, range, { cashJobs: quotes.filter(isPaidCashJob) });
+  // The build list writes out what a crew job actually is, and the quote list
+  // above carries summaries only. One read per quote job still on the bench,
+  // usually none at all. Never throws — a job it could not read links to its
+  // printed sheet instead.
+  const buildQuotes = await loadBuildQuotes(env, stats.queue, cashJobsWaiting(quotes));
 
   return page('Dashboard', renderDashboard(stats, {
     truncated,
     quotes,
+    buildQuotes,
     toCheck: receipts.filter((r) => !r.checked).length,
     promo,
     promoReady: Boolean(env.PROMO),
@@ -840,10 +847,10 @@ async function handleDashboard(request, env, url) {
     mailReady: mailerConfigured(env),
     alerts: alertsState(env),
   }), {
-    styles: DASHBOARD_STYLES + TODO_STYLES + PROMO_STYLES + RECOVERY_STYLES + COUPON_STYLES + ALERTS_STYLES +
-      CUSTOMER_MAIL_STYLES,
-    script: DASHBOARD_SCRIPT + TODO_SCRIPT + promoScript(saleProducts) + RECOVERY_SCRIPT + COUPON_SCRIPT +
-      ALERTS_SCRIPT + CUSTOMER_MAIL_SCRIPT,
+    styles: DASHBOARD_STYLES + BUILD_STYLES + TODO_STYLES + PROMO_STYLES + RECOVERY_STYLES + COUPON_STYLES +
+      ALERTS_STYLES + CUSTOMER_MAIL_STYLES,
+    script: DASHBOARD_SCRIPT + BUILD_SCRIPT + TODO_SCRIPT + promoScript(saleProducts) + RECOVERY_SCRIPT +
+      COUPON_SCRIPT + ALERTS_SCRIPT + CUSTOMER_MAIL_SCRIPT,
   });
 }
 

@@ -7,7 +7,7 @@
  */
 
 import { suite, check } from './harness.mjs';
-import { leadTime, shipBy, orderShipBy, daysUntil } from '../lib.js';
+import { leadTime, shipBy, orderShipBy, daysUntil, dueCountdown } from '../lib.js';
 import { analyze } from '../dashboard.js';
 
 // One clock for the whole file. Two calls to Date.now() a millisecond apart
@@ -81,6 +81,22 @@ export default function run() {
     orderShipBy({ creationDate: placed(0), items: [] }) === null);
   check('an order with no date has no deadline',
     orderShipBy({ items: [{ id: 'helmet-band' }] }) === null);
+
+  suite('lib — the due badge');
+
+  // The ship queue and the build list both badge a date off this, so the
+  // wording and the thresholds are pinned here once rather than in each card.
+  const badge = (daysOut) => {
+    const { label, tone } = dueCountdown(new Date(NOW + daysOut * 86400000));
+    return `${label}|${tone}`;
+  };
+  check('past the date it says how late, and loudly', badge(-3) === '3d late|hot');
+  check('a day late is still late', badge(-1) === '1d late|hot');
+  check('the day itself reads today, just as loud', badge(0) === 'today|hot');
+  check('inside a week it is flagged', badge(1) === '1d|soon' && badge(7) === '7d|soon');
+  check('past a week it is only a number', badge(8) === '8d|' && badge(40) === '40d|');
+  check('something that is not a date gets no badge at all',
+    () => dueCountdown('not a date').label === '' && dueCountdown(null).tone === '');
 
   suite('dashboard — queue order');
 

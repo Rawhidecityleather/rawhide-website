@@ -164,9 +164,9 @@ pattern.
 ## Order dashboard
 
 Live at **rawhidecityleather.com/dashboard**. Same login as the packing slip.
-It reads every order out of Snipcart and gives you three things: what you've
-made, what still has to ship, and a way to get tracking numbers back in without
-touching Snipcart's dashboard.
+It reads every order out of Snipcart and gives you four things: what you've
+made, what's still to build, what still has to ship, and a way to get tracking
+numbers back in without touching Snipcart's dashboard.
 
 Bookmark it. It's `noindex` and behind a password, so nobody finds it on their
 own.
@@ -185,6 +185,50 @@ Cancelled and unpaid orders never count toward revenue. The four buttons up top
 switch the window; the trend arrows compare against the same stretch of the
 previous period, so "this month" on the 4th is measured against the first 4 days
 of last month, not against the tail end of it.
+
+### The build list
+
+**Build list** sits above the Ship queue. It is every piece you still owe, one
+row per product, with the options the customer picked written out beside it:
+leather, stitch, hardware, and what gets stamped. The day's work reads off one
+list instead of one packing slip at a time.
+
+Two ways to look at the same rows, switched with the two buttons at the top of
+the card. The dashboard remembers which one you left it on.
+
+| Button | What you get |
+|---|---|
+| **By product** | Every helmet band together, then every strap. For cutting and dyeing in batches. Products run in the order their most urgent piece is due, and each product's rows run soonest first. |
+| **By ship date** | One list straight down, soonest first. The Ship queue's own order, with each order opened up into its pieces. |
+
+Things to know:
+
+- **The date is the order's ship-by date**, the same one the Ship queue shows,
+  with the same badge. A strap ordered with a helmet band is owed when the band
+  is, because the box goes out as one box. The strap's own six weeks still
+  print on its packing slip.
+- **What gets cut into the leather is boxed**, the same fields the packing slip
+  boxes: the stamp text, the stamps, artwork, the customer's message and notes.
+  An artwork link opens the file in a new tab.
+- **Nothing the customer picked is left out.** `Stitch color: None` is a build
+  instruction, so a `None` prints like any other answer.
+- **A note typed on the order in Snipcart** shows on every piece of that order.
+- **A crew job off a quote** is written out from the quote: each line with its
+  quantity, then the build notes. A paid cash job sits at the bottom with the
+  day it was paid in place of a ship-by date, until you mark it handed over in
+  the Ship queue.
+- The order number opens the packing slip, and **Previous / Next** on the slip
+  steps through the list in the order it was showing.
+
+It only reads. Nothing on it changes an order; shipping still happens in the
+Ship queue.
+
+It lives in `worker/build-list.js`. Which fields get boxed is decided by
+`itemFields` in `worker/slip.js`, shared with the packing slip so the two can't
+disagree. The crew-job lines cost one read of the quote record per quote job
+on the bench, capped at twelve; if a record can't be read, that job's row
+links to its quote sheet instead. If the card ever fails to draw, it says so
+in its own place and the rest of the dashboard carries on.
 
 ### Shipping through Pirate Ship
 
@@ -1640,6 +1684,7 @@ node worker/tests/run.mjs slip
 | `email-in` | receipts by email: who may file and every way a message is refused, picking the real attachment out of the letterhead, the fallbacks from sender and subject, and the promises that must hold on a bad day — always forwarded, never bounced, an unreadable receipt still becomes a row |
 | `todo` | the LWFD list: every action and what it refuses, due-date states, the email, the cron step (right hour, once a day, nothing open, mail unset, a failed send retries), the card, and both routes through the real Worker |
 | `customer-mail` | the note to a customer from an order's row: the starters and their [bracket] blanks, the draft's caps, the email with what the shop types escaped and web addresses linked, the send — to the order's address only, a copy BCC'd to the shop inbox, no unsubscribe header — the button and dialog on the dashboard, and the route through the real Worker, including a recipient smuggled into the body being ignored |
+| `build-list` | the dashboard's build list: one row per piece owed and none for anything shipped, cancelled, unpaid or refunded; the same order and the same late badge as the ship queue; grouping by product; every option kept, a `None` included; the same boxed fields as the packing slip; order notes; crew jobs and cash jobs written out from their quote, and what happens when the quote can't be read; text a customer typed can't break the page; a record of an unexpected shape, or a card that throws, costs only that card; and `/dashboard` itself through the real Worker with Snipcart stood in for |
 | `worker` | routes through the real fetch handler — auth, the quote API, the public quote page, voiding, the printable sheet, marking a cash job paid, the webhook |
 | `site-content` | the static pages against each other and against CLAUDE.md: no artwork upload is ever `required`; every priced `<select>`'s `data-options` equals the hidden Snipcart button's `customN-options` (Snipcart validates against the button, not the dropdown — a colour added to one and not the other fails at checkout); every stitch list offers the same nine colours and no paint list offers Purple or Grey; form, button, JSON-LD and the visible price agree, and the shop/hats/crews cards charge the product-page price; each product states its lead time; nothing says hand-stitched, leather balm, "only color currently offered" or "both straps"; the red star matches the `required` flag; JSON-LD parses; a snippet names only colours the page offers; the custom hat's write-in colour box is optional, hidden until Custom is picked, and below every dropdown; the sitemap lists every public page |
 

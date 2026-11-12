@@ -31,6 +31,7 @@ const SUITES = [
   ['todo', () => import('./todo.test.mjs')],
   ['shipped-mail', () => import('./shipped-mail.test.mjs')],
   ['customer-mail', () => import('./customer-mail.test.mjs')],
+  ['build-list', () => import('./build-list.test.mjs')],
   ['slip', () => import('./slip.test.mjs')],
   ['tracking-in', () => import('./tracking-in.test.mjs')],
   ['uploads', () => import('./uploads.test.mjs')],
