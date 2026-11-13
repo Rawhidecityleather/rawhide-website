@@ -10,22 +10,27 @@
  *
  * The quote reads ride on the dashboard's own request, so the promise there is
  * different: whatever goes wrong with them, the dashboard still loads.
+ *
+ * The printed sheet is the same rows on paper, so it is held to the same
+ * promises, plus the two that are its own: every piece that goes out with a
+ * holster and a sway strap has a box to tick and nothing else does, and
+ * nothing on the page needs background ink to be read.
  */
 
 import { suite, check } from './harness.mjs';
 import {
-  buildPieces, groupPieces, buildQuoteIds, loadBuildQuotes, renderBuildCard,
-  BUILD_SCRIPT, BUILD_STYLES, BUILD_VIEW_KEY,
+  buildPieces, groupPieces, buildQuoteIds, loadBuildQuotes, renderBuildCard, renderBuildSheet, holsterSet,
+  BUILD_SCRIPT, BUILD_STYLES, BUILD_SHEET_STYLES, BUILD_VIEW_KEY, BUILD_PRINT_PATH,
 } from '../build-list.js';
 import {
   analyze, renderDashboard, renderRail, cashJobsWaiting, DASHBOARD_SCRIPT,
 } from '../dashboard.js';
 import { daysUntil } from '../lib.js';
-import { itemFields, calloutLabel, renderSlip } from '../slip.js';
+import { itemFields, calloutLabel, renderSlip, SLIP_STYLES } from '../slip.js';
 import {
   buildQuote, putQuote, listQuotes, markQuoteCashPaid, markQuoteHandedOver,
 } from '../quote.js';
-import worker from '../index.js';
+import worker, { isBehindLogin } from '../index.js';
 
 // One clock for the whole file, the same reason lib.test.mjs keeps one.
 const NOW = Date.now();
@@ -286,7 +291,7 @@ export default async function run() {
 
   suite('build list — nothing a customer types can break the page');
 
-  const hostile = renderBuildCard(queueOf([waiting('"><i>INV', 4, [{
+  const hostileQueue = queueOf([waiting('"><i>INV', 4, [{
     id: 'x"><script>id()</script>', name: '<img src=x onerror=name()>', quantity: 1,
     customFields: [
       f('<b>Leather</b>', '"><script>value()</script>'),
@@ -297,7 +302,8 @@ export default async function run() {
     token: 'tok-"><script>token()</script>',
     notes: '<script>note()</script>',
     shippingAddress: { fullName: 'Jane "JD" <u>Doe</u>' },
-  })]));
+  })]);
+  const hostile = renderBuildCard(hostileQueue);
   check('no tag a customer typed survives',
     !/<script|<img|<b>|<u>|<i>/.test(hostile), (hostile.match(/<(script|img|b|u|i)\b[^>]*>/) || [''])[0]);
   check('nor a closing section that would cut the card in half',
@@ -546,6 +552,36 @@ export default async function run() {
     liveHtml.split(BUILD_STYLES).length === 2 && liveHtml.split(BUILD_SCRIPT).length === 2);
   check('it is still behind the login', (await dashboard(liveEnv, {})).status === 401);
 
+  // The sheet is its own address, reading what the dashboard reads.
+  const sheetRoute = (withEnv, query = '', init = {}) => withSnipcart(
+    [crewOrder, waiting('RCL-2002', 20, [band([f('Stamped text', 'DOYLE')])])],
+    () => worker.fetch(new Request('https://rawhidecityleather.com' + BUILD_PRINT_PATH + query,
+      { headers: { Authorization: AUTH }, ...init }), withEnv, { waitUntil() {} }),
+  );
+  const paperRes = await sheetRoute(liveEnv);
+  const paperHtml = await paperRes.text();
+  check('the printed sheet loads at its own address',
+    paperRes.status === 200 && paperHtml.includes('<title>Build list'), `status ${paperRes.status}`);
+  check('with the pieces the dashboard card has, and not the job already handed over',
+    ['DOYLE', '<span class="pc-qty many">12&times;</span> Fully custom radio strap &lt;black&gt;',
+      '<span class="pc-qty many">2&times;</span> Hand-tooled shield'].every((text) => paperHtml.includes(text))
+    && !paperHtml.includes('Retirement axe plaque'));
+  check('the crew\'s straps have their box, and it is the only one',
+    paperHtml.split('<span class="pc-tick">').length === 2);
+  check('it arrives by product, and ?view=date arranges it by ship date',
+    paperHtml.includes('<dt>Arranged</dt><dd>By product</dd>')
+    && (await (await sheetRoute(liveEnv, '?view=date')).text()).includes('<dt>Arranged</dt><dd>By ship date</dd>'));
+  check('it carries the slip\'s paper, the card\'s rows and its own rules, once each, and no script',
+    paperHtml.split(SLIP_STYLES).length === 2 && paperHtml.split(BUILD_STYLES).length === 2
+    && paperHtml.split(BUILD_SHEET_STYLES).length === 2 && !/<script/i.test(paperHtml));
+  check('the dashboard does not carry the sheet\'s rules', !liveHtml.includes(BUILD_SHEET_STYLES));
+  check('the sheet is behind the login, here and on the workers.dev address',
+    (await sheetRoute(liveEnv, '', { headers: {} })).status === 401 && isBehindLogin(BUILD_PRINT_PATH));
+  check('and it only reads: a POST is refused',
+    (await sheetRoute(liveEnv, '', { method: 'POST', headers: { Authorization: AUTH } })).status === 405);
+  check('the dashboard\'s Print list button goes to that address',
+    liveBuild.includes(`id="buildprint" href="${BUILD_PRINT_PATH}?view=product"`));
+
   // The promise that matters most: the quote reads failing is a thinner list,
   // never a dashboard that will not open.
   const down = await dashboard({
@@ -559,6 +595,16 @@ export default async function run() {
     return list.includes('12 Memorial Radio Straps — Station 4') && list.includes('Station 9 shield')
       && list.includes('The lines and build notes are on the quote sheet.') && list.includes('DOYLE');
   });
+  const downPaper = await sheetRoute({
+    ...liveEnv,
+    QUOTES: { ...env.QUOTES, get: async () => { throw new Error('KV is down'); } },
+  });
+  const downPaperHtml = await downPaper.text();
+  check('the printed sheet still prints too, every job on it', downPaper.status === 200
+    && downPaperHtml.includes('12 Memorial Radio Straps — Station 4') && downPaperHtml.includes('Station 9 shield')
+    && downPaperHtml.includes('DOYLE'), `status ${downPaper.status}`);
+  check('and the strap job keeps its box, read off its title',
+    downPaperHtml.split('<span class="pc-tick">').length === 2);
 
   suite('build list — on the dashboard');
 
@@ -593,13 +639,210 @@ export default async function run() {
   // and a third one here would also be a third place to send from.
   check('it adds no Email button and no checkbox of its own',
     !card.includes('cmail') && !card.includes('type="checkbox"'));
+  check('Print list opens the sheet in a new tab, by product until a chip says otherwise',
+    card.includes(`<a class="btn ghost" id="buildprint" href="${BUILD_PRINT_PATH}?view=product"`)
+    && /id="buildprint"[^>]*target="_blank" rel="noopener noreferrer">Print list<\/a>/.test(card));
+  check('it sits beside the chips, and is not one of them',
+    /<div class="buildbar">\s*<div class="filters" id="buildview"[\s\S]*?<\/div>\s*<a class="btn ghost" id="buildprint"/.test(card)
+    && !/id="buildprint"[^>]*data-view/.test(card));
 
   const empty = renderBuildCard([], []);
   check('nothing owed says so', empty.includes('Nothing to build.') && !empty.includes('buildview'));
+  check('and offers nothing to print', !empty.includes('buildprint'));
   check('and is still the section the rail points at', empty.startsWith('<section id="build" class="card">'));
   check('called with nothing at all it still renders', () => renderBuildCard().includes('Nothing to build.'));
   check('a dashboard with no orders renders it empty',
     section(renderDashboard(analyze([], '30d'), {}), 'build').includes('Nothing to build.'));
+
+  suite('build list — the printed sheet');
+
+  // One clock for every sheet, so two of them can be compared whole.
+  const at = new Date('2026-11-13T19:14:00Z');
+  const sheet = renderBuildSheet(queue, [], { now: at });
+  const sheetByDate = renderBuildSheet(queue, [], { view: 'date', now: at });
+  const rowsOf = (html) => html.split('<li class="piece">').slice(1);
+
+  check('it has a Print button and a way back to the card',
+    sheet.includes('<button type="button" onclick="window.print()">Print</button>')
+    && sheet.includes('<a class="back" href="/dashboard#build">'));
+  check('it opens by product unless asked otherwise',
+    sheet.includes('<dt>Arranged</dt><dd>By product</dd>') && sheet.includes('class="bgroup-head"'));
+  check('asked for by ship date, it is one list straight down',
+    sheetByDate.includes('<dt>Arranged</dt><dd>By ship date</dd>') && !sheetByDate.includes('class="bgroup-head"'));
+  check('an arrangement nobody offers gets the first one, not an empty page',
+    renderBuildSheet(queue, [], { view: 'sideways', now: at }) === sheet
+    && renderBuildSheet(queue, [], { view: null, now: at }) === sheet);
+  // The card keeps both arrangements and hides one. Paper cannot hide anything.
+  check('only the arrangement asked for is on the sheet, every piece once',
+    rowsOf(sheet).length === 6 && rowsOf(sheetByDate).length === 6
+    && !/\shidden[\s>=]/.test(sheet + sheetByDate));
+  check('the rows are the card\'s rows in the card\'s order, both ways',
+    same(slips(sheet), slips(view(card, 'product'))) && same(slips(sheetByDate), slips(view(card, 'date'))));
+  check('and the sheet states the card\'s total',
+    sheet.includes('<dd class="strong">7 pieces &middot; 5 orders</dd>')
+    && sheet.includes('End of the list &middot; 7 pieces'));
+  check('the toolbar switches arrangement and marks the one on the page',
+    sheet.includes(`<a href="${BUILD_PRINT_PATH}?view=product" aria-current="true">By product</a>`)
+    && sheet.includes(`<a href="${BUILD_PRINT_PATH}?view=date">By ship date</a>`)
+    && sheetByDate.includes(`<a href="${BUILD_PRINT_PATH}?view=date" aria-current="true">By ship date</a>`));
+  check('Print, the way back and the switch are all in the toolbar, which never prints',
+    /<div class="toolbar">[\s\S]*window\.print\(\)[\s\S]*#build[\s\S]*sheet-views[\s\S]*?<\/div>\s*<header/.test(sheet)
+    && SLIP_STYLES.includes('.toolbar{display:none}'));
+  // 02:30 UTC on the 14th is half past nine at night on the 13th in Lakeland.
+  check('it says when it was printed, on the shop\'s clock',
+    /<dt>Printed<\/dt><dd>Nov 13, 2026, 9:30\sPM<\/dd>/.test(
+      renderBuildSheet(queue, [], { now: new Date('2026-11-14T02:30:00Z') })));
+
+  const paper = renderBuildSheet(queueOf([waiting('RCL-1058', 30, [custom])]), [], { view: 'date', now: at });
+  check('every option and every boxed field on the card is on the sheet', () => {
+    const { critical, specs } = itemFields(custom);
+    return critical.length === 4 && specs.length === 4
+      && critical.every((c) => paper.includes(`<span class="pc-calllabel">${calloutLabel(c.name)}</span>`))
+      && specs.every((s) => paper.includes(`<dt>${s.name}</dt>`))
+      && paper.includes('<dt>Stitch color</dt><dd>None</dd>')
+      && paper.includes('Retirement gift.<br>Needs to be in hand before Dec 12.');
+  });
+  check('the same badge as the dashboard, so the sheet calls the same day late',
+    ['<span class="due hot">2d late</span>', '<span class="due soon">3d</span>', '<span class="due">40d</span>']
+      .every((badge) => sheetByDate.includes(badge)));
+
+  suite('build list — the box for the holster and sway strap');
+
+  const TICK = '<span class="pc-tick">';
+  const ticks = (html) => html.split(TICK).length - 1;
+
+  // Three straps in the fixture: NEW-STRAP, OLD-STRAP and the one in MIXED.
+  check('every radio strap on the sheet has a box to tick',
+    ticks(sheet) === 3 && ticks(sheetByDate) === 3
+    && sheet.includes('<span class="pc-tick">Holster / sway strap</span>'));
+  check('on the strap\'s own row, and not on the helmet band or the belt beside it',
+    rowsOf(sheetByDate).every((row) =>
+      row.includes(TICK) === row.includes('Fully Custom Adjustable Radio Strap')));
+  check('under the order number, at the right-hand edge of the row',
+    rowsOf(sheet).filter((row) => row.includes(TICK)).every((row) =>
+      /<div class="pc-order">[\s\S]*packing-slip[\s\S]*<span class="pc-tick">Holster \/ sway strap<\/span><\/div>\s*<\/li>/.test(row)));
+
+  // The ids and names the product pages put in the cart, checked 2026-11-13.
+  const pieceOf = (id, name) => buildPieces(queueOf([waiting('X', 1, [{ id, name, quantity: 1 }])]))[0];
+  check('all three radio straps go out with one', [
+    pieceOf('fully-custom-radio-strap', 'Fully Custom Adjustable Radio Strap'),
+    pieceOf('basic-radio-strap', 'Basic Adjustable Radio Strap'),
+    pieceOf('smokey-radio-strap', 'Smokey Fully Custom Radio Strap'),
+  ].every(holsterSet));
+  check('so does a bucket bought by itself: it is the holster, and ships with its sway strap',
+    holsterSet(pieceOf('radio-bucket', 'Radio Bucket')));
+  // The same trap the lead times have: a strap is not always a radio strap.
+  check('a glove strap, a chin strap, a belt, a band, a hat, a patch and a tin of butter do not', () => {
+    const boxed = [
+      pieceOf('glove-strap', 'Adjustable Glove Strap'), pieceOf('chin-strap', 'Chin Strap'),
+      pieceOf('heavy-duty-belt', 'Heavy Duty Belt'), pieceOf('basket-weave-belt', 'Basket Weave Belt'),
+      pieceOf('helmet-band', 'Helmet Band'), pieceOf('leather-patch-hat', 'Leather Patch Hat'),
+      pieceOf('velcro-patch', '3" Leather Velcro Patch'), pieceOf('leather-butter', 'Leather Butter'),
+    ].filter(holsterSet).map((p) => p.name);
+    if (boxed.length) throw new Error('boxed: ' + boxed.join(', '));
+    return true;
+  });
+  check('a strap with no catalog id is known by its name',
+    holsterSet(pieceOf(undefined, 'Memorial Radio Strap')) && !holsterSet(pieceOf(undefined, 'Shield')));
+
+  const pair = renderBuildSheet(queueOf([waiting('PAIR', 3, [strap([], { quantity: 2 })])]), [], { now: at });
+  check('two straps on one line are two holsters, and the box says so',
+    pair.includes('<span class="pc-tick"><span class="pc-qty many">2&times;</span> Holster / sway strap</span>'));
+  check('one strap needs no number', !/pc-tick"><span class="pc-qty/.test(sheet));
+
+  // Jobs off a quote: the crew's twelve straps, and the plaque paid in cash.
+  const jobSheet = renderBuildSheet(crewQueue, cashWaiting, { quotes: records, view: 'date', now: at });
+  const rowWith = (html, text) => rowsOf(html).find((row) => row.includes(text)) || '';
+  check('a crew job of radio straps gets the box',
+    rowWith(jobSheet, '12 Memorial Radio Straps').includes('<span class="pc-tick">Holster / sway strap</span>'));
+  // Its quantities are on its lines, and a quote can list the strap and its
+  // holster as two lines. A number added up here could be double the truth.
+  check('once, with no number of its own', ticks(jobSheet) === 1);
+  check('a job with no strap in it gets none',
+    rowWith(jobSheet, 'Retirement axe plaque').length > 0 && !rowWith(jobSheet, 'Retirement axe plaque').includes(TICK));
+  check('a job is read by its lines as well as its title',
+    holsterSet({ name: 'Station 9 order', quote: { lines: [{ description: 'Helmet band' }, { description: 'Basic radio strap, black' }] } })
+    && !holsterSet({ name: 'Station 9 order', quote: { lines: [{ description: 'Helmet band' }] } }));
+  check('and by its title alone on a day the quote record could not be read',
+    ticks(renderBuildSheet(crewQueue, cashWaiting, { view: 'date', now: at })) === 1);
+  check('a piece of a shape nobody expected is a piece with no box, not a crash', () =>
+    holsterSet() === false && holsterSet(null) === false && holsterSet({}) === false
+    && holsterSet({ name: 42, item: { id: 7 }, quote: { lines: [null, {}, 'x', { description: 12 }] } }) === false
+    && holsterSet({ quote: { lines: 'not a list' } }) === false);
+
+  // The card stays a list that only reads. The box is for a pen.
+  check('the box is on the sheet only: the dashboard card has none',
+    !card.includes('pc-tick') && !jobs.includes('pc-tick')
+    && !section(renderDashboard(analyze(orders, 'all'), {}), 'build').includes('pc-tick'));
+  check('it is drawn for a pen: no form control, no script, nothing to save',
+    !/<input|<form|<script|<select|<textarea/i.test(sheet + jobSheet)
+    && BUILD_SHEET_STYLES.includes('.pc-tick::before'));
+
+  suite('build list — a sheet that cannot go wrong on the way to the printer');
+
+  const hostileSheet = renderBuildSheet(hostileQueue, [], { view: '"><script>view()</script>', now: at });
+  // Everything a customer typed is in the rows. Above them is the shop's own
+  // header, and its logo is an <img> that belongs there.
+  const hostileRows = hostileSheet.split('</header>')[1] || '';
+  check('no tag a customer typed survives on the sheet',
+    hostileRows.includes('<li class="piece">') && !/<script|<img|<b>|<u>|<i>/.test(hostileRows),
+    (hostileRows.match(/<(script|img|b|u|i)\b[^>]*>/) || [''])[0]);
+  check('an attribute cannot be closed from inside a value', !/"onmouseover=|" onmouseover=/.test(hostileSheet));
+  check('nor can the address it was opened at reach the page',
+    !hostileSheet.includes('view()') && (hostileSheet.match(/<img\b/g) || []).length === 1);
+
+  const emptySheet = renderBuildSheet([], [], { now: at });
+  check('nothing owed still prints a sheet that says so',
+    emptySheet.includes('Nothing to build.') && emptySheet.includes('<dd class="strong">Nothing</dd>')
+    && !emptySheet.includes('pieces-head') && !emptySheet.includes(TICK));
+  check('called with nothing at all it still renders', () => renderBuildSheet().includes('Nothing to build.'));
+  check('records of an unexpected shape are drawn rather than apologised for', () => {
+    const oddSheet = renderBuildSheet(odd, [null, {}], { now: at });
+    return oddSheet.includes('<dt>Engraved</dt><dd>true</dd>') && !oddSheet.includes('could not be drawn');
+  });
+
+  // The backstop, as on the card: a throw here would otherwise come out of the
+  // route as "Could not reach Snipcart".
+  const sheetLog = [];
+  console.error = (...args) => { sheetLog.push(args.map(String).join(' ')); };
+  let sorrySheet = '';
+  try {
+    sorrySheet = renderBuildSheet(queueOf(withJob), [], { quotes: poisoned, now: at });
+  } finally {
+    console.error = realError;
+  }
+  check('a sheet that cannot be drawn says so, and says where the options still are',
+    sorrySheet.includes('could not be drawn') && sorrySheet.includes('<code>boom &lt;b&gt;</code>')
+    && sorrySheet.includes('packing slip') && sorrySheet.includes('href="/dashboard#build"'));
+  check('and what stopped it goes to the log',
+    sheetLog.length === 1 && sheetLog[0].includes('build list sheet') && sheetLog[0].includes('boom'));
+
+  check('every class the sheet uses has a rule', () => {
+    const all = sheet + sheetByDate + jobSheet + pair + paper + emptySheet + sorrySheet
+      + renderBuildSheet(crewQueue, cashWaiting, { now: at });
+    const used = new Set([...all.matchAll(/class="([^"]+)"/g)].flatMap((m) => m[1].split(/\s+/)));
+    const rules = SLIP_STYLES + BUILD_STYLES + BUILD_SHEET_STYLES;
+    // On paper every pill is the one outlined tag; which way the money came
+    // in is the word inside it.
+    const plain = ['cash'];
+    const missing = [...used].filter((c) => !plain.includes(c) && !rules.includes('.' + c));
+    if (missing.length) throw new Error('no rule for: ' + missing.join(' '));
+    return used.size > 30;
+  });
+  check('the sheet\'s styles cannot close the tag they are inlined in', !/<\/style/i.test(BUILD_SHEET_STYLES));
+  // What a printer does to the dashboard's own look. The loud quantity is
+  // off-white text on a dark tag, and a browser prints no backgrounds unless
+  // asked. Left alone it printed as off-white on white paper: the one number
+  // on the row that must not be missed, all but gone. Seen 2026-11-13.
+  check('the loud quantity is outlined on paper, not reversed out',
+    /\.sheet \.pc-qty\.many\{background:none;color:var\(--ink\);border:/.test(BUILD_SHEET_STYLES));
+  // The packing slip's stylesheet is on this page too, and its .due is a
+  // ship-by row with a dashed rule above it.
+  check('the countdown badge does not pick up the packing slip\'s ship-by row',
+    /\.sheet \.pc-due \.due\{display:inline-block;margin:0 0 0 5px;padding:0 4px;border:/.test(BUILD_SHEET_STYLES));
+  check('a piece is never cut across two pages, and a heading never strands at the foot of one',
+    /@media print\{[\s\S]*\.piece\{break-inside:avoid/.test(BUILD_SHEET_STYLES)
+    && /\.bgroup-head,\.pieces-head\{break-after:avoid/.test(BUILD_SHEET_STYLES));
 
   suite('build list — the script and the styles');
 
@@ -611,6 +854,12 @@ export default async function run() {
   check('it reads the same attributes the card writes',
     BUILD_SCRIPT.includes("getElementById('buildview')") && card.includes('id="buildview"')
     && BUILD_SCRIPT.includes('data-buildview') && BUILD_SCRIPT.includes('data-view'));
+  // What prints is what is on screen. The chips only swap which list shows,
+  // so the script has to re-aim the link at the same arrangement.
+  check('it points Print list at the arrangement on screen',
+    BUILD_SCRIPT.includes("getElementById('buildprint')") && card.includes('id="buildprint"')
+    && BUILD_SCRIPT.includes(JSON.stringify(BUILD_PRINT_PATH))
+    && /printLink\.href = PRINT \+ '\?view=' \+ encodeURIComponent\(name\)/.test(BUILD_SCRIPT));
   check('neither can close the tag it is inlined in',
     !/<\/script/i.test(BUILD_SCRIPT) && !/<\/style/i.test(BUILD_STYLES));
   check('every class the card uses has a rule', () => {
@@ -619,7 +868,7 @@ export default async function run() {
     const used = new Set([...all.matchAll(/class="([^"]+)"/g)].flatMap((m) => m[1].split(/\s+/)));
     // Shared with the rest of the dashboard, styled in DASHBOARD_STYLES.
     const shared = ['card', 'cardhead', 'cardnote', 'hint', 'filters', 'chip', 'on', 'soft', 'block', 'mono',
-      'due', 'hot', 'soon', 'pill', 'cash', 'empty'];
+      'due', 'hot', 'soon', 'pill', 'cash', 'empty', 'btn', 'ghost'];
     const missing = [...used].filter((c) => !shared.includes(c) && !BUILD_STYLES.includes('.' + c));
     if (missing.length) throw new Error('no rule for: ' + missing.join(' '));
     return used.size > 20;

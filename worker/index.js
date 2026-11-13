@@ -21,6 +21,7 @@
  *   POST /dashboard/api/quote/refund   record money handed back on a cash job
  *   POST /dashboard/api/quote/refund-undo   take back the last refund recorded
  *   GET  /dashboard/quote-print?id=… printable quote / cash invoice
+ *   GET  /dashboard/build-print      the build list on paper, with the boxes to tick
  *   POST /dashboard/api/promo        save the sale banner, push the rule to Snipcart
  *   GET  /api/promo                  PUBLIC. The live sale, for the cart script.
  *   GET  /dashboard/expenses         the receipt ledger for one year
@@ -102,7 +103,9 @@ import { renderQuoteSheet, QUOTE_SHEET_STYLES } from './quote-sheet.js';
 import {
   analyze, renderDashboard, cashJobsWaiting, DEFAULT_RANGE, DASHBOARD_STYLES, DASHBOARD_SCRIPT,
 } from './dashboard.js';
-import { loadBuildQuotes, BUILD_STYLES, BUILD_SCRIPT } from './build-list.js';
+import {
+  loadBuildQuotes, renderBuildSheet, BUILD_STYLES, BUILD_SCRIPT, BUILD_SHEET_STYLES, BUILD_PRINT_PATH,
+} from './build-list.js';
 import { pirateShipCsv, parseTrackingPaste } from './pirateship.js';
 import { handleLogoUpload, handleLogoFetch } from './uploads.js';
 import { runRecovery } from './recovery.js';
@@ -579,6 +582,7 @@ async function route(path, request, env, url) {
     if (path === '/dashboard/api/quote/refund') return await handleQuoteRefund(request, env);
     if (path === '/dashboard/api/quote/refund-undo') return await handleQuoteRefundUndo(request, env);
     if (path === '/dashboard/quote-print') return await handleQuotePrint(env, url);
+    if (path === BUILD_PRINT_PATH) return await handleBuildPrint(request, env, url);
     if (path === '/dashboard/api/promo') return await handlePromoSave(request, env);
     if (path === '/dashboard/products') return await handleProductsPage(request, env, url);
     if (path === '/dashboard/api/photos') return await handleProducts(request, env, url);
@@ -852,6 +856,35 @@ async function handleDashboard(request, env, url) {
     script: DASHBOARD_SCRIPT + BUILD_SCRIPT + TODO_SCRIPT + promoScript(saleProducts) + RECOVERY_SCRIPT +
       COUPON_SCRIPT + ALERTS_SCRIPT + CUSTOMER_MAIL_SCRIPT,
   });
+}
+
+/**
+ * The build list on paper: the dashboard card's rows as a sheet for the bench,
+ * with a box to tick beside every holster and sway strap.
+ *
+ * It reads what the card reads, the same way — the queue as analyze() sorts
+ * it, the cash jobs still to hand over, and the quote records for the crew
+ * jobs among them — so the sheet and the screen cannot disagree about what is
+ * owed or what is next. Only the queue is used; which range the numbers would
+ * have covered makes no difference to it.
+ */
+async function handleBuildPrint(request, env, url) {
+  if (request.method !== 'GET') return json({ error: 'Use GET.' }, 405);
+
+  const [{ orders }, quotes] = await Promise.all([
+    getAllOrders(env),
+    // The same rule as the dashboard: no quotes is a thinner list, not no list.
+    env.QUOTES ? listQuotes(env).catch(() => []) : Promise.resolve([]),
+  ]);
+  const { queue } = analyze(orders, DEFAULT_RANGE);
+  const cashWaiting = cashJobsWaiting(quotes);
+  // Never throws — see loadBuildQuotes.
+  const buildQuotes = await loadBuildQuotes(env, queue, cashWaiting);
+
+  return page('Build list', renderBuildSheet(queue, cashWaiting, {
+    quotes: buildQuotes,
+    view: url.searchParams.get('view'),
+  }), { styles: SLIP_STYLES + BUILD_STYLES + BUILD_SHEET_STYLES });
 }
 
 /* ------------------------------------------------------------- sale banner */

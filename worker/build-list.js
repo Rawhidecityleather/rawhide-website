@@ -29,6 +29,14 @@
  * id; what was actually agreed sits in the quote record. loadBuildQuotes reads
  * those records for the jobs still on the bench so their lines and build notes
  * can be written out here too.
+ *
+ * The same rows also print. "Print list" on the card opens the build sheet at
+ * BUILD_PRINT_PATH: one arrangement, drawn for a letter page, to carry to the
+ * bench. It is the only place a piece gets a box to tick — one beside every
+ * piece that goes out with a holster and a sway strap, so making them is
+ * something that gets marked off rather than remembered. The box is ink on
+ * paper. Nothing is saved from it, and the card on the dashboard stays a list
+ * that only reads.
  */
 
 import { esc, tinyDate, orderShipBy, dueCountdown } from './lib.js';
@@ -45,10 +53,30 @@ const QUOTE_READS = 12;
 /** Where the browser remembers which arrangement was last picked. */
 export const BUILD_VIEW_KEY = 'rawhide:build-view';
 
+/** The build list on paper. Routed in index.js, linked from the card. */
+export const BUILD_PRINT_PATH = '/dashboard/build-print';
+
+/** Florida. The sheet says when it was printed, on the shop's own clock. */
+const SHOP_TIME_ZONE = 'America/New_York';
+
+// Function declarations, so they are in reach up here.
 const VIEWS = [
-  { key: 'product', label: 'By product' },
-  { key: 'date', label: 'By ship date' },
+  { key: 'product', label: 'By product', draw: drawByProduct },
+  { key: 'date', label: 'By ship date', draw: drawByDate },
 ];
+
+/**
+ * What goes out with a holster and a sway strap, and so gets the box to tick
+ * on the printed sheet. Every radio strap does: the bucket and the sway strap
+ * are in its price. So does a bucket bought by itself, which is the holster
+ * and still ships with its sway strap.
+ *
+ * Read off the id and the name, the way lib.js finds a strap's six weeks, and
+ * off a quote job's title and lines, which are all a crew job has. `radio`
+ * stays in the pattern for the same reason it does there: a glove strap and a
+ * chin strap are straps, and neither has a holster.
+ */
+const HOLSTER_SET = /radio.?(strap|bucket|holster|holder)|sway.?strap/i;
 
 /* ------------------------------------------------------------------ pieces */
 
@@ -169,6 +197,19 @@ export function groupPieces(pieces = []) {
     group.counted = group.counted && piece.counted;
   }
   return [...groups.values()];
+}
+
+/**
+ * Whether a piece goes out with a holster and a sway strap. See HOLSTER_SET.
+ *
+ * A quote job says what it is in its title and on its lines; the lines are
+ * only in hand when the record was read, and the title is always there. So a
+ * strap job still gets its box on a day the record could not be read.
+ */
+export function holsterSet(piece) {
+  const lines = Array.isArray(piece?.quote?.lines) ? piece.quote.lines : [];
+  return [piece?.item?.id, piece?.name, ...lines.map((line) => line?.description)]
+    .some((said) => HOLSTER_SET.test(String(said ?? '')));
 }
 
 /* ----------------------------------------------------------- quote records */
@@ -320,11 +361,28 @@ function renderOptions(piece) {
 }
 
 /**
+ * The box on the printed sheet, ticked with a pen once a piece's holster and
+ * sway strap are made. Nothing for a piece that has neither.
+ *
+ * A catalog line of two straps is two holsters, and says so. A quote job's
+ * quantities are on its lines, which can name the strap and its holster
+ * separately — so a job gets the box and no number this could get wrong.
+ */
+function tickBox(piece) {
+  if (!holsterSet(piece)) return '';
+  return `<span class="pc-tick">${
+    piece.quantity > 1 ? qtyTag(piece.quantity) + ' ' : ''}Holster / sway strap</span>`;
+}
+
+/**
  * `titled` is the by-date list, where the row has to say what it is. Under a
  * product heading the name is already above it, so it only comes back when
  * there is a quantity worth repeating it for.
+ *
+ * `sheet` is the printed build sheet, the one place a row carries a box to
+ * tick. It sits under the order number, down the right edge of the page.
  */
-function renderPiece(piece, { titled }) {
+function renderPiece(piece, { titled, sheet = false }) {
   const head = titled
     ? `<p class="pc-name">${piece.quantity ? qtyTag(piece.quantity) + ' ' : ''}${esc(piece.name)}${
         piece.job ? cashPill(piece.job) : ''}</p>`
@@ -335,11 +393,57 @@ function renderPiece(piece, { titled }) {
   return `<li class="piece">
       <div class="pc-due">${dueCell(piece)}</div>
       <div class="pc-what">${head}${renderOptions(piece)}</div>
-      <div class="pc-order">${orderCell(piece)}</div>
+      <div class="pc-order">${orderCell(piece)}${sheet ? tickBox(piece) : ''}</div>
     </li>`;
 }
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+/**
+ * How much is on the list, in words: "7 pieces · 5 orders · 1 cash job".
+ *
+ * Counted off the rows, not off what was handed in, so a heading can only
+ * ever promise what is actually listed under it. One function for the card
+ * and the sheet, so the paper never states a different total from the screen.
+ */
+function tally(pieces) {
+  const total = pieces.reduce((n, piece) => n + piece.count, 0);
+  const orderCount = new Set(pieces.filter((p) => p.order).map((p) => p.order)).size;
+  const jobCount = pieces.filter((p) => p.job).length;
+  return {
+    pieces: plural(total, 'piece'),
+    note: [
+      plural(total, 'piece'),
+      orderCount ? plural(orderCount, 'order') : '',
+      jobCount ? plural(jobCount, 'cash job') : '',
+    ].filter(Boolean).join(' &middot; '),
+  };
+}
+
+const colhead = (what) => `<div class="pieces-head" aria-hidden="true">
+        <span>Ship by</span><span>${what}</span><span>Order</span>
+      </div>`;
+
+/** Every helmet band together, then every strap. See groupPieces for the order. */
+function drawByProduct(pieces, { sheet = false } = {}) {
+  return `${colhead('Options')}
+      ${groupPieces(pieces).map((group) => `<div class="bgroup">
+        <h3 class="bgroup-head"><span>${esc(group.name)}</span>${
+          // A cash job is its own heading, so the pill that explains why it
+          // has no date and no slip rides up here with the name.
+          group.pieces[0].job ? cashPill(group.pieces[0].job) : ''
+        }${
+          group.counted ? `<span class="bgroup-count">${plural(group.count, 'piece')}</span>` : ''
+        }</h3>
+        <ul class="pieces">${group.pieces.map((piece) => renderPiece(piece, { titled: false, sheet })).join('')}</ul>
+      </div>`).join('')}`;
+}
+
+/** One list straight down, soonest first. */
+function drawByDate(pieces, { sheet = false } = {}) {
+  return `${colhead('Product &amp; options')}
+      <ul class="pieces">${pieces.map((piece) => renderPiece(piece, { titled: true, sheet })).join('')}</ul>`;
+}
 
 /**
  * The card, or a plain apology in its place.
@@ -378,63 +482,120 @@ function drawBuildCard(queue, cashJobs, { quotes = new Map() } = {}) {
     </section>`;
   }
 
-  const groups = groupPieces(pieces);
-  const total = pieces.reduce((n, piece) => n + piece.count, 0);
-  // Counted off the rows, not off what was handed in, so the heading can only
-  // ever promise what is actually listed under it.
-  const orderCount = new Set(pieces.filter((p) => p.order).map((p) => p.order)).size;
-  const jobCount = pieces.filter((p) => p.job).length;
-  const note = [
-    plural(total, 'piece'),
-    orderCount ? plural(orderCount, 'order') : '',
-    jobCount ? plural(jobCount, 'cash job') : '',
-  ].filter(Boolean).join(' &middot; ');
-
-  const colhead = (what) => `<div class="pieces-head" aria-hidden="true">
-        <span>Ship by</span><span>${what}</span><span>Order</span>
-      </div>`;
-
-  const byProduct = `${colhead('Options')}
-      ${groups.map((group) => `<div class="bgroup">
-        <h3 class="bgroup-head"><span>${esc(group.name)}</span>${
-          // A cash job is its own heading, so the pill that explains why it
-          // has no date and no slip rides up here with the name.
-          group.pieces[0].job ? cashPill(group.pieces[0].job) : ''
-        }${
-          group.counted ? `<span class="bgroup-count">${plural(group.count, 'piece')}</span>` : ''
-        }</h3>
-        <ul class="pieces">${group.pieces.map((piece) => renderPiece(piece, { titled: false })).join('')}</ul>
-      </div>`).join('')}`;
-
-  const byDate = `${colhead('Product &amp; options')}
-      <ul class="pieces">${pieces.map((piece) => renderPiece(piece, { titled: true })).join('')}</ul>`;
-
-  const bodies = { product: byProduct, date: byDate };
-
   return `<section id="build" class="card">
     <div class="cardhead">
       <h2>Build list</h2>
-      <span class="cardnote">${note}</span>
+      <span class="cardnote">${tally(pieces).note}</span>
     </div>
     <p class="hint">
       Everything still owed, with the options picked at checkout. Ship-by is the
       order's date, the same one the Ship queue shows. An order number opens its
-      packing slip.
+      packing slip. <em>Print list</em> opens the same rows as a sheet for the
+      bench, with a box to tick beside each holster and sway strap.
     </p>
-    <div class="filters" id="buildview" role="group" aria-label="Arrange the build list">
-      ${VIEWS.map((view, i) => `<button type="button" class="chip${i === 0 ? ' on' : ''}" data-view="${view.key}"
-        aria-pressed="${i === 0 ? 'true' : 'false'}">${esc(view.label)}</button>`).join('')}
+    <div class="buildbar">
+      <div class="filters" id="buildview" role="group" aria-label="Arrange the build list">
+        ${VIEWS.map((view, i) => `<button type="button" class="chip${i === 0 ? ' on' : ''}" data-view="${view.key}"
+          aria-pressed="${i === 0 ? 'true' : 'false'}">${esc(view.label)}</button>`).join('')}
+      </div>
+      <a class="btn ghost" id="buildprint" href="${BUILD_PRINT_PATH}?view=${VIEWS[0].key}"
+        target="_blank" rel="noopener noreferrer">Print list</a>
     </div>
     ${VIEWS.map((view, i) => `<div class="bview" data-buildview="${view.key}"${i === 0 ? '' : ' hidden'}>
-      ${bodies[view.key]}
+      ${view.draw(pieces)}
     </div>`).join('')}
   </section>`;
+}
+
+/* ------------------------------------------------------- the printed sheet */
+
+/**
+ * The build list on paper: the card's rows, one arrangement, laid out for a
+ * letter page, with a box to tick beside every piece that goes out with a
+ * holster and a sway strap.
+ *
+ * `view` is which arrangement — whatever the card was showing when Print list
+ * was pressed. Anything else, a hand-typed address included, gets the first.
+ *
+ * The same backstop as the card, for the same reason: this reads every field
+ * of records somebody else wrote, and a throw under the dashboard route comes
+ * out as "Could not reach Snipcart". A sheet that cannot be drawn says so,
+ * and says where the same information still is.
+ */
+export function renderBuildSheet(queue = [], cashJobs = [], options = {}) {
+  try {
+    return drawBuildSheet(queue, cashJobs, options);
+  } catch (err) {
+    console.error('build list sheet could not be drawn:', err);
+    return `<div class="wrap sheet">
+    <div class="toolbar">
+      <a class="back" href="/dashboard#build">&larr; Dashboard</a>
+    </div>
+    <div class="notice">
+      <h1>Build list</h1>
+      <p>
+        The build list could not be drawn this time. Every order is still in the
+        Ship queue on the dashboard, and its order number opens the packing slip
+        with the options on it.
+        <code>${esc(err && err.message ? err.message : 'Unexpected error')}</code>
+      </p>
+    </div>
+  </div>`;
+  }
+}
+
+function drawBuildSheet(queue, cashJobs, { quotes = new Map(), view: asked = '', now = new Date() } = {}) {
+  const view = VIEWS.find((v) => v.key === asked) || VIEWS[0];
+  const pieces = buildPieces(queue, { cashJobs, quotes });
+  const counts = tally(pieces);
+  const printed = new Date(now).toLocaleString('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit',
+    timeZone: SHOP_TIME_ZONE,
+  });
+
+  return `<div class="wrap sheet">
+    <div class="toolbar">
+      <button type="button" onclick="window.print()">Print</button>
+      <a class="back" href="/dashboard#build">&larr; Dashboard</a>
+      <nav class="sheet-views" aria-label="Arrange the build list">
+        ${VIEWS.map((v) => `<a href="${BUILD_PRINT_PATH}?view=${v.key}"${
+          v === view ? ' aria-current="true"' : ''}>${esc(v.label)}</a>`).join('')}
+      </nav>
+    </div>
+
+    <header class="head">
+      <div class="brand">
+        <img src="/assets/img/logo.png" alt="Rawhide City Leather" onerror="this.remove()">
+        <p class="tagline">We do not cut corners. We cut leather.</p>
+      </div>
+      <div class="meta">
+        <h1>Build list</h1>
+        <dl>
+          <dt>Printed</dt><dd>${esc(printed)}</dd>
+          <dt>Arranged</dt><dd>${esc(view.label)}</dd>
+          <dt>Owed</dt><dd class="strong">${pieces.length ? counts.note : 'Nothing'}</dd>
+        </dl>
+      </div>
+    </header>
+
+    ${pieces.length ? `<div class="sheet-list bview">
+      ${view.draw(pieces, { sheet: true })}
+    </div>
+
+    <footer class="foot">
+      <span>End of the list &middot; ${counts.pieces}</span>
+      <span>Printed ${esc(printed)}</span>
+    </footer>` : '<p class="sheet-empty">Nothing to build. Every paid order is out the door.</p>'}
+  </div>`;
 }
 
 /* ------------------------------------------------------------------ client */
 
 export const BUILD_STYLES = `
 /* ------------------------------------------------------------ build list */
+/* The arrangement chips and Print list share a line, and wrap on a phone. */
+.buildbar{display:flex;align-items:center;flex-wrap:wrap;gap:10px 14px;margin-bottom:12px}
+.buildbar .filters{margin-bottom:0}
 .pieces{list-style:none;margin:0;padding:0}
 .pieces-head,.piece{display:grid;grid-template-columns:8.5rem minmax(0,1fr) 10.5rem;
   grid-template-areas:"due what order";gap:4px 18px;padding-left:11px;padding-right:11px}
@@ -504,12 +665,117 @@ export const BUILD_STYLES = `
 }
 `;
 
+/**
+ * The printed sheet's own rules. It rides on SLIP_STYLES for the sheet itself
+ * — the paper, the toolbar, the header — and on BUILD_STYLES for the rows, so
+ * the list on paper is the list on screen. What is here is what the
+ * dashboard's stylesheet would have supplied, and what paper changes.
+ */
+export const BUILD_SHEET_STYLES = `
+/* ------------------------------------------------------ build list sheet */
+:root{--line-2:rgba(15,15,15,.3)}
+.block{display:block}
+.mono{font-family:ui-monospace,'Cascadia Mono','Consolas',monospace;font-size:12px;font-weight:700}
+
+/* Which arrangement prints. Outlined, so Print stays the one solid button. */
+.sheet-views{margin-left:auto;display:flex;align-items:center;gap:6px}
+.sheet-views a{font-family:var(--display);text-transform:uppercase;letter-spacing:.14em;font-size:10px;
+  padding:6px 11px;border:1px solid var(--line);border-radius:2px;color:var(--soft);
+  text-decoration:none;white-space:nowrap}
+.sheet-views a:hover,.sheet-views a[aria-current]{border-color:var(--ink);color:var(--ink)}
+
+/* The slip's sheet is a little narrower than the paper it prints on. This one
+   is cut to the printed width, so a line that wraps on screen is a line that
+   wraps on the page. */
+.wrap.sheet{max-width:calc(7.6in + 64px)}
+/* A browser's own blue comes out of a laser as grey. */
+.sheet a{color:inherit}
+.sheet-list{margin-top:14px}
+.sheet-empty{margin:26px 0 8px;color:var(--soft);font-style:italic}
+.sheet .foot{margin-top:14px}
+.sheet .piece:hover{background:none}
+
+/* The packing slip's .due is a ship-by row with a rule over it. On this sheet
+   the same class is the dashboard's countdown badge, so every property the
+   slip sets is set back. Border and weight carry how close it is, not colour:
+   this prints on a B&W laser. Whole pixels throughout — Chrome draws a 1.5px
+   border as 1px, on screen and on paper, so "a little heavier" is no heavier. */
+.sheet .pc-due .due{display:inline-block;margin:0 0 0 5px;padding:0 4px;border:1px solid transparent;
+  border-radius:2px;font-size:10px;font-weight:700;color:var(--soft)}
+.sheet .pc-due .due.soon{border-color:var(--line-2);color:var(--ink)}
+.sheet .pc-due .due.hot{border:2px solid var(--ink);padding:0 3px;color:var(--ink)}
+
+.sheet .pill{display:inline-block;margin-left:6px;padding:1px 6px;border:1px solid var(--ink);
+  border-radius:2px;font-family:var(--display);font-size:9px;font-weight:600;letter-spacing:.11em;
+  text-transform:uppercase;white-space:nowrap;vertical-align:middle}
+
+/* A filled bar and a reversed-out tag both vanish when the browser leaves
+   background graphics off, which is its default — and the tag is the
+   quantity. Rules and outlines print either way. */
+.sheet .bgroup-head{background:none;border-radius:0;border-bottom:1px solid var(--ink);padding:0 0 4px}
+.sheet .pc-qty.many{background:none;color:var(--ink);border:2px solid var(--ink);padding:0 5px}
+
+/* The box to tick. An empty square drawn in CSS, like the invoice's, so
+   nothing depends on a glyph the printer may not have — and big enough for a
+   pen at the bench. The square hangs in the label's left margin, so a label
+   that opens with a quantity still reads as one run of words. */
+.pc-tick{display:inline-block;position:relative;margin-top:9px;padding-left:23px;min-height:16px;
+  font-size:11.5px;font-weight:600;line-height:16px;text-align:left}
+.pc-tick::before{content:'';position:absolute;left:0;top:0;box-sizing:border-box;width:16px;height:16px;
+  border:2px solid var(--ink);border-radius:1px;background:#fff}
+.pc-tick .pc-qty{white-space:nowrap}
+
+/* Letter paper is one width, so the columns are cut for it. Not on a phone's
+   screen: BUILD_STYLES stacks the row there, and three fixed columns would
+   fight it. Print is never "screen", so a phone prints the full sheet. */
+@media print, screen and (min-width:701px){
+  .sheet .pieces-head,.sheet .piece{grid-template-columns:1.15in minmax(0,1fr) 1.85in;gap:3px 14px;
+    padding-left:0;padding-right:0}
+  .sheet .pc-opts{grid-template-columns:1fr 1fr;gap:1px 22px}
+
+  /* The card's spacing is for a screen that scrolls. A piece is never cut
+     across two pages, so on paper a row's height is paid for twice: once by
+     the row, and again in the gap left when the next piece will not fit.
+     Same type, same sizes, less air. Measured on a test print of fourteen
+     rows, 2026-11-13: a strap came out about a seventh shorter, and four
+     pages became three. */
+  .sheet .piece{padding-top:8px;padding-bottom:8px}
+  .sheet .pc-opt{line-height:1.35}
+  .sheet .pc-call{margin-top:6px;padding:4px 10px}
+  .sheet .pc-callrow + .pc-callrow{margin-top:2px;padding-top:2px}
+  .sheet .pc-callvalue{line-height:1.25}
+  .sheet .bgroup{margin-top:10px}
+}
+/* A phone's screen. The row is stacked, with the order at the right of its
+   top line: the box takes the line under it, still at the right. And the
+   header's block goes under the logo, where the count has room to be read. */
+@media screen and (max-width:700px){
+  .pc-tick{display:block;width:max-content;max-width:100%;margin-left:auto}
+  .sheet .head{flex-wrap:wrap;gap:12px}
+  .sheet .meta{flex:1 1 100%;text-align:left}
+  .sheet .meta dl{justify-content:start}
+  .sheet .meta dd{text-align:left}
+}
+
+@media print{
+  /* A piece is read as one block, so it is never cut across two pages, and a
+     heading is never left at the foot of one with its rows on the next. */
+  .piece{break-inside:avoid;page-break-inside:avoid}
+  .bgroup-head,.pieces-head{break-after:avoid;page-break-after:avoid}
+  /* A link is no use on paper. The order number stays; "Quote sheet" goes. */
+  .pc-sheet{display:none}
+  .sheet .pc-order a.mono{border-bottom:0}
+}
+`;
+
 export const BUILD_SCRIPT = `
 (function(){
   var strip = document.getElementById('buildview');
   if (!strip) return;
   var KEY = ${JSON.stringify(BUILD_VIEW_KEY)};
+  var PRINT = ${JSON.stringify(BUILD_PRINT_PATH)};
   var views = [].slice.call(document.querySelectorAll('#build [data-buildview]'));
+  var printLink = document.getElementById('buildprint');
 
   // Returns false for a name no list answers to, so a stale or hand-edited
   // value in storage can't leave the card showing nothing at all.
@@ -522,6 +788,8 @@ export const BUILD_SCRIPT = `
       chip.classList.toggle('on', on);
       chip.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
+    // What prints is what is on screen: the sheet opens in this arrangement.
+    if (printLink) printLink.href = PRINT + '?view=' + encodeURIComponent(name);
     return true;
   }
 

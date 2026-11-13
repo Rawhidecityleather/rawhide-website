@@ -223,12 +223,43 @@ Things to know:
 It only reads. Nothing on it changes an order; shipping still happens in the
 Ship queue.
 
+**Printing it.** **Print list**, beside the two buttons, opens the same rows as
+a sheet in a new tab, arranged the way the card was showing. Hit **Print** on
+that page. The two buttons at the top of the sheet switch the arrangement
+there too, and neither they nor the Print button come out on the paper.
+
+- **Every radio strap has a box to tick: `Holster / sway strap`.** It sits
+  under the order number, down the right-hand side of the page. Tick it with a
+  pen when that strap's holster and sway strap are made. Two straps on one
+  line reads `2× Holster / sway strap`.
+- **A Radio Bucket bought by itself gets the box too.** It is the holster, and
+  it ships with its sway strap. A helmet band, a belt, a glove strap, a chin
+  strap or a hat has no box.
+- **A crew job gets the box when its title or one of its lines names a radio
+  strap** (or a radio bucket, a radio holster or a sway strap). It gets no
+  count of its own: the quantities are on its lines.
+- **The box is ink on paper.** Nothing is saved from it, and a fresh printout
+  starts with every box empty. Keep the old sheet until the new one is marked
+  up.
+- The sheet says when it was printed and how much was owed, and its last line
+  is `End of the list`, so a missing page shows.
+- A piece is never split across two pages. That can leave a gap at the foot of
+  a page; nothing is missing.
+- It prints in black and white with the browser's background graphics left
+  off, which is how a browser prints unless told otherwise.
+
 It lives in `worker/build-list.js`. Which fields get boxed is decided by
 `itemFields` in `worker/slip.js`, shared with the packing slip so the two can't
 disagree. The crew-job lines cost one read of the quote record per quote job
 on the bench, capped at twelve; if a record can't be read, that job's row
 links to its quote sheet instead. If the card ever fails to draw, it says so
 in its own place and the rest of the dashboard carries on.
+
+The sheet is `renderBuildSheet`, at `/dashboard/build-print`, behind the same
+login. It is drawn from the card's own rows, so the paper and the screen can't
+list different work. Which pieces get the tick box is `HOLSTER_SET` at the top
+of that file: a product named differently from "radio strap" or "radio bucket"
+needs adding there.
 
 ### Shipping through Pirate Ship
 
@@ -1684,7 +1715,7 @@ node worker/tests/run.mjs slip
 | `email-in` | receipts by email: who may file and every way a message is refused, picking the real attachment out of the letterhead, the fallbacks from sender and subject, and the promises that must hold on a bad day — always forwarded, never bounced, an unreadable receipt still becomes a row |
 | `todo` | the LWFD list: every action and what it refuses, due-date states, the email, the cron step (right hour, once a day, nothing open, mail unset, a failed send retries), the card, and both routes through the real Worker |
 | `customer-mail` | the note to a customer from an order's row: the starters and their [bracket] blanks, the draft's caps, the email with what the shop types escaped and web addresses linked, the send — to the order's address only, a copy BCC'd to the shop inbox, no unsubscribe header — the button and dialog on the dashboard, and the route through the real Worker, including a recipient smuggled into the body being ignored |
-| `build-list` | the dashboard's build list: one row per piece owed and none for anything shipped, cancelled, unpaid or refunded; the same order and the same late badge as the ship queue; grouping by product; every option kept, a `None` included; the same boxed fields as the packing slip; order notes; crew jobs and cash jobs written out from their quote, and what happens when the quote can't be read; text a customer typed can't break the page; a record of an unexpected shape, or a card that throws, costs only that card; and `/dashboard` itself through the real Worker with Snipcart stood in for |
+| `build-list` | the dashboard's build list: one row per piece owed and none for anything shipped, cancelled, unpaid or refunded; the same order and the same late badge as the ship queue; grouping by product; every option kept, a `None` included; the same boxed fields as the packing slip; order notes; crew jobs and cash jobs written out from their quote, and what happens when the quote can't be read; text a customer typed can't break the page; a record of an unexpected shape, or a card that throws, costs only that card; `/dashboard` itself through the real Worker with Snipcart stood in for; and the printed sheet: the card's rows in the card's order, the `Holster / sway strap` box on every radio strap, bucket and strap job and on nothing else, no form control and nothing saved, nothing that needs background ink, and `/dashboard/build-print` through the real Worker |
 | `worker` | routes through the real fetch handler — auth, the quote API, the public quote page, voiding, the printable sheet, marking a cash job paid, the webhook |
 | `site-content` | the static pages against each other and against CLAUDE.md: no artwork upload is ever `required`; every priced `<select>`'s `data-options` equals the hidden Snipcart button's `customN-options` (Snipcart validates against the button, not the dropdown — a colour added to one and not the other fails at checkout); every stitch list offers the same nine colours and no paint list offers Purple or Grey; form, button, JSON-LD and the visible price agree, and the shop/hats/crews cards charge the product-page price; each product states its lead time; nothing says hand-stitched, leather balm, "only color currently offered" or "both straps"; the red star matches the `required` flag; JSON-LD parses; a snippet names only colours the page offers; the custom hat's write-in colour box is optional, hidden until Custom is picked, and below every dropdown; the sitemap lists every public page |
 
