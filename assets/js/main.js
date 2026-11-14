@@ -865,14 +865,20 @@
     if(!cart) return null;
     var items = (cart.items && cart.items.items) || cart.items || [];
     if(!items.length || !items.forEach) return null;
-    var worst = -1;
+    var worst = -1, best = 3;
     items.forEach(function(item){
       var rank = LEAD_RANK[item.id];
       // A product we do not recognise must not quietly claim the short build.
       if(typeof rank !== 'number') rank = 2;
       if(rank > worst) worst = rank;
+      if(rank < best) best = rank;
     });
-    return worst < 0 ? null : LEAD_TEXT[worst];
+    if(worst < 0) return null;
+    // Mixed lead times: say why the quick piece is not coming quickly, before
+    // the buyer pays and then asks where their belt is.
+    return best < worst
+      ? LEAD_TEXT[worst] + ' Your order ships together, so everything goes out with the longest build.'
+      : LEAD_TEXT[worst];
   }
 
   // One buyer ordered a second strap and a Radio Bucket by mistake, on top of
