@@ -569,6 +569,8 @@ p{margin:0 0 1em}
 .guide ul{list-style:none;padding:0;margin:0 0 1.4em}
 .guide ul li{position:relative;padding-left:22px;margin-bottom:10px;color:var(--c-text-soft);line-height:1.55}
 .guide ul li::before{content:"—";position:absolute;left:0;color:var(--c-text)}
+/* Link lists on the guides index carry no bullet; the dash above sat on top of each title's first letter. */
+.guide ul.plain-list li::before{content:none}
 .guide a{color:var(--c-accent)}
 .guide-meta{font-family:var(--font-stamp);font-size:.72rem;letter-spacing:.12em;color:var(--c-muted);margin:0 0 32px}
 .guide-lead{font-size:1.12rem;color:var(--c-text);margin:0 0 1.4em}
