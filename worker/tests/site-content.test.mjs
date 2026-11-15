@@ -313,6 +313,45 @@ export default async function run() {
     check(`account.html asks for ${file} by its current stamp`, have === stampOf(file), `want ?v=${stampOf(file)}, page has ${have || 'none'}`);
   }
 
+  // -------------------------------------------------------------------------
+  // Product photos ship in smaller copies (-600, -1000) so a phone loads the
+  // size it shows rather than the full 1600px file. A photo replaced under the
+  // same name leaves its copies showing the old picture; a copy of a different
+  // shape is that, caught here. The fix is to remake the copies (README,
+  // "Smaller copies of the repo's product photos").
+  suite('site content — every smaller photo copy is there and matches its photo');
+
+  const webpSize = (f) => {
+    const b = readFileSync(resolve(ROOT, f));
+    const kind = b.toString('latin1', 12, 16);
+    if (kind === 'VP8 ') return [b.readUInt16LE(26) & 0x3fff, b.readUInt16LE(28) & 0x3fff];
+    if (kind === 'VP8L') return [1 + (((b[22] & 0x3f) << 8) | b[21]), 1 + (((b[24] & 0x0f) << 10) | (b[23] << 2) | ((b[22] & 0xc0) >> 6))];
+    if (kind === 'VP8X') return [1 + b.readUIntLE(24, 3), 1 + b.readUIntLE(27, 3)];
+    return null;
+  };
+  const exists = (f) => { try { readFileSync(resolve(ROOT, f)); return true; } catch { return false; } };
+  const sets = [];
+  for (const [page, html] of Object.entries(PAGES)) {
+    for (const m of html.matchAll(/<(?:img|button)\b[^>]*\b(?:data-)?srcset="[^"]*"[^>]*>/g)) {
+      const a = attrsOf(m[0]);
+      const set = a.srcset ?? a['data-srcset'];
+      const base = a.srcset !== undefined ? a.src : a['data-full'];
+      if (set && base) sets.push({ page, base, set });
+    }
+  }
+  check('product pages offer phones a smaller main photo', sets.some((s) => s.page.startsWith('product-')));
+  for (const { page, base, set } of sets) {
+    const baseSize = exists(base) && webpSize(base);
+    for (const entry of set.split(',').map((s) => s.trim()).filter(Boolean)) {
+      const [file, w] = entry.split(/\s+/);
+      if (!exists(file)) { check(`${page}: ${file} exists`, false); continue; }
+      const size = webpSize(file);
+      if (!size || !baseSize) continue;
+      const ok = size[0] === parseInt(w, 10) && Math.abs(size[0] / size[1] - baseSize[0] / baseSize[1]) < 0.01;
+      check(`${page}: ${file} is ${parseInt(w, 10)}px wide and the shape of ${base.split('/').pop()}`, ok, `file is ${size.join('x')}, photo is ${baseSize.join('x')}`);
+    }
+  }
+
   suite('site content — sitemap lists every public page');
 
   const sitemap = read('sitemap.xml');
