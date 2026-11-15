@@ -70,12 +70,20 @@
       // Thumbs load a small file now, so the full-size version is not sitting in
       // cache when one is clicked. Warm it on hover or first touch and the swap
       // still feels instant, without spending the bytes on visitors who never click.
+      // A thumb whose photo comes in smaller sizes carries them in data-srcset
+      // and data-sizes, so a phone warms and shows the size it needs, not the
+      // full 1600px file. Dashboard photos carry none and use the full file.
+      var srcset=thumb.getAttribute('data-srcset')||'';
+      var sizes=thumb.getAttribute('data-sizes')||'';
       var warmed=false;
       var warm=function(){
         if(warmed)return;
         warmed=true;
         var full=thumb.getAttribute('data-full');
-        if(full)(new Image()).src=full;
+        if(!full)return;
+        var im=new Image();
+        if(srcset){im.sizes=sizes;im.srcset=srcset}
+        im.src=full;
       };
       thumb.addEventListener('pointerenter',warm);
       thumb.addEventListener('touchstart',warm,{passive:true});
@@ -83,6 +91,8 @@
       thumb.addEventListener('click',function(){
         var full=thumb.getAttribute('data-full');
         if(!full)return;
+        if(srcset){main.sizes=sizes;main.srcset=srcset}
+        else{main.removeAttribute('srcset');main.removeAttribute('sizes')}
         main.src=full;
         var timg=thumb.querySelector('img');
         if(timg&&timg.alt)main.alt=timg.alt;

@@ -972,6 +972,27 @@ on the way in; there is nothing to resize first.
 to anyone who cannot see the image, and read by Google. Leave it blank and it
 falls back to the product name, which is never wrong and never useful.
 
+### Smaller copies of the repo's product photos
+
+The built-in product photos (`assets/img/products/`) each have smaller copies
+next to them, named `-600`, `-900` and `-1200`
+(`heavy-duty-belt-900.webp`). Product pages list them in `srcset`, so a
+phone downloads the size its screen actually shows, about half the data of the
+full file. Desktops still get the full photo.
+
+**Replace a built-in photo under the same name and its copies go stale.** The
+deploy catches it: the site content tests fail with "is 900px wide and the
+shape of …". Remake the copies with ImageMagick, for each size smaller than
+the photo:
+
+```
+convert heavy-duty-belt.webp -resize 900x -quality 80 -define webp:method=6 heavy-duty-belt-900.webp
+```
+
+Then check the `srcset` widths on that product page still match. Photos
+uploaded from the dashboard don't need any of this: they keep the full size
+and the thumbnail Cloudflare Images makes.
+
 ### The options
 
 The dropdowns on the order form: leather colours, stitch colours, hardware
