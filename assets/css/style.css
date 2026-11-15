@@ -824,3 +824,11 @@ select.acct-input{appearance:auto;height:50px}
   .product-card:hover .product-card-image img,.insta-cell:hover,.product-thumbs .thumb:hover{transform:none}
   .site-nav,.site-nav.open{transition:none}
 }
+
+/* Moving between pages of the site fades the old page into the new one
+   instead of flashing white (Chrome, Edge, Safari; Firefox just changes
+   page as before). Off for visitors who ask for reduced motion. Each page's
+   <link rel="expect" href="#main"> holds the fade until the page is there. */
+@media (prefers-reduced-motion:no-preference){
+  @view-transition{navigation:auto}
+}
