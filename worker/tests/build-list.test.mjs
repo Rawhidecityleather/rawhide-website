@@ -110,7 +110,7 @@ export default async function run() {
   // came back in the same order would prove nothing was sorted.
   const orders = [
     waiting('NEW-STRAP', 2, [strap()]),                     // due in 40
-    waiting('MIXED', 10, [strap(), band()]),                // the band's 11
+    waiting('MIXED', 10, [strap(), band()]),                // the strap's 32
     waiting('SOON-BELT', 18, [belt([], { quantity: 2 })]),  // due in 3
     waiting('LATE-BAND', 23, [band()]),                     // 2 days late
     waiting('OLD-STRAP', 30, [strap()]),                    // due in 12
@@ -149,15 +149,16 @@ export default async function run() {
 
   const byDate = pieces.map((p) => p.order.invoiceNumber);
   check('by date it runs most overdue to furthest out',
-    same(byDate, ['LATE-BAND', 'SOON-BELT', 'MIXED', 'MIXED', 'OLD-STRAP', 'NEW-STRAP']), byDate.join(' '));
+    same(byDate, ['LATE-BAND', 'SOON-BELT', 'OLD-STRAP', 'MIXED', 'MIXED', 'NEW-STRAP']), byDate.join(' '));
   check('which is the ship queue\'s order, opened up into pieces',
     same([...new Set(byDate)], queue.map((o) => o.invoiceNumber)));
 
-  // The box ships as one box. The strap in MIXED is owed with the band, at
-  // three weeks, not at its own six — the same date the queue prints.
+  // The box ships as one box, on its longest lead time. The band in MIXED is
+  // owed with the strap, at six weeks, not at its own three — the same date
+  // the queue prints.
   const mixed = pieces.filter((p) => p.order.invoiceNumber === 'MIXED');
   check('both pieces of a mixed order carry the order\'s date',
-    mixed.every((p) => daysUntil(p.due) === 11), mixed.map((p) => daysUntil(p.due)).join(' '));
+    mixed.every((p) => daysUntil(p.due) === 32), mixed.map((p) => daysUntil(p.due)).join(' '));
   check('and sit together, in the order they were bought',
     same(mixed.map((p) => p.name), ['Fully Custom Adjustable Radio Strap', 'Helmet Band']));
   check('an order nothing can date goes last',
@@ -168,13 +169,13 @@ export default async function run() {
 
   const card = renderBuildCard(queue);
   check('the by-date list links the slips in that order',
-    same(slips(view(card, 'date')), ['LATE-BAND', 'SOON-BELT', 'MIXED', 'MIXED', 'OLD-STRAP', 'NEW-STRAP']));
+    same(slips(view(card, 'date')), ['LATE-BAND', 'SOON-BELT', 'OLD-STRAP', 'MIXED', 'MIXED', 'NEW-STRAP']));
 
   // One wording, one set of thresholds: the two cards badge the same order
   // the same way or the bench stops believing either.
   const both = renderDashboard(analyze(orders, 'all'), {});
   for (const badge of ['<span class="due hot">2d late</span>', '<span class="due soon">3d</span>',
-    '<span class="due">11d</span>', '<span class="due">40d</span>']) {
+    '<span class="due">32d</span>', '<span class="due">40d</span>']) {
     check(`the queue and the build list both say ${badge.replace(/<[^>]+>/g, '')}`,
       section(both, 'queue').includes(badge) && section(both, 'build').includes(badge));
   }
@@ -192,14 +193,14 @@ export default async function run() {
   check('products run in the order their most urgent piece is due',
     groups[0].pieces[0].order.invoiceNumber === 'LATE-BAND');
   check('inside a product the rows run soonest first',
-    same(groups[2].pieces.map((p) => p.order.invoiceNumber), ['MIXED', 'OLD-STRAP', 'NEW-STRAP']));
+    same(groups[2].pieces.map((p) => p.order.invoiceNumber), ['OLD-STRAP', 'MIXED', 'NEW-STRAP']));
   check('a mixed order\'s pieces land under their own products',
     groups[0].pieces.some((p) => p.order.invoiceNumber === 'MIXED')
     && groups[2].pieces.some((p) => p.order.invoiceNumber === 'MIXED'));
   check('the heading counts pieces, not rows', groups[1].count === 2 && groups[1].pieces.length === 1);
   check('and the card adds them all up', card.includes('7 pieces &middot; 5 orders'));
   check('the by-product list links the slips product by product',
-    same(slips(view(card, 'product')), ['LATE-BAND', 'MIXED', 'SOON-BELT', 'MIXED', 'OLD-STRAP', 'NEW-STRAP']));
+    same(slips(view(card, 'product')), ['LATE-BAND', 'MIXED', 'SOON-BELT', 'OLD-STRAP', 'MIXED', 'NEW-STRAP']));
   check('the headings are on the page in that order', () => {
     const at = groups.map((g) => view(card, 'product').indexOf(`<span>${g.name}</span>`));
     return at.every((i) => i > 0) && same(at, [...at].sort((a, b) => a - b));

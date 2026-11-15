@@ -91,18 +91,19 @@ export function shipBy(item, orderDate) {
 }
 
 /**
- * The one date an order has to beat: the earliest of its items'.
+ * The one date an order has to beat: the latest of its items'.
  *
- * The box ships as one box, so a helmet band riding along with a radio strap
- * doesn't get to wait six weeks — the band goes late at three whatever the
- * strap is doing. The queue needs the date something first slips, not the last.
+ * The box ships as one box, on the longest lead time in it — that is the
+ * promise on shipping.html, the product pages and the cart. A helmet band
+ * riding along with a radio strap is owed when the strap is, at six weeks, so
+ * the queue does not call that order late at three.
  */
 export function orderShipBy(order) {
   const dates = (order?.items || [])
     .map((item) => shipBy(item, order.creationDate)?.due)
     .filter(Boolean);
   if (!dates.length) return null;
-  return new Date(Math.min(...dates.map((d) => d.getTime())));
+  return new Date(Math.max(...dates.map((d) => d.getTime())));
 }
 
 /**

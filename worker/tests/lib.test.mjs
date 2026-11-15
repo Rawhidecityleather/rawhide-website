@@ -56,8 +56,9 @@ export default function run() {
 
   suite('lib — the order deadline');
 
-  // The whole box ships at once, so the band going late at three weeks is the
-  // date that matters, not the strap's six.
+  // The whole box ships at once, on the longest lead time in it — the promise
+  // the shipping page and the cart make — so the strap's six weeks is the date,
+  // not the band's three.
   const mixed = {
     creationDate: placed(0),
     items: [
@@ -65,11 +66,23 @@ export default function run() {
       { id: 'helmet-band', name: 'Helmet Band' },
     ],
   };
-  check('a mixed order takes its earliest item deadline',
-    daysUntil(orderShipBy(mixed)) === 21);
+  check('a mixed order takes its latest item deadline',
+    daysUntil(orderShipBy(mixed)) === 42);
 
   check('order of the items does not change the answer',
-    daysUntil(orderShipBy({ ...mixed, items: [...mixed.items].reverse() })) === 21);
+    daysUntil(orderShipBy({ ...mixed, items: [...mixed.items].reverse() })) === 42);
+
+  check('Leather Butter in a belt order waits for the belt',
+    daysUntil(orderShipBy({
+      creationDate: placed(0),
+      items: [{ id: 'leather-butter', name: 'Leather Butter' }, { id: 'heavy-duty-belt', name: 'Heavy Duty Belt' }],
+    })) === 21);
+
+  check('Leather Butter on its own keeps its own few days',
+    daysUntil(orderShipBy({
+      creationDate: placed(0),
+      items: [{ id: 'leather-butter', name: 'Leather Butter' }],
+    })) === 5);
 
   check('an all-strap order gets the full six weeks',
     daysUntil(orderShipBy({

@@ -21,9 +21,9 @@
  * list reads the same with or without the script.
  *
  * The date on a piece is its ORDER's ship-by date — the one the ship queue
- * prints for that order. The box ships as one box (see orderShipBy in lib.js),
- * so a strap riding along with a helmet band is owed when the band is. Its own
- * six weeks still print on the packing slip.
+ * prints for that order. The box ships as one box, on its longest lead time
+ * (see orderShipBy in lib.js), so a helmet band riding along with a strap is
+ * owed when the strap is. Its own 1–3 weeks still print on the packing slip.
  *
  * A job billed off a quote carries nothing on its Snipcart item but the quote's
  * id; what was actually agreed sits in the quote record. loadBuildQuotes reads
