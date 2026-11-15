@@ -147,7 +147,7 @@
     showForm('code');
     $('code-input').value = '';
     $('code-input').focus();
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
   }
 
   function askForReset(email){
