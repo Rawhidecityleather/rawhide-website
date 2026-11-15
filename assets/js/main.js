@@ -36,6 +36,26 @@
       toggle.setAttribute('aria-expanded',open?'true':'false');
     });
   }
+  // Faster page-to-page clicks: when a visitor holds the pointer on a link to
+  // another page of this site, the browser fetches that page early, so it
+  // opens almost at once. Fetch only, nothing runs, so no extra analytics
+  // hits. Chrome and Edge do this; other browsers skip it. Account,
+  // tracking, dashboard and any link with a ? stay out.
+  if(window.HTMLScriptElement&&HTMLScriptElement.supports&&HTMLScriptElement.supports('speculationrules')){
+    var sr=document.createElement('script');
+    sr.type='speculationrules';
+    sr.textContent=JSON.stringify({prefetch:[{where:{and:[
+      {href_matches:'/*'},
+      {not:{href_matches:'/account*'}},
+      {not:{href_matches:'/track*'}},
+      {not:{href_matches:'/dashboard*'}},
+      {not:{href_matches:'/api/*'}},
+      {not:{href_matches:'/*\\?*'}},
+      {not:{selector_matches:'.snipcart-add-item, .snipcart-checkout, [rel~=nofollow]'}}
+    ]},eagerness:'moderate'}]});
+    document.head.appendChild(sr);
+  }
+
   var year=document.getElementById('year');
   if(year)year.textContent=new Date().getFullYear();
 
