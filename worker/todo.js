@@ -190,7 +190,7 @@ function cleanDue(value) {
 
 /** Open first, dated before undated, nearest date first, then oldest first. */
 export function sortItems(items) {
-  return [...items].sort((a, b) => {
+  return items.toSorted((a, b) => {
     if (a.done !== b.done) return a.done ? 1 : -1;
     if (a.due !== b.due) {
       if (!a.due) return 1;

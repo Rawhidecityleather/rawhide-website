@@ -720,7 +720,7 @@ export async function recoverCart(env, cart, now, { mailedEmails, buyers } = {})
     try {
       buyers = await paidBuyersSince(env, abandonedAt(cart));
     } catch (err) {
-      throw new Error('Could not check whether this buyer has already ordered: ' + (err?.message || err));
+      throw new Error('Could not check whether this buyer has already ordered: ' + (err?.message || err), { cause: err });
     }
   }
   if (orderedSince(buyers, cart)) return { token, status: 'already-ordered' };
