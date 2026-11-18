@@ -530,7 +530,7 @@
       custom:'Custom build',
       order:'Question about an existing order',
       review:'Leave a review'
-    }[(location.search.match(/[?&]about=([^&]*)/)||[])[1]];
+    }[new URLSearchParams(location.search).get('about')];
     if(about){
       var aboutSel=inquiry.querySelector('#ct-about');
       // The options carry no value attribute, so their text is their value.

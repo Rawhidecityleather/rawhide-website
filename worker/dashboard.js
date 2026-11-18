@@ -105,7 +105,7 @@ const refundOf = (sale) => (sale.cashJob ? quoteRefundState(sale.cashJob) : refu
 export function analyze(orders, requestedRange, { cashJobs = [] } = {}) {
   // An unknown ?range= falls back rather than rendering a window nothing labels.
   const rangeKey = RANGES.some((r) => r.key === requestedRange) ? requestedRange : DEFAULT_RANGE;
-  const sorted = [...orders].sort((a, b) => placedAt(b) - placedAt(a));
+  const sorted = orders.toSorted((a, b) => placedAt(b) - placedAt(a));
   const { start, end, prevStart, prevEnd } = rangeBounds(rangeKey);
 
   const inRange = sorted.filter((o) => {

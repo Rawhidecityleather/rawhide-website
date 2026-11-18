@@ -353,7 +353,7 @@ const CSV_COLUMNS = [
 
 /** Chronological, because that is the order a set of books gets read in. */
 export function expensesCsv(records) {
-  const rows = [...records].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  const rows = records.toSorted((a, b) => String(a.date).localeCompare(String(b.date)));
 
   const lines = [CSV_COLUMNS.join(',')];
   for (const r of rows) {

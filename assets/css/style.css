@@ -1,7 +1,7 @@
 /* Rawhide City Leather — Stone & Ink */
 :root{
   --c-bg:#EBE8E1;--c-bg-2:#D9D5CB;--c-bg-3:#A9A59B;--c-surface:#FFFFFF;
-  --c-text:#0F0F0F;--c-text-soft:#6B6358;--c-muted:#6B6358;
+  --c-text:#0F0F0F;--c-text-soft:#5F584D;--c-muted:#5F584D;
   --c-accent:var(--c-text);--c-accent-dark:#3A3833;--c-brass:var(--c-text);
   --c-line:rgba(15,15,15,.08);--c-line-strong:rgba(15,15,15,.14);--c-cream:var(--c-text);
   --font-display:'Oswald','Impact',sans-serif;
@@ -387,12 +387,12 @@ p{margin:0 0 1em}
 /* Snipcart v3 theme overrides — scoped to its container */
 #snipcart-container,.snipcart,.snipcart *{
   --color-default:#0F0F0F;
-  --color-alt:#6B6358;
+  --color-alt:#5F584D;
   --color-icon:#0F0F0F;
   --color-link:#0F0F0F;
   --color-link-hover:#3A3833;
   --color-success:#0F0F0F;
-  --color-info:#6B6358;
+  --color-info:#5F584D;
   --color-badge:#EBE8E1;
   --bgColor-badge:#0F0F0F;
   --color-buttonPrimary:#EBE8E1;
@@ -430,7 +430,7 @@ p{margin:0 0 1em}
 .snipcart-form__field input,.snipcart-form__field select,.snipcart-form__field textarea{
   background:#FFFFFF !important;color:#0F0F0F !important;border-color:rgba(15,15,15,0.14) !important
 }
-.snipcart-form__label,.snipcart-form__field__title,.snipcart label{color:#6B6358 !important}
+.snipcart-form__label,.snipcart-form__field__title,.snipcart label{color:#5F584D !important}
 
 /* Snipcart error and notification boxes */
 .snipcart [class*="error"],.snipcart [class*="alert"],.snipcart [class*="notification"],
@@ -441,7 +441,7 @@ p{margin:0 0 1em}
   color:#0F0F0F !important
 }
 .snipcart-info-box,.snipcart-typo-info{
-  background:#D9D5CB !important;color:#0F0F0F !important;border-left:3px solid #6B6358 !important
+  background:#D9D5CB !important;color:#0F0F0F !important;border-left:3px solid #5F584D !important
 }
 
 /* Catch-all for any remaining faint Snipcart text */
@@ -476,10 +476,10 @@ p{margin:0 0 1em}
 .snipcart-payment__loading>.snipcart-loading-overlay__content{display:flex;flex-direction:column}
 .snipcart-payment__loading>.snipcart-loading-overlay__content>.snipcart-payment-methods-list__container{order:-2}
 .snipcart-payment__loading>.snipcart-loading-overlay__content>.snipcart-form__separator{order:-1}
-.snipcart-payment__form-container::before{content:"Or pay by card";display:block;color:#6B6358;font-size:.85rem;margin:0 0 10px}
+.snipcart-payment__form-container::before{content:"Or pay by card";display:block;color:#5F584D;font-size:.85rem;margin:0 0 10px}
 /* The last line read before Place order, for the same stalled buyer. Words
    must match /shipping#warranty. */
-.snipcart-payment-card-form__container .snipcart-form__footer::before{content:"Career warranty. Any defect in workmanship or materials, we repair it.";display:block;color:#6B6358;font-size:.85rem;line-height:1.4;margin:0 0 10px}
+.snipcart-payment-card-form__container .snipcart-form__footer::before{content:"Career warranty. Any defect in workmanship or materials, we repair it.";display:block;color:#5F584D;font-size:.85rem;line-height:1.4;margin:0 0 10px}
 
 /* Cart shipping line. Snipcart's stock notice says shipping "will be calculated
    at checkout" even once an order has earned free shipping, which is the last
@@ -487,10 +487,10 @@ p{margin:0 0 1em}
    answer; hide the stock one in the cart only, leaving checkout alone. */
 .snipcart-cart__footer .snipcart-summary-fees.rc-ship-fixed .snipcart-summary-fees__notice{display:none}
 .rc-ship-note{color:#0F0F0F;font-size:.85rem;line-height:1.4;margin:2px 0 0}
-.rc-lead-note{color:#6B6358;font-size:.85rem;line-height:1.4;margin:2px 0 0}
+.rc-lead-note{color:#5F584D;font-size:.85rem;line-height:1.4;margin:2px 0 0}
 /* Checkout, under Place order and the wallet button: the terms line. Lives in
    Snipcart's payment "bottom" slot, written into every page's #snipcart div. */
-.rc-terms-note{color:#6B6358;font-size:.85rem;line-height:1.4;margin:14px 0 0;text-align:center}
+.rc-terms-note{color:#5F584D;font-size:.85rem;line-height:1.4;margin:14px 0 0;text-align:center}
 /* Snipcart sets its links to display:block, which stacks each one on its own line. */
 .rc-terms-note a{display:inline !important;color:#0F0F0F;text-decoration:underline}
 /* A cart holding more than it probably meant to: two straps, or a strap plus
@@ -832,3 +832,6 @@ select.acct-input{appearance:auto;height:50px}
 @media (prefers-reduced-motion:no-preference){
   @view-transition{navigation:auto}
 }
+
+/* Text for screen readers only: read out, not shown. */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
