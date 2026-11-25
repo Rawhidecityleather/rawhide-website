@@ -592,6 +592,7 @@ export default async function run() {
     ['/english-shipping-policy', '/shipping'],
     ['/english-refund-policy', '/shipping'],
     ['/contact-8', '/contact'],
+    ['/contact-us', '/contact'],
   ]) {
     const r = await get(from);
     check(`${from} 301s to ${to}`,
