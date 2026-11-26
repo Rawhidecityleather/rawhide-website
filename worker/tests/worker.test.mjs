@@ -737,6 +737,48 @@ export default async function run() {
     check('without inventing a tracking number', !('trackingNumber' in sent), put && put.body);
     check('and without emailing anyone', !handCalls.some((c) => c.href.includes('brevo.com')));
 
+    // With the tick, a thank-you goes out; the email is the second half, after Snipcart.
+    handCalls.length = 0;
+    globalThis.fetch = async (url, init = {}) => {
+      const href = String(url);
+      handCalls.push({ href, method: init.method || 'GET', body: init.body || '' });
+      if (href.includes('brevo.com')) return new Response('{"messageId":"<x@brevo>"}', { status: 201 });
+      if (href.includes('/api/orders/')) {
+        return new Response(JSON.stringify({
+          token: 'tok-aaaaaaaa', email: 'jane@example.com', invoiceNumber: 'RCL-1042',
+          shippingAddress: { fullName: 'Jane Doe' },
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      throw new Error('unexpected fetch: ' + href);
+    };
+    const handLoud = await (await handPost({ token: 'tok-aaaaaaaa', notify: true })).json();
+    check('hand delivered with the tick emails the customer',
+      handLoud.ok === true && handLoud.emailed === true, JSON.stringify(handLoud));
+    const mail = handCalls.find((c) => c.href.includes('brevo.com'));
+    check('the thank-you, not the shipped email',
+      mail && /in your hands/.test(mail.body) && !/Track Your Shipment/.test(mail.body), mail && mail.body.slice(0, 200));
+    check('addressed to the email on the order', mail && mail.body.includes('jane@example.com'));
+
+    handCalls.length = 0;
+    const handSloppy = await (await handPost({ token: 'tok-aaaaaaaa', notify: 'yes' })).json();
+    check('a truthy-but-not-true notify does not send the thank-you',
+      handSloppy.emailed === false && !handCalls.some((c) => c.href.includes('brevo.com')), JSON.stringify(handSloppy));
+
+    globalThis.fetch = async (url, init = {}) => {
+      const href = String(url);
+      handCalls.push({ href, method: init.method || 'GET', body: init.body || '' });
+      if (href.includes('brevo.com')) return new Response('{"message":"nope"}', { status: 400, statusText: 'Bad Request' });
+      if (href.includes('/api/orders/')) {
+        return new Response(JSON.stringify({ token: 'tok-aaaaaaaa', email: 'jane@example.com' }),
+          { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      throw new Error('unexpected fetch: ' + href);
+    };
+    const handBounced = await (await handPost({ token: 'tok-aaaaaaaa', notify: true })).json();
+    check('a bounced thank-you still leaves the order delivered',
+      handBounced.ok === true && handBounced.emailed === false && /400|nope/.test(handBounced.emailError || ''),
+      JSON.stringify(handBounced));
+
     handCalls.length = 0;
     const badHand = await handPost({ token: 'nope' });
     check('a bad token is refused before Snipcart is touched',

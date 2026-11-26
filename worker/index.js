@@ -12,6 +12,7 @@
  *   POST /dashboard/api/ship         one order: save tracking, mark shipped
  *   POST /dashboard/api/hand-delivered   one order: handed over in person, mark Delivered
  *   POST /dashboard/api/hand-delivered/undo   put a mistaken one back on the queue
+ *   POST /dashboard/api/hand-delivered-test   mail the hand-delivered thank-you to the shop inbox
  *   POST /dashboard/api/ship-batch   paste Pirate Ship's list, ship them all
  *   POST /dashboard/api/ship-test    mail the shipped email to the shop inbox
  *   POST /dashboard/api/customer-mail   one note to one customer, from their order's row
@@ -133,6 +134,7 @@ import {
 } from './expenses.js';
 import { handleEmail, readRaw, MAX_EMAIL_BYTES } from './email-in.js';
 import { sendShippedEmail, sendTestShippedEmail } from './shipped-mail.js';
+import { sendDeliveredEmail, sendTestDeliveredEmail } from './delivered-mail.js';
 import {
   sendCustomerEmail, sendTestCustomerEmail, checkDraft, CUSTOMER_MAIL_STYLES, CUSTOMER_MAIL_SCRIPT,
 } from './customer-mail.js';
@@ -575,6 +577,7 @@ async function route(path, request, env, url) {
     if (path === '/dashboard/api/ship') return await handleShip(request, env);
     if (path === '/dashboard/api/hand-delivered') return await handleHandDelivered(request, env);
     if (path === '/dashboard/api/hand-delivered/undo') return await handleHandDeliveredUndo(request, env);
+    if (path === '/dashboard/api/hand-delivered-test') return await handleHandDeliveredTest(request, env);
     if (path === '/dashboard/api/ship-batch') return await handleShipBatch(request, env);
     if (path === '/dashboard/api/ship-test') return await handleShipTest(request, env);
     if (path === '/dashboard/api/customer-mail') return await handleCustomerMail(request, env);
@@ -1292,9 +1295,12 @@ async function markShipped(env, token, trackingNumber) {
 }
 
 /**
- * An order handed to the customer in person. No label, no tracking number, and
- * nobody to email — they already have it. Delivered rather than Shipped, so the
- * queue drops it and the customer's account page shows it done, not in transit.
+ * An order handed to the customer in person. No label and no tracking number.
+ * Delivered rather than Shipped, so the queue drops it and the customer's
+ * account page shows it done, not in transit.
+ *
+ * Emails the customer a thank-you only when `notify` is exactly true — the same
+ * rule as the ship form. See worker/delivered-mail.js.
  */
 async function handleHandDelivered(request, env) {
   if (!fromDashboard(request)) return json({ error: 'Bad request.' }, 403);
@@ -1304,7 +1310,32 @@ async function handleHandDelivered(request, env) {
   if (!/^[A-Za-z0-9-]{8,64}$/.test(token)) return json({ error: 'Bad order token.' }, 400);
 
   await putJson(env, '/orders/' + encodeURIComponent(token), { status: 'Delivered' });
-  return json({ ok: true, token, status: 'Delivered' });
+  if (body.notify !== true) return json({ ok: true, token, status: 'Delivered', emailed: false });
+
+  try {
+    const order = await getOrder(env, token);
+    await sendDeliveredEmail(env, order);
+    return json({ ok: true, token, status: 'Delivered', emailed: true });
+  } catch (err) {
+    // The customer has the piece either way. Say the email failed rather than
+    // failing the call and leaving the shop unsure which half happened.
+    console.error('delivered email failed', err?.message || err);
+    return json({
+      ok: true, token, status: 'Delivered', emailed: false,
+      emailError: err?.message || 'The email did not send.',
+    });
+  }
+}
+
+async function handleHandDeliveredTest(request, env) {
+  if (!fromDashboard(request)) return json({ error: 'Bad request.' }, 403);
+
+  try {
+    const sent = await sendTestDeliveredEmail(env);
+    return json({ ok: true, to: sent.to });
+  } catch (err) {
+    return json({ error: err?.message || 'The email did not send.' }, 502);
+  }
 }
 
 /**

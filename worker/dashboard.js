@@ -582,7 +582,10 @@ function renderQueue(queue, cashJobs = [], mailReady = true) {
         </label>
         <button type="button" class="btn tiny ghost handbtn"
           data-what="${attr(String(order.invoiceNumber || order.token))}"
-          title="Handed it over in person &mdash; marks the order Delivered, no tracking number, no email.">Hand delivered</button>
+          title="Handed it over in person &mdash; marks the order Delivered, no tracking number.">Hand delivered</button>
+        <label class="notify" title="Sends the customer a thank-you with care notes and a review link. No tracking &mdash; there is no package.">
+          <input type="checkbox" name="handnotify"> email them a thank-you
+        </label>
       </td>
     </tr>`;
   }).join('');
@@ -648,6 +651,10 @@ function renderQueue(queue, cashJobs = [], mailReady = true) {
       Pirate Ship's spreadsheet screen. Map the columns once, on the first upload.
       <br>
       Weights are estimates &mdash; check them against a scale.
+      <br>
+      <strong>Handed it over in person:</strong> press <em>Hand delivered</em> on its row.
+      Tick <em>email them a thank-you</em> first if you want the customer to get one.
+      <button type="button" class="btn tiny ghost" id="handtestmail">Send me a test copy</button>
     </p>` : ''}
 
     <div class="scroll">
@@ -1227,22 +1234,27 @@ export const DASHBOARD_SCRIPT = `
   document.addEventListener('click', function(event){
     var btn = event.target.closest('.handbtn');
     if (!btn) return;
-    if (!confirm('Mark order ' + btn.getAttribute('data-what') + ' hand delivered? It comes off the ship queue as Delivered, and nobody is emailed.')) return;
-
     var row = btn.closest('tr');
+    var notifyBox = row.querySelector('input[name=handnotify]');
+    var notify = !!(notifyBox && notifyBox.checked);
+    if (!confirm('Mark order ' + btn.getAttribute('data-what') + ' hand delivered? It comes off the ship queue as Delivered' +
+      (notify ? ', and the customer is emailed a thank-you.' : '. Nobody is emailed.'))) return;
+
     btn.disabled = true;
     btn.textContent = '…';
 
     // No reload afterwards: the row stays, dimmed, with an Undo button on it,
     // so a wrong click can be taken back right where it happened.
-    post('/dashboard/api/hand-delivered', { token: row.getAttribute('data-token') })
-      .then(function(){
+    post('/dashboard/api/hand-delivered', { token: row.getAttribute('data-token'), notify: notify })
+      .then(function(data){
         row.classList.add('handed');
         btn.classList.remove('handbtn');
         btn.classList.add('handundo');
         btn.disabled = false;
         btn.textContent = 'Undo';
-        toast('Marked delivered. Nobody was emailed. Wrong order? Press Undo on its row.');
+        if (data.emailError) toast('Marked delivered, but the email failed: ' + data.emailError, true);
+        else if (data.emailed) toast('Marked delivered and the customer has been emailed. Wrong order? Press Undo on its row.');
+        else toast('Marked delivered. Nobody was emailed. Wrong order? Press Undo on its row.');
       })
       .catch(function(err){
         btn.disabled = false;
@@ -1259,7 +1271,7 @@ export const DASHBOARD_SCRIPT = `
     var row = btn.closest('tr');
     var token = btn.getAttribute('data-token') || row.getAttribute('data-token');
     var what = btn.getAttribute('data-what');
-    if (!confirm('Undo hand delivered on order ' + what + '? It goes back on the ship queue.')) return;
+    if (!confirm('Undo hand delivered on order ' + what + '? It goes back on the ship queue. (A thank-you email that already went out stays sent.)')) return;
 
     btn.disabled = true;
     btn.textContent = '…';
@@ -1329,6 +1341,23 @@ export const DASHBOARD_SCRIPT = `
       .then(function(){
         testMail.disabled = false;
         testMail.textContent = label;
+      });
+  });
+
+  /* ---- see the hand-delivered thank-you without delivering anything ---- */
+
+  var handTest = document.getElementById('handtestmail');
+  if (handTest) handTest.addEventListener('click', function(){
+    handTest.disabled = true;
+    var label = handTest.textContent;
+    handTest.textContent = 'Sending…';
+
+    post('/dashboard/api/hand-delivered-test', {})
+      .then(function(data){ toast('Test sent to ' + data.to + '.'); })
+      .catch(function(err){ toast(err.message, true); })
+      .then(function(){
+        handTest.disabled = false;
+        handTest.textContent = label;
       });
   });
 
