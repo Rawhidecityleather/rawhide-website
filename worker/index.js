@@ -707,6 +707,11 @@ const LEGACY_PATHS = new Map([
   ['/english-privacy-policy', '/privacy'],
   ['/english-terms-conditions', '/terms'],
   ['/category/accessories', '/shop#accessories'],
+  // Added 2026-11-25. Not confirmed as a Wix URL: the Worker's own logs
+  // showed it being asked for and answered 404 that week. It is the address
+  // people and crawlers guess for a contact page, and there is only one
+  // honest place to send them.
+  ['/contact-us', '/contact'],
 ]);
 
 /* ------------------------------------------------- site verification files */
