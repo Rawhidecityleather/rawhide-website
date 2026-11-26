@@ -31,6 +31,7 @@ const ITEM_OUNCES = {
   'leather-patch-hat': 4,
   'my-wife-beats-me-hat': 4,
   'scream-for-daddy-hat': 4,
+  'mlh-hat': 4,
   'leather-butter': 6,
 };
 

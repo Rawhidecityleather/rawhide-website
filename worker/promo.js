@@ -49,6 +49,7 @@ export const PRODUCTS = [
   ['leather-patch-hat', 'Leather Patch Hat'],
   ['my-wife-beats-me-hat', 'My Wife Beats Me hat'],
   ['scream-for-daddy-hat', 'Scream for Daddy hat'],
+  ['mlh-hat', 'MLH hat'],
   ['velcro-patch', 'Velcro Patch'],
   ['leather-butter', 'Leather Butter'],
 ];
