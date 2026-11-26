@@ -711,6 +711,36 @@ export default async function run() {
       failed.ok === true && failed.emailed === false, JSON.stringify(failed));
     check('and the shop is told which half failed',
       /400|nope/.test(failed.emailError || ''), failed.emailError);
+
+    // Hand delivered: one PUT to Snipcart, status Delivered, no tracking, no mail.
+    const handCalls = [];
+    globalThis.fetch = async (url, init = {}) => {
+      handCalls.push({ href: String(url), method: init.method || 'GET', body: init.body || '' });
+      if (String(url).includes('/api/orders/')) {
+        return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      throw new Error('unexpected fetch: ' + url);
+    };
+    const handPost = (body, headers = DASH) =>
+      worker.fetch(new Request(ORIGIN + '/dashboard/api/hand-delivered', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', ...headers },
+        body: JSON.stringify(body),
+      }), shipEnv);
+
+    const hand = await (await handPost({ token: 'tok-aaaaaaaa' })).json();
+    check('hand delivered answers ok', hand.ok === true && hand.status === 'Delivered', JSON.stringify(hand));
+    const put = handCalls.find((c) => c.method === 'PUT');
+    const sent = put ? JSON.parse(put.body) : {};
+    check('and sets the order Delivered in Snipcart',
+      put && /\/api\/orders\/tok-aaaaaaaa$/.test(put.href) && sent.status === 'Delivered', JSON.stringify(handCalls));
+    check('without inventing a tracking number', !('trackingNumber' in sent), put && put.body);
+    check('and without emailing anyone', !handCalls.some((c) => c.href.includes('brevo.com')));
+
+    handCalls.length = 0;
+    const badHand = await handPost({ token: 'nope' });
+    check('a bad token is refused before Snipcart is touched',
+      badHand.status === 400 && handCalls.length === 0, String(badHand.status));
   } finally {
     globalThis.fetch = realFetch;
   }

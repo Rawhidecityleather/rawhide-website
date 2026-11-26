@@ -580,6 +580,9 @@ function renderQueue(queue, cashJobs = [], mailReady = true) {
         <label class="notify" title="Only for a package sent without a Pirate Ship label &mdash; a label already emails the customer by itself.">
           <input type="checkbox" name="notify"> email the customer
         </label>
+        <button type="button" class="btn tiny ghost handbtn"
+          data-what="${attr(String(order.invoiceNumber || order.token))}"
+          title="Handed it over in person &mdash; marks the order Delivered, no tracking number, no email.">Hand delivered</button>
       </td>
     </tr>`;
   }).join('');
@@ -1209,6 +1212,31 @@ export const DASHBOARD_SCRIPT = `
     }).catch(function(){
       toast('Could not reach the clipboard — copy the address by hand.', true);
     });
+  });
+
+  /* ---- one order, handed over in person ---- */
+
+  document.addEventListener('click', function(event){
+    var btn = event.target.closest('.handbtn');
+    if (!btn) return;
+    if (!confirm('Mark order ' + btn.getAttribute('data-what') + ' hand delivered? It comes off the ship queue as Delivered, and nobody is emailed.')) return;
+
+    var row = btn.closest('tr');
+    btn.disabled = true;
+    btn.textContent = '…';
+
+    post('/dashboard/api/hand-delivered', { token: row.getAttribute('data-token') })
+      .then(function(){
+        row.classList.add('shipped');
+        btn.textContent = 'Delivered';
+        toast('Marked delivered. Nobody was emailed.');
+        setTimeout(function(){ location.reload(); }, 1200);
+      })
+      .catch(function(err){
+        btn.disabled = false;
+        btn.textContent = 'Hand delivered';
+        toast(err.message, true);
+      });
   });
 
   /* ---- one order, one tracking number ---- */
@@ -1915,6 +1943,7 @@ table.mini tr:last-child td{border-bottom:0}
 .btn.label{width:100%;margin-bottom:6px;white-space:nowrap}
 .notify{display:flex;align-items:center;gap:5px;margin-top:6px;font-size:11px;color:var(--soft);cursor:pointer}
 .notify input{margin:0}
+.btn.handbtn{width:100%;margin-top:6px;white-space:nowrap}
 .shipform{display:flex;gap:6px}
 .shipform input{flex:1;min-width:8rem;font-family:ui-monospace,'Consolas',monospace;font-size:12px;
   padding:6px 8px;border:1px solid var(--line-2);border-radius:2px;background:var(--paper);color:var(--ink)}
