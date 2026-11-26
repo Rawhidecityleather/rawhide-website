@@ -223,7 +223,7 @@ export function itemFor(xml, product) {
  * the stitching, and provenance in a description had to be pulled back out of
  * eight pages and the feed.
  */
-export const HAT_IDS = ['leather-patch-hat', 'my-wife-beats-me-hat', 'scream-for-daddy-hat'];
+export const HAT_IDS = ['leather-patch-hat', 'my-wife-beats-me-hat', 'scream-for-daddy-hat', 'mlh-hat'];
 
 /**
  * Held as pattern strings rather than literals so the dashboard's own script
