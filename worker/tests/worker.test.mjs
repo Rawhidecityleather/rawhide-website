@@ -741,6 +741,48 @@ export default async function run() {
     const badHand = await handPost({ token: 'nope' });
     check('a bad token is refused before Snipcart is touched',
       badHand.status === 400 && handCalls.length === 0, String(badHand.status));
+
+    // Undo: only a Delivered order with no tracking number goes back.
+    let liveOrder = {};
+    const undoCalls = [];
+    globalThis.fetch = async (url, init = {}) => {
+      undoCalls.push({ href: String(url), method: init.method || 'GET', body: init.body || '' });
+      if (String(url).includes('/api/orders/')) {
+        const reply = (init.method || 'GET') === 'GET' ? liveOrder : {};
+        return new Response(JSON.stringify(reply), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      throw new Error('unexpected fetch: ' + url);
+    };
+    const undoPost = (body, headers = DASH) =>
+      worker.fetch(new Request(ORIGIN + '/dashboard/api/hand-delivered/undo', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', ...headers },
+        body: JSON.stringify(body),
+      }), shipEnv);
+    const undoPut = () => undoCalls.find((c) => c.method === 'PUT');
+
+    liveOrder = { token: 'tok-aaaaaaaa', status: 'Delivered' };
+    const undone = await (await undoPost({ token: 'tok-aaaaaaaa' })).json();
+    check('undo answers ok', undone.ok === true && undone.status === 'Processed', JSON.stringify(undone));
+    check('and puts the order back to Processed',
+      undoPut() && JSON.parse(undoPut().body).status === 'Processed', JSON.stringify(undoCalls));
+
+    undoCalls.length = 0;
+    liveOrder = { token: 'tok-aaaaaaaa', status: 'Delivered', trackingNumber: '9400111899223197428490' };
+    const tracked = await undoPost({ token: 'tok-aaaaaaaa' });
+    check('undo refuses an order that shipped with tracking',
+      tracked.status === 409 && !undoPut(), String(tracked.status));
+
+    undoCalls.length = 0;
+    liveOrder = { token: 'tok-aaaaaaaa', status: 'Shipped' };
+    const notDelivered = await undoPost({ token: 'tok-aaaaaaaa' });
+    check('undo refuses an order that is not Delivered',
+      notDelivered.status === 409 && !undoPut(), String(notDelivered.status));
+
+    undoCalls.length = 0;
+    const strangerUndo = await undoPost({ token: 'tok-aaaaaaaa' }, { Authorization: AUTH });
+    check('undo demands the dashboard header',
+      strangerUndo.status === 403 && undoCalls.length === 0, String(strangerUndo.status));
   } finally {
     globalThis.fetch = realFetch;
   }

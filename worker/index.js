@@ -11,6 +11,7 @@
  *   POST /dashboard/pirate-ship.csv  address spreadsheet for the selected orders
  *   POST /dashboard/api/ship         one order: save tracking, mark shipped
  *   POST /dashboard/api/hand-delivered   one order: handed over in person, mark Delivered
+ *   POST /dashboard/api/hand-delivered/undo   put a mistaken one back on the queue
  *   POST /dashboard/api/ship-batch   paste Pirate Ship's list, ship them all
  *   POST /dashboard/api/ship-test    mail the shipped email to the shop inbox
  *   POST /dashboard/api/customer-mail   one note to one customer, from their order's row
@@ -573,6 +574,7 @@ async function route(path, request, env, url) {
     if (path === '/dashboard/pirate-ship.csv') return await handleCsv(request, env);
     if (path === '/dashboard/api/ship') return await handleShip(request, env);
     if (path === '/dashboard/api/hand-delivered') return await handleHandDelivered(request, env);
+    if (path === '/dashboard/api/hand-delivered/undo') return await handleHandDeliveredUndo(request, env);
     if (path === '/dashboard/api/ship-batch') return await handleShipBatch(request, env);
     if (path === '/dashboard/api/ship-test') return await handleShipTest(request, env);
     if (path === '/dashboard/api/customer-mail') return await handleCustomerMail(request, env);
@@ -1303,6 +1305,33 @@ async function handleHandDelivered(request, env) {
 
   await putJson(env, '/orders/' + encodeURIComponent(token), { status: 'Delivered' });
   return json({ ok: true, token, status: 'Delivered' });
+}
+
+/**
+ * The wrong row got the Hand delivered button. Back to Processed — the state a
+ * paid order sits in while it waits — so it rejoins the queue.
+ *
+ * Only an order that looks hand delivered can come back: Delivered with no
+ * tracking number. One that really went out with a label is refused, so a
+ * stray click can't put a shipped package back on the bench.
+ */
+async function handleHandDeliveredUndo(request, env) {
+  if (!fromDashboard(request)) return json({ error: 'Bad request.' }, 403);
+
+  const body = await request.json().catch(() => ({}));
+  const token = String(body.token || '');
+  if (!/^[A-Za-z0-9-]{8,64}$/.test(token)) return json({ error: 'Bad order token.' }, 400);
+
+  const order = await getOrder(env, token);
+  if (order?.status !== 'Delivered') {
+    return json({ error: 'That order is not marked Delivered, so there is nothing to undo.' }, 409);
+  }
+  if (String(order.trackingNumber || '').trim()) {
+    return json({ error: 'That order has a tracking number, so it really shipped. Change it in Snipcart if you need to.' }, 409);
+  }
+
+  await putJson(env, '/orders/' + encodeURIComponent(token), { status: 'Processed' });
+  return json({ ok: true, token, status: 'Processed' });
 }
 
 async function handleShip(request, env) {

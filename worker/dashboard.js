@@ -1015,6 +1015,14 @@ function renderOrders(allOrders, rangeLabel, cashJobs = [], mailReady = true) {
         refund === 'full' ? 'Refunded' : 'Part refund'
       }</span>`;
 
+    // Delivered with no tracking number is what the Hand delivered button
+    // leaves behind, so that's the only state offered a way back.
+    const undo = order.status === 'Delivered' && !String(order.trackingNumber || '').trim()
+      ? `<button type="button" class="btn tiny ghost handundo" data-token="${esc(order.token)}"
+          data-what="${attr(String(order.invoiceNumber || order.token))}"
+          title="Hand delivered by mistake? Puts it back on the ship queue.">Undo</button>`
+      : '';
+
     // Refunded and cancelled orders start hidden — see ACTIVE_BUCKETS below.
     const startsHidden = bucket === 'refunded' || bucket === 'cancelled';
 
@@ -1024,7 +1032,7 @@ function renderOrders(allOrders, rangeLabel, cashJobs = [], mailReady = true) {
       <td>${esc(a.fullName || a.name || order.email || '')}${mailButton(order, { ready: mailReady })}</td>
       <td class="num">${esc(String((order.items || []).reduce((n, i) => n + (Number(i.quantity) || 1), 0)))}</td>
       <td class="num strong">${esc(money(grandTotal(order), order.currency))}</td>
-      <td>${statusPill(order)}${refundTag}</td>
+      <td>${statusPill(order)}${refundTag}${undo}</td>
       <td class="soft">${esc((order.paymentStatus || '').replace(/([a-z])([A-Z])/g, '$1 $2'))}</td>
       <td>${tracking}</td>
     </tr>`;
@@ -1225,16 +1233,45 @@ export const DASHBOARD_SCRIPT = `
     btn.disabled = true;
     btn.textContent = '…';
 
+    // No reload afterwards: the row stays, dimmed, with an Undo button on it,
+    // so a wrong click can be taken back right where it happened.
     post('/dashboard/api/hand-delivered', { token: row.getAttribute('data-token') })
       .then(function(){
-        row.classList.add('shipped');
-        btn.textContent = 'Delivered';
-        toast('Marked delivered. Nobody was emailed.');
-        setTimeout(function(){ location.reload(); }, 1200);
+        row.classList.add('handed');
+        btn.classList.remove('handbtn');
+        btn.classList.add('handundo');
+        btn.disabled = false;
+        btn.textContent = 'Undo';
+        toast('Marked delivered. Nobody was emailed. Wrong order? Press Undo on its row.');
       })
       .catch(function(err){
         btn.disabled = false;
         btn.textContent = 'Hand delivered';
+        toast(err.message, true);
+      });
+  });
+
+  /* ---- take a hand delivery back ---- */
+
+  document.addEventListener('click', function(event){
+    var btn = event.target.closest('.handundo');
+    if (!btn) return;
+    var row = btn.closest('tr');
+    var token = btn.getAttribute('data-token') || row.getAttribute('data-token');
+    var what = btn.getAttribute('data-what');
+    if (!confirm('Undo hand delivered on order ' + what + '? It goes back on the ship queue.')) return;
+
+    btn.disabled = true;
+    btn.textContent = '…';
+
+    post('/dashboard/api/hand-delivered/undo', { token: token })
+      .then(function(){
+        toast('Order ' + what + ' is back on the ship queue.');
+        setTimeout(function(){ location.reload(); }, 1000);
+      })
+      .catch(function(err){
+        btn.disabled = false;
+        btn.textContent = 'Undo';
         toast(err.message, true);
       });
   });
@@ -1943,7 +1980,11 @@ table.mini tr:last-child td{border-bottom:0}
 .btn.label{width:100%;margin-bottom:6px;white-space:nowrap}
 .notify{display:flex;align-items:center;gap:5px;margin-top:6px;font-size:11px;color:var(--soft);cursor:pointer}
 .notify input{margin:0}
-.btn.handbtn{width:100%;margin-top:6px;white-space:nowrap}
+.btn.handbtn,.shipcell .btn.handundo{width:100%;margin-top:6px;white-space:nowrap}
+table.grid tbody tr.handed td{opacity:.45}
+table.grid tbody tr.handed td.shipcell{opacity:1}
+table.grid tbody tr.handed .shipcell > :not(.handundo){display:none}
+td > .btn.handundo{margin-left:6px;vertical-align:middle}
 .shipform{display:flex;gap:6px}
 .shipform input{flex:1;min-width:8rem;font-family:ui-monospace,'Consolas',monospace;font-size:12px;
   padding:6px 8px;border:1px solid var(--line-2);border-radius:2px;background:var(--paper);color:var(--ink)}
